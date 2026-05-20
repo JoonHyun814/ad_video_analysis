@@ -57,6 +57,7 @@ $pip = Join-Path $venvPath "Scripts\pip.exe"
 Write-Host "패키지를 설치합니다..."
 & $pip install --upgrade pip | Out-Null
 & $pip install mysql-connector-python
+& $pip install opencv-python "scenedetect[opencv]" easyocr
 if ($LASTEXITCODE -ne 0) {
     Write-Error "패키지 설치 실패"
     exit 1
