@@ -49,6 +49,20 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "가상환경 생성 완료: $venvPath"
+
+# ── 패키지 설치 ──────────────────────────────────────────────
+# 패키지를 추가하거나 제거할 때 이 목록도 함께 수정한다.
+$pip = Join-Path $venvPath "Scripts\pip.exe"
+
+Write-Host "패키지를 설치합니다..."
+& $pip install --upgrade pip | Out-Null
+& $pip install mysql-connector-python
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "패키지 설치 실패"
+    exit 1
+}
+# ─────────────────────────────────────────────────────────────
+
 Write-Host ""
 Write-Host "활성화 명령:"
 Write-Host "  . $venvPath\Scripts\Activate.ps1"
