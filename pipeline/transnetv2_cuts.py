@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import cv2
+
 from pipeline.cuts import Cut
 
 
@@ -18,10 +20,10 @@ def detect_cuts_transnetv2(
     from transnetv2 import TransNetV2
 
     model = TransNetV2()
+    fps = _get_fps(video_path)
     _, predictions, _ = model.predict_video(str(video_path))
     scenes = model.predictions_to_scenes(predictions, threshold=threshold)
 
-    fps = _get_fps(video_path)
     min_frames = int(fps * min_scene_sec)
     filtered = [(sf, ef) for sf, ef in scenes if (ef - sf) >= min_frames]
 
@@ -37,9 +39,8 @@ def detect_cuts_transnetv2(
     ]
 
 
-def _get_fps(video_path: Path) -> float:
-    import cv2
 
+def _get_fps(video_path: Path) -> float:
     cap = cv2.VideoCapture(str(video_path))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     cap.release()

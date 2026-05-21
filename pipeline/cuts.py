@@ -13,6 +13,40 @@ class Cut:
     end_sec: float
 
 
+def merge_to_max_cuts(cuts: list[Cut], max_cuts: int) -> list[Cut]:
+    """컷 수가 max_cuts 초과이면 가장 짧은 컷을 이웃 중 더 짧은 쪽에 반복 병합한다."""
+    result = list(cuts)
+    while len(result) > max_cuts:
+        durations = [c.end_frame - c.start_frame for c in result]
+        shortest = min(range(len(result)), key=lambda i: durations[i])
+
+        has_prev = shortest > 0
+        has_next = shortest < len(result) - 1
+
+        if has_prev and has_next:
+            neighbor = shortest - 1 if durations[shortest - 1] <= durations[shortest + 1] else shortest + 1
+        elif has_prev:
+            neighbor = shortest - 1
+        else:
+            neighbor = shortest + 1
+
+        lo, hi = min(shortest, neighbor), max(shortest, neighbor)
+        merged = Cut(
+            index=result[lo].index,
+            start_frame=result[lo].start_frame,
+            end_frame=result[hi].end_frame,
+            start_sec=result[lo].start_sec,
+            end_sec=result[hi].end_sec,
+        )
+        result = result[:lo] + [merged] + result[hi + 1:]
+
+    return [
+        Cut(index=i + 1, start_frame=c.start_frame, end_frame=c.end_frame,
+            start_sec=c.start_sec, end_sec=c.end_sec)
+        for i, c in enumerate(result)
+    ]
+
+
 def detect_cuts(video_path: Path, threshold: float = 27.0) -> list[Cut]:
     """ContentDetector로 컷 경계를 감지하고 Cut 리스트를 반환한다.
 
