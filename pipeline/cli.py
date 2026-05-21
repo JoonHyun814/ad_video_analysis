@@ -8,6 +8,7 @@ from pipeline.cuts import detect_cuts, merge_to_max_cuts
 from pipeline.frames import extract_frames_at_fps
 from pipeline.keyframe import extract_keyframes
 from pipeline.ocr import run_ocr_batch
+from pipeline.scene_analysis import analyze_keyframes
 from pipeline.video_loader import get_video_info
 
 _OUTPUT_ROOT = Path("output")
@@ -82,10 +83,15 @@ def main() -> None:
     frames = extract_frames_at_fps(video_path, out / "frames", fps=2.0)
     print(f"      추출된 frames: {len(frames)}장  →  {out / 'frames'}")
 
-    print("[5/5] OCR 진행 중... (전체 frames 기준)")
+    print("[5/6] OCR 진행 중... (전체 frames 기준)")
     ocr_results = run_ocr_batch(frames)
     _save_json(out / "ocr.json", ocr_results)
     print(f"      완료  →  {out / 'ocr.json'}")
+
+    print(f"[6/6] Scene 분석 중... (claude -p, 컷 수={len(cuts)})")
+    scene_results = analyze_keyframes(cuts, out / "keyframes", out)
+    _save_json(out / "scene_analysis.json", scene_results)
+    print(f"      완료  →  {out / 'scene_analysis.json'}")
 
 
 def _save_json(path: Path, data: object) -> None:
