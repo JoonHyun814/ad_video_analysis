@@ -9,6 +9,7 @@ from pipeline.frames import extract_frames_at_fps
 from pipeline.keyframe import extract_keyframes
 from pipeline.ocr import run_ocr_batch
 from pipeline.scene_analysis import analyze_keyframes
+from pipeline.stt import run_diarization
 from pipeline.video_loader import get_video_info
 
 _OUTPUT_ROOT = Path("output")
@@ -42,6 +43,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"결과 저장 디렉토리 (기본: {_OUTPUT_ROOT}/<video_id>)",
     )
+    parser.add_argument(
+        "--skip_scene_analysis",
+        action="store_true",
+        help="scene_analysis 단계를 건너뜀. 기존 scene_analysis.json 이 있으면 삭제하지 않고 유지",
+    )
     return parser
 
 
@@ -63,7 +69,7 @@ def main() -> None:
     out = args.out_dir if args.out_dir is not None else _OUTPUT_ROOT / str(args.video_id)
 
     if out.exists():
-        shutil.rmtree(out)
+        _clean_out_dir(out, keep_scene_analysis=args.skip_scene_analysis)
         print(f"      기존 결과 삭제: {out}")
 
     print(f"[1/5] 영상 정보 조회 중... (video_id={args.video_id})")
@@ -83,15 +89,35 @@ def main() -> None:
     frames = extract_frames_at_fps(video_path, out / "frames", fps=2.0)
     print(f"      추출된 frames: {len(frames)}장  →  {out / 'frames'}")
 
-    print("[5/6] OCR 진행 중... (전체 frames 기준)")
+    print("[5/7] OCR 진행 중... (전체 frames 기준)")
     ocr_results = run_ocr_batch(frames)
     _save_json(out / "ocr.json", ocr_results)
     print(f"      완료  →  {out / 'ocr.json'}")
 
-    print(f"[6/6] Scene 분석 중... (claude -p, 컷 수={len(cuts)})")
-    scene_results = analyze_keyframes(cuts, out / "keyframes", out)
-    _save_json(out / "scene_analysis.json", scene_results)
-    print(f"      완료  →  {out / 'scene_analysis.json'}")
+    print("[6/7] STT + 화자 분리 중... (whisper-diarization)")
+    stt_segments = run_diarization(video_path, out / "stt")
+    _save_json(out / "stt.json", stt_segments)
+    print(f"      세그먼트 수: {len(stt_segments)}  →  {out / 'stt.json'}")
+
+    if args.skip_scene_analysis:
+        print("[7/7] Scene 분석 생략 (--skip_scene_analysis)")
+    else:
+        print(f"[7/7] Scene 분석 중... (claude -p, 컷 수={len(cuts)})")
+        scene_results = analyze_keyframes(cuts, out / "keyframes", out)
+        _save_json(out / "scene_analysis.json", scene_results)
+        print(f"      완료  →  {out / 'scene_analysis.json'}")
+
+
+def _clean_out_dir(out: Path, keep_scene_analysis: bool) -> None:
+    if not keep_scene_analysis:
+        shutil.rmtree(out)
+        return
+    preserved = out / "scene_analysis.json"
+    tmp = preserved.read_bytes() if preserved.exists() else None
+    shutil.rmtree(out)
+    if tmp is not None:
+        out.mkdir(parents=True)
+        preserved.write_bytes(tmp)
 
 
 def _save_json(path: Path, data: object) -> None:
