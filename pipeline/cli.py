@@ -1,7 +1,6 @@
 import argparse
 import dataclasses
 import json
-import sys
 from pathlib import Path
 
 from pipeline.cuts import detect_cuts
@@ -10,25 +9,54 @@ from pipeline.ocr import run_ocr_batch
 from pipeline.video_loader import get_video_info
 
 _OUTPUT_ROOT = Path("output")
+_CUT_BACKENDS = ("transnetv2", "scenedetect")
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="영상 분석 파이프라인 (컷 감지 → keyframe → OCR)")
     parser.add_argument("--video_id", type=int, required=True, help="video_uploads.id")
-    parser.add_argument("--threshold", type=float, default=27.0, help="컷 감지 민감도 (낮을수록 민감, 기본 27.0)")
+    parser.add_argument(
+        "--cut_backend",
+        choices=_CUT_BACKENDS,
+        default="transnetv2",
+        help="컷 감지 백엔드 (기본: transnetv2)",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=None,
+        help="컷 감지 민감도 (transnetv2: 0.3 기본, scenedetect: 27.0 기본)",
+    )
+    parser.add_argument(
+        "--out_dir",
+        type=Path,
+        default=None,
+        help=f"결과 저장 디렉토리 (기본: {_OUTPUT_ROOT}/<video_id>)",
+    )
     return parser
+
+
+def _detect(video_path: Path, backend: str, threshold: float | None) -> list:
+    if backend == "transnetv2":
+        from pipeline.transnetv2_cuts import detect_cuts_transnetv2
+
+        thr = threshold if threshold is not None else 0.3
+        return detect_cuts_transnetv2(video_path, threshold=thr)
+    else:
+        thr = threshold if threshold is not None else 27.0
+        return detect_cuts(video_path, threshold=thr)
 
 
 def main() -> None:
     args = _build_parser().parse_args()
-    out = _OUTPUT_ROOT / str(args.video_id)
+    out = args.out_dir if args.out_dir is not None else _OUTPUT_ROOT / str(args.video_id)
 
     print(f"[1/4] 영상 정보 조회 중... (video_id={args.video_id})")
     video_path, meta = get_video_info(args.video_id)
     print(f"      파일: {video_path}")
 
-    print(f"[2/4] 컷 감지 중... (threshold={args.threshold})")
-    cuts = detect_cuts(video_path, threshold=args.threshold)
+    print(f"[2/4] 컷 감지 중... (backend={args.cut_backend}, threshold={args.threshold})")
+    cuts = _detect(video_path, args.cut_backend, args.threshold)
     _save_json(out / "cuts.json", [dataclasses.asdict(c) for c in cuts])
     print(f"      컷 수: {len(cuts)}  →  {out / 'cuts.json'}")
 

@@ -28,4 +28,5 @@ def _fetch_row(video_id: int) -> dict:
 def _resolve_path(file_path: str) -> Path:
     env = load_env(_DIR_ENV_PATH)
     root = Path(env["ROOT_VIDEO_DIR"])
-    return root / file_path
+    normalized = file_path.replace("\\", "/")
+    return root / normalized
