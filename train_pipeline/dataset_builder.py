@@ -165,10 +165,16 @@ def _cut_samples(video_dir: Path, cuts: list[_Cut], ocr_data: dict, cut_analysis
 
 
 def _scenario_samples(video_dir: Path, cuts: list[_Cut], cut_analysis: list[dict],
-                      ocr_data: dict, stt: list[dict], scenario: dict) -> list[dict]:
+                      ocr_data: dict, stt: list[dict], scenario: dict,
+                      audio_data: dict | None = None) -> list[dict]:
     parts = []
     if stt:
         parts.append("[음성]\n" + " / ".join(f'{s["start_sec"]:.1f}s: "{s["text"]}"' for s in stt))
+    if audio_data:
+        from pipeline.scenario_analysis import _summarize_audio
+        audio_summary = _summarize_audio(audio_data)
+        if audio_summary:
+            parts.append(f"[오디오]\n{audio_summary}")
     cut_map = {c.index: c for c in cuts}
     if cut_analysis:
         lines = []
@@ -214,6 +220,7 @@ def build_all(data_dir: Path, out_dir: Path) -> dict[str, int]:
         cut_a = _load(vdir / "cut_analysis.json")
         stt = _load(vdir / "stt.json") or []
         scenario = _load(vdir / "scenario_analysis.json")
+        audio = _load(vdir / "audio_analysis.json")
 
         vid = vdir.name
         if scene:
@@ -225,7 +232,7 @@ def build_all(data_dir: Path, out_dir: Path) -> dict[str, int]:
             buckets["cut_analysis"].extend(s)
             print(f"  [{vid}] cut: {len(s)}개")
         if scenario and not scenario.get("error") and cut_a:
-            s = _scenario_samples(vdir, cuts, cut_a, ocr_data, stt, scenario)
+            s = _scenario_samples(vdir, cuts, cut_a, ocr_data, stt, scenario, audio)
             buckets["scenario_analysis"].extend(s)
             print(f"  [{vid}] scenario: {len(s)}개")
 

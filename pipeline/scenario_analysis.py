@@ -30,10 +30,11 @@ def analyze_scenario(
     cut_analysis: list[dict],
     ocr_data: dict[str, list[str]],
     stt_segments: list[dict],
+    audio_data: dict | None = None,
 ) -> dict:
-    """컷분석·OCR·STT 데이터를 종합해 재제작 가능한 광고 시나리오를 생성한다."""
+    """컷분석·OCR·STT·오디오 데이터를 종합해 재제작 가능한 광고 시나리오를 생성한다."""
     duration = max((c.end_sec for c in cuts), default=0.0)
-    context = _build_context(cuts, cut_analysis, ocr_data, stt_segments)
+    context = _build_context(cuts, cut_analysis, ocr_data, stt_segments, audio_data)
     return _call_claude(context, duration)
 
 
@@ -44,12 +45,18 @@ def _build_context(
     cut_analysis: list[dict],
     ocr_data: dict[str, list[str]],
     stt_segments: list[dict],
+    audio_data: dict | None = None,
 ) -> str:
     parts: list[str] = []
 
     if stt_segments:
         stt = " / ".join(f'{s["start_sec"]:.1f}s: "{s["text"]}"' for s in stt_segments)
         parts.append(f"[음성]\n{stt}")
+
+    if audio_data:
+        audio_summary = _summarize_audio(audio_data)
+        if audio_summary:
+            parts.append(f"[오디오]\n{audio_summary}")
 
     if cut_analysis:
         cut_map = {c.index: c for c in cuts}
@@ -73,6 +80,39 @@ def _build_context(
         parts.append("[컷별 흐름]\n" + "\n".join(lines))
 
     return "\n\n".join(parts)
+
+
+_BGM_SILENCE_LUFS = -50.0
+
+
+def _summarize_audio(audio_data: dict) -> str:
+    """audio_analysis 결과에서 시나리오 작성에 필요한 정보만 추려 텍스트로 반환한다."""
+    lines: list[str] = []
+
+    cut_lines = []
+    for c in audio_data.get("bgm", {}).get("cuts", []):
+        prefix = f"  컷{c['cut_index']}({c['start_sec']:.1f}~{c['end_sec']:.1f}s): "
+        lufs = c.get("loudness_lufs_integrated")
+        if c.get("skipped") or lufs is None or lufs < _BGM_SILENCE_LUFS:
+            cut_lines.append(prefix + "배경음악 없음")
+            continue
+        tags: list[str] = []
+        genre = c.get("genre_tags") or []
+        mood = c.get("mood_tags") or []
+        if genre:
+            tags.append(f"장르: {', '.join(genre)}")
+        if mood:
+            tags.append(f"분위기: {', '.join(mood)}")
+        cut_lines.append(prefix + (" / ".join(tags) if tags else "배경음악 없음"))
+    if cut_lines:
+        lines.append("컷별 BGM:\n" + "\n".join(cut_lines))
+
+    labeled = [e for e in audio_data.get("sfx", {}).get("events", []) if e.get("label")]
+    if labeled:
+        ev_str = ", ".join(f'{e["label"]}({e["time_sec"]:.1f}s)' for e in labeled)
+        lines.append(f"SFX: {ev_str}")
+
+    return "\n".join(lines)
 
 
 def _cut_ocr(ocr_data: dict[str, list[str]], cut: Cut) -> str:

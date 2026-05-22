@@ -14,11 +14,12 @@ def analyze_scenario_codex(
     cut_analysis: list[dict],
     ocr_data: dict[str, list[str]],
     stt_segments: list[dict],
+    audio_data: dict | None = None,
     model: str | None = None,
 ) -> dict:
-    """컷분석·OCR·STT 데이터를 codex exec로 종합해 광고 시나리오를 생성한다."""
+    """컷분석·OCR·STT·오디오 데이터를 codex exec로 종합해 광고 시나리오를 생성한다."""
     duration = max((c.end_sec for c in cuts), default=0.0)
-    context = _build_context(cuts, cut_analysis, ocr_data, stt_segments)
+    context = _build_context(cuts, cut_analysis, ocr_data, stt_segments, audio_data)
     return _call_codex(context, duration, model)
 
 

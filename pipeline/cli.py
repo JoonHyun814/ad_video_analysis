@@ -65,6 +65,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="cut_analysis 단계를 건너뜀. 기존 cut_analysis.json 이 있으면 삭제하지 않고 유지",
     )
+    parser.add_argument(
+        "--skip_scenario_analysis",
+        action="store_true",
+        help="scenario_analysis 단계를 건너뜀. 기존 scenario_analysis.json 이 있으면 삭제하지 않고 유지",
+    )
     return parser
 
 
@@ -87,7 +92,7 @@ def main() -> None:
     out = base / str(args.video_id)
 
     if out.exists():
-        _clean_out_dir(out, args.skip_scene_analysis, args.skip_cut_analysis)
+        _clean_out_dir(out, args.skip_scene_analysis, args.skip_cut_analysis, args.skip_scenario_analysis)
         print(f"      기존 결과 삭제: {out}")
 
     print(f"[1/10] 영상 정보 조회 중... (video_id={args.video_id})")
@@ -152,7 +157,9 @@ def main() -> None:
         _save_json(out / "cut_analysis.json", cut_results)
         print(f"      완료  →  {out / 'cut_analysis.json'}")
 
-    if llm == "codex":
+    if args.skip_scenario_analysis:
+        print("[10/10] 시나리오 분석 생략 (--skip_scenario_analysis)")
+    elif llm == "codex":
         print("[10/10] 시나리오 분석 중... (codex)")
         scenario = analyze_scenario_codex(
             cuts=cuts,
@@ -160,7 +167,10 @@ def main() -> None:
             cut_analysis=cut_results,
             ocr_data=ocr_results,
             stt_segments=stt_segments,
+            audio_data=audio_result,
         )
+        _save_json(out / "scenario_analysis.json", scenario)
+        print(f"      완료  →  {out / 'scenario_analysis.json'}")
     else:
         print("[10/10] 시나리오 분석 중... (claude -p)")
         scenario = analyze_scenario(
@@ -169,17 +179,20 @@ def main() -> None:
             cut_analysis=cut_results,
             ocr_data=ocr_results,
             stt_segments=stt_segments,
+            audio_data=audio_result,
         )
-    _save_json(out / "scenario_analysis.json", scenario)
-    print(f"      완료  →  {out / 'scenario_analysis.json'}")
+        _save_json(out / "scenario_analysis.json", scenario)
+        print(f"      완료  →  {out / 'scenario_analysis.json'}")
 
 
-def _clean_out_dir(out: Path, keep_scene_analysis: bool, keep_cut_analysis: bool) -> None:
+def _clean_out_dir(out: Path, keep_scene_analysis: bool, keep_cut_analysis: bool, keep_scenario_analysis: bool) -> None:
     files_to_keep = []
     if keep_scene_analysis:
         files_to_keep.append(out / "scene_analysis.json")
     if keep_cut_analysis:
         files_to_keep.append(out / "cut_analysis.json")
+    if keep_scenario_analysis:
+        files_to_keep.append(out / "scenario_analysis.json")
 
     if not files_to_keep:
         shutil.rmtree(out)
