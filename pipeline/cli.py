@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pipeline.audio_analysis import analyze_audio
 from pipeline.cast_analysis import analyze_cast
+from pipeline.cast_analysis_codex import analyze_cast_codex
 from pipeline.cut_analysis import analyze_cuts
 from pipeline.cut_analysis_codex import analyze_cuts_codex
 from pipeline.cuts import detect_cuts, merge_to_max_cuts
@@ -14,6 +15,7 @@ from pipeline.frames import extract_frames_at_fps
 from pipeline.keyframe import extract_keyframes
 from pipeline.ocr import run_ocr_batch
 from pipeline.scenario_analysis import analyze_scenario
+from pipeline.scenario_analysis_codex import analyze_scenario_codex
 from pipeline.scene_analysis import analyze_keyframes
 from pipeline.scene_analysis_codex import analyze_keyframes_codex
 from pipeline.stt import run_diarization
@@ -51,21 +53,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help=f"결과 저장 디렉토리 (기본: {_OUTPUT_ROOT}/<video_id>)",
     )
     parser.add_argument(
-        "--scene_backend",
+        "--llm_backend",
         choices=("claude", "codex"),
         default="claude",
-        help="scene 분석 백엔드 (기본: claude)",
+        help="LLM 분석 백엔드 — scene/cut/cast/scenario 전체 적용 (기본: claude)",
     )
     parser.add_argument(
         "--skip_scene_analysis",
         action="store_true",
         help="scene_analysis 단계를 건너뜀. 기존 scene_analysis.json 이 있으면 삭제하지 않고 유지",
-    )
-    parser.add_argument(
-        "--cut_analysis_backend",
-        choices=("claude", "codex"),
-        default="claude",
-        help="cut 분석 백엔드 (기본: claude)",
     )
     parser.add_argument(
         "--skip_cut_analysis",
@@ -134,9 +130,11 @@ def main() -> None:
     n_faces = sum(len(v) for v in face_results.values())
     print(f"      감지 총 {n_faces}건  →  {out / 'face_detection.json'}")
 
+    llm = args.llm_backend
+
     if args.skip_scene_analysis:
         print("[9/12] Scene 분석 생략 (--skip_scene_analysis)")
-    elif args.scene_backend == "codex":
+    elif llm == "codex":
         print(f"[9/12] Scene 분석 중... (codex, 컷 수={len(cuts)})")
         scene_results = analyze_keyframes_codex(cuts, out / "keyframes")
         _save_json(out / "scene_analysis.json", scene_results)
@@ -151,7 +149,7 @@ def main() -> None:
         print("[10/12] Cut 분석 생략 (--skip_cut_analysis)")
         cut_json = out / "cut_analysis.json"
         cut_results = json.loads(cut_json.read_text(encoding="utf-8")) if cut_json.exists() else []
-    elif args.cut_analysis_backend == "codex":
+    elif llm == "codex":
         print(f"[10/12] Cut 분석 중... (codex, 컷 수={len(cuts)})")
         cut_results = analyze_cuts_codex(cuts, out / "frames", ocr_results)
         _save_json(out / "cut_analysis.json", cut_results)
@@ -162,20 +160,35 @@ def main() -> None:
         _save_json(out / "cut_analysis.json", cut_results)
         print(f"      완료  →  {out / 'cut_analysis.json'}")
 
-    print(f"[11/12] Cast 분석 중... (얼굴 크롭 + cut_analysis)")
-    cast_data = analyze_cast(cuts, out / "frames", face_results, cut_results, out)
+    if llm == "codex":
+        print(f"[11/12] Cast 분석 중... (codex)")
+        cast_data = analyze_cast_codex(cuts, out / "frames", face_results, cut_results, out)
+    else:
+        print(f"[11/12] Cast 분석 중... (claude -p)")
+        cast_data = analyze_cast(cuts, out / "frames", face_results, cut_results, out)
     _save_json(out / "cast_analysis.json", cast_data)
     print(f"      캐릭터 수: {len(cast_data)}  →  {out / 'cast_analysis.json'}")
 
-    print("[12/12] 시나리오 분석 중...")
-    scenario = analyze_scenario(
-        cuts=cuts,
-        frames_dir=out / "frames",
-        cut_analysis=cut_results,
-        ocr_data=ocr_results,
-        stt_segments=stt_segments,
-        cast_data=cast_data,
-    )
+    if llm == "codex":
+        print("[12/12] 시나리오 분석 중... (codex)")
+        scenario = analyze_scenario_codex(
+            cuts=cuts,
+            frames_dir=out / "frames",
+            cut_analysis=cut_results,
+            ocr_data=ocr_results,
+            stt_segments=stt_segments,
+            cast_data=cast_data,
+        )
+    else:
+        print("[12/12] 시나리오 분석 중... (claude -p)")
+        scenario = analyze_scenario(
+            cuts=cuts,
+            frames_dir=out / "frames",
+            cut_analysis=cut_results,
+            ocr_data=ocr_results,
+            stt_segments=stt_segments,
+            cast_data=cast_data,
+        )
     _save_json(out / "scenario_analysis.json", scenario)
     print(f"      완료  →  {out / 'scenario_analysis.json'}")
 
