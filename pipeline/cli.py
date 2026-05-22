@@ -50,7 +50,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out_dir",
         type=Path,
         default=None,
-        help=f"결과 저장 디렉토리 (기본: {_OUTPUT_ROOT}/<video_id>)",
+        help=f"결과 저장 루트 디렉토리. <video_id> 가 자동으로 하위 폴더로 추가됨 (기본: {_OUTPUT_ROOT})",
     )
     parser.add_argument(
         "--llm_backend",
@@ -86,7 +86,8 @@ def _detect(video_path: Path, backend: str, threshold: float | None, max_cuts: i
 
 def main() -> None:
     args = _build_parser().parse_args()
-    out = args.out_dir if args.out_dir is not None else _OUTPUT_ROOT / str(args.video_id)
+    base = args.out_dir if args.out_dir is not None else _OUTPUT_ROOT
+    out = base / str(args.video_id)
 
     if out.exists():
         _clean_out_dir(out, args.skip_scene_analysis, args.skip_cut_analysis)
