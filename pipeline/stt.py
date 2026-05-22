@@ -40,7 +40,7 @@ def _extract_audio(video_path: Path, out_dir: Path) -> Path:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    return audio_path
+    return audio_path.resolve()
 
 
 def _run_diarize(
