@@ -12,6 +12,7 @@ from pipeline.face_detection import detect_faces_batch
 from pipeline.frames import extract_frames_at_fps
 from pipeline.keyframe import extract_keyframes
 from pipeline.ocr import run_ocr_batch
+from pipeline.scenario_analysis import analyze_scenario
 from pipeline.scene_analysis import analyze_keyframes
 from pipeline.scene_analysis_codex import analyze_keyframes_codex
 from pipeline.stt import run_diarization
@@ -94,69 +95,84 @@ def main() -> None:
         _clean_out_dir(out, args.skip_scene_analysis, args.skip_cut_analysis)
         print(f"      기존 결과 삭제: {out}")
 
-    print(f"[1/10] 영상 정보 조회 중... (video_id={args.video_id})")
+    print(f"[1/11] 영상 정보 조회 중... (video_id={args.video_id})")
     video_path, meta = get_video_info(args.video_id)
     print(f"      파일: {video_path}")
 
-    print(f"[2/10] 컷 감지 중... (backend={args.cut_backend}, threshold={args.threshold}, max_cuts={args.max_cuts})")
+    print(f"[2/11] 컷 감지 중... (backend={args.cut_backend}, threshold={args.threshold}, max_cuts={args.max_cuts})")
     cuts = _detect(video_path, args.cut_backend, args.threshold, args.max_cuts)
     _save_json(out / "cuts.json", [dataclasses.asdict(c) for c in cuts])
     print(f"      컷 수: {len(cuts)}  →  {out / 'cuts.json'}")
 
-    print("[3/10] Keyframe 추출 중...")
+    print("[3/11] Keyframe 추출 중...")
     keyframes = extract_keyframes(video_path, cuts, out / "keyframes")
     print(f"      추출된 keyframe: {len(keyframes)}장  →  {out / 'keyframes'}")
 
-    print("[4/10] Frames 추출 중... (fps=2)")
+    print("[4/11] Frames 추출 중... (fps=2)")
     frames = extract_frames_at_fps(video_path, out / "frames", fps=2.0)
     print(f"      추출된 frames: {len(frames)}장  →  {out / 'frames'}")
 
-    print("[5/10] OCR 진행 중... (전체 frames 기준)")
+    print("[5/11] OCR 진행 중... (전체 frames 기준)")
     ocr_results = run_ocr_batch(frames)
     _save_json(out / "ocr.json", ocr_results)
     print(f"      완료  →  {out / 'ocr.json'}")
 
-    print("[6/10] STT + 화자 분리 중... (whisper-diarization)")
+    print("[6/11] STT + 화자 분리 중... (whisper-diarization)")
     stt_segments = run_diarization(video_path, out / "stt")
     _save_json(out / "stt.json", stt_segments)
     print(f"      세그먼트 수: {len(stt_segments)}  →  {out / 'stt.json'}")
 
-    print("[7/10] BGM + SFX 분석 중...")
+    print("[7/11] BGM + SFX 분석 중...")
     audio_result = analyze_audio(video_path, cuts)
     _save_json(out / "audio_analysis.json", audio_result)
     print(f"      완료  →  {out / 'audio_analysis.json'}")
 
-    print("[8/10] Face detection 중... (전체 frames 기준)")
+    print("[8/11] Face detection 중... (전체 frames 기준)")
     face_results = detect_faces_batch(frames)
     _save_json(out / "face_detection.json", face_results)
     n_faces = sum(len(v) for v in face_results.values())
     print(f"      감지 총 {n_faces}건  →  {out / 'face_detection.json'}")
 
     if args.skip_scene_analysis:
-        print("[9/10] Scene 분석 생략 (--skip_scene_analysis)")
+        print("[9/11] Scene 분석 생략 (--skip_scene_analysis)")
     elif args.scene_backend == "codex":
-        print(f"[9/10] Scene 분석 중... (codex, 컷 수={len(cuts)})")
+        print(f"[9/11] Scene 분석 중... (codex, 컷 수={len(cuts)})")
         scene_results = analyze_keyframes_codex(cuts, out / "keyframes")
         _save_json(out / "scene_analysis.json", scene_results)
         print(f"      완료  →  {out / 'scene_analysis.json'}")
     else:
-        print(f"[9/10] Scene 분석 중... (claude -p, 컷 수={len(cuts)})")
+        print(f"[9/11] Scene 분석 중... (claude -p, 컷 수={len(cuts)})")
         scene_results = analyze_keyframes(cuts, out / "keyframes", out)
         _save_json(out / "scene_analysis.json", scene_results)
         print(f"      완료  →  {out / 'scene_analysis.json'}")
 
     if args.skip_cut_analysis:
-        print("[10/10] Cut 분석 생략 (--skip_cut_analysis)")
+        print("[10/11] Cut 분석 생략 (--skip_cut_analysis)")
+        cut_json = out / "cut_analysis.json"
+        cut_results = json.loads(cut_json.read_text(encoding="utf-8")) if cut_json.exists() else []
     elif args.cut_analysis_backend == "codex":
-        print(f"[10/10] Cut 분석 중... (codex, 컷 수={len(cuts)})")
+        print(f"[10/11] Cut 분석 중... (codex, 컷 수={len(cuts)})")
         cut_results = analyze_cuts_codex(cuts, out / "frames", ocr_results)
         _save_json(out / "cut_analysis.json", cut_results)
         print(f"      완료  →  {out / 'cut_analysis.json'}")
     else:
-        print(f"[10/10] Cut 분석 중... (claude -p, 컷 수={len(cuts)})")
+        print(f"[10/11] Cut 분석 중... (claude -p, 컷 수={len(cuts)})")
         cut_results = analyze_cuts(cuts, out / "frames", ocr_results, out)
         _save_json(out / "cut_analysis.json", cut_results)
         print(f"      완료  →  {out / 'cut_analysis.json'}")
+
+    print("[11/11] 시나리오 분석 중...")
+    scenario = analyze_scenario(
+        cuts=cuts,
+        frames_dir=out / "frames",
+        out_dir=out,
+        cut_analysis=cut_results,
+        ocr_data=ocr_results,
+        stt_segments=stt_segments,
+        face_detection=face_results,
+    )
+    _save_json(out / "scenario_analysis.json", scenario)
+    print(f"      완료  →  {out / 'scenario_analysis.json'}")
 
 
 def _clean_out_dir(out: Path, keep_scene_analysis: bool, keep_cut_analysis: bool) -> None:

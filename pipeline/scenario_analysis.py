@@ -1,0 +1,193 @@
+import json
+import re
+import subprocess
+import time
+from pathlib import Path
+
+import cv2
+
+from pipeline.cuts import Cut
+
+_SCHEMA = (
+    '{"title": "추정 광고 제목", "brand": "브랜드/제품명", "concept": "광고 핵심 컨셉 한 줄",'
+    ' "narrative": "전체 서사 흐름 요약",'
+    ' "cast": [{"id": "캐릭터1", "description": "외모·인상·역할 묘사 (첨부 얼굴 이미지 참고)"}],'
+    ' "scenes": [{"cut_index": 1, "time": "0.00~3.90s",'
+    ' "beats": ['
+    '{"type": "background", "description": "화면 구성·배경·공간 묘사"},'
+    '{"type": "camera", "description": "카메라 앵글·무브먼트"},'
+    '{"type": "action", "cast": "캐릭터1", "description": "동작·움직임 묘사"},'
+    '{"type": "music", "description": "음악·사운드 묘사"},'
+    '{"type": "dialogue", "cast": "캐릭터1", "description": "대사 내용"},'
+    '{"type": "text_overlay", "description": "화면에 표시된 텍스트"}'
+    ']}],'
+    ' "key_messages": ["핵심 메시지"],'
+    ' "production_notes": "재제작 시 참고할 연출·기술 특이사항"}'
+)
+
+
+def analyze_scenario(
+    cuts: list[Cut],
+    frames_dir: Path,
+    out_dir: Path,
+    cut_analysis: list[dict],
+    ocr_data: dict[str, list[str]],
+    stt_segments: list[dict],
+    face_detection: dict[str, list[dict]],
+) -> dict:
+    """컷분석·OCR·STT·얼굴 데이터를 종합해 재제작 가능한 광고 시나리오를 생성한다."""
+    duration = max((c.end_sec for c in cuts), default=0.0)
+    face_crops = _save_face_crops(frames_dir, cuts, face_detection, out_dir)
+    context = _build_context(cuts, cut_analysis, ocr_data, stt_segments, face_crops)
+    return _call_claude(context, duration, out_dir)
+
+
+# ── Face crop ─────────────────────────────────────────────────────────────────
+
+def _save_face_crops(
+    frames_dir: Path,
+    cuts: list[Cut],
+    face_detection: dict[str, list[dict]],
+    out_dir: Path,
+) -> list[tuple[Path, str]]:
+    """각 컷에서 가장 큰 얼굴을 패딩 포함해 crop 저장하고 (path, label) 리스트를 반환한다."""
+    crops_dir = out_dir / "face_crops"
+    crops_dir.mkdir(parents=True, exist_ok=True)
+    frame_map = {p.name: p for p in frames_dir.glob("frame_*.jpg")}
+
+    result = []
+    for cut in cuts:
+        best: tuple[float, str, list[int]] | None = None
+        for fname, faces in face_detection.items():
+            try:
+                idx = int(fname.replace("frame_", "").replace(".jpg", ""))
+            except ValueError:
+                continue
+            if not (cut.start_frame <= idx <= cut.end_frame):
+                continue
+            for face in faces:
+                if best is None or face["area_ratio"] > best[0]:
+                    best = (face["area_ratio"], fname, face["bbox"])
+
+        if best is None or best[0] < 0.01 or best[1] not in frame_map:
+            continue
+
+        _, fname, (x, y, w, h) = best
+        img = cv2.imread(str(frame_map[fname]))
+        if img is None:
+            continue
+
+        pad = int(max(w, h) * 0.25)
+        ih, iw = img.shape[:2]
+        crop = img[max(0, y - pad): min(ih, y + h + pad),
+                   max(0, x - pad): min(iw, x + w + pad)]
+        crop_path = crops_dir / f"face_cut{cut.index:02d}.jpg"
+        cv2.imwrite(str(crop_path), crop)
+        result.append((crop_path, f"컷{cut.index} ({cut.start_sec:.1f}~{cut.end_sec:.1f}s)"))
+
+    return result
+
+
+# ── Context building ───────────────────────────────────────────────────────────
+
+def _build_context(
+    cuts: list[Cut],
+    cut_analysis: list[dict],
+    ocr_data: dict[str, list[str]],
+    stt_segments: list[dict],
+    face_crops: list[tuple[Path, str]],
+) -> str:
+    parts: list[str] = []
+
+    if stt_segments:
+        stt = " / ".join(f'{s["start_sec"]:.1f}s: "{s["text"]}"' for s in stt_segments)
+        parts.append(f"[음성]\n{stt}")
+
+    if cut_analysis:
+        cut_map = {c.index: c for c in cuts}
+        lines = []
+        for c in cut_analysis:
+            if c.get("error"):
+                continue
+            cut = cut_map.get(c["cut_index"])
+            line = f"컷{c['cut_index']} {c['start_sec']:.1f}~{c['end_sec']:.1f}s: {c.get('flow', '')}"
+            tf = c.get("text_flow", "")
+            if tf and tf not in ("없음", "none", "없음."):
+                line += f" | 텍스트흐름: {tf}"
+            if cut:
+                ocr = _cut_ocr(ocr_data, cut)
+                if ocr:
+                    line += f" | OCR: {ocr}"
+            lines.append(line)
+        parts.append("[컷별 흐름]\n" + "\n".join(lines))
+
+    if face_crops:
+        refs = "\n".join(f"파일 {p}  ({label})" for p, label in face_crops)
+        parts.append(f"[등장 인물 얼굴 크롭 — 아래 파일을 읽어 cast 인물 정의에 활용. 동일 인물이 여러 컷에 나오면 같은 캐릭터 ID 사용]\n{refs}")
+
+    return "\n\n".join(parts)
+
+
+def _cut_ocr(ocr_data: dict[str, list[str]], cut: Cut) -> str:
+    texts: set[str] = set()
+    for fname, words in ocr_data.items():
+        try:
+            idx = int(fname.replace("frame_", "").replace(".jpg", ""))
+        except ValueError:
+            continue
+        if cut.start_frame <= idx <= cut.end_frame:
+            texts.update(w for w in words if len(w.strip()) > 1)
+    return ", ".join(f'"{t}"' for t in texts) if texts else ""
+
+
+# ── Claude call ────────────────────────────────────────────────────────────────
+
+_RETRY_DELAYS = (30, 60, 120)
+
+
+def _call_claude(context: str, duration: float, allowed_dir: Path) -> dict:
+    prompt = (
+        "너는 광고 시나리오 전문가다. 아래 분석 데이터를 참고해 이 광고를 재제작할 수 있을 수준의 "
+        "완전한 시나리오를 JSON으로 작성해라. 첫 글자가 반드시 '{'여야 한다. 마크다운·설명문 없이 순수 JSON만 출력.\n\n"
+        "규칙:\n"
+        "1. cast: 영상에 등장하는 모든 인물을 '캐릭터1', '캐릭터2' 등 고유 ID로 정의한다. "
+        "첨부 얼굴 이미지를 참고해 외모·인상·역할을 묘사한다.\n"
+        "2. scenes[].beats: 각 컷 안의 시간 순 사건을 beat 단위로 나열한다.\n"
+        "   - type=background: 배경·공간 변화 묘사\n"
+        "   - type=camera: 카메라 앵글·무브먼트 묘사\n"
+        "   - type=action: cast에 정의된 캐릭터 ID를 cast 필드에 적고 동작 묘사 (여럿이면 '캐릭터1,캐릭터2')\n"
+        "   - type=dialogue: 대사·나레이션, cast 필드에 캐릭터 ID\n"
+        "   - type=music: 음악·사운드 묘사\n"
+        "   - type=text_overlay: 화면에 표시된 텍스트. 없으면 beat 자체를 생략\n"
+        "3. cast에 없는 캐릭터 ID를 beats에서 사용하지 않는다.\n\n"
+        f"영상 길이: {round(duration, 1)}초\n\n"
+        f"{context}\n\n"
+        f"{_SCHEMA}"
+    )
+    cmd = ["claude", "-p", prompt, "--add-dir", str(allowed_dir)]
+
+    for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if "529" not in result.stdout and "Overloaded" not in result.stdout:
+            return _parse_json(result.stdout)
+        if delay is None:
+            break
+        print(f"      API 과부하(529), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
+        time.sleep(delay)
+
+    return _parse_json(result.stdout)
+
+
+def _parse_json(text: str) -> dict:
+    text = re.sub(r"```(?:json)?\s*", "", text).strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    start = text.find("{")
+    if start != -1:
+        try:
+            return json.loads(text[start:])
+        except json.JSONDecodeError:
+            pass
+    return {"error": "parse_failed", "raw": text[:500]}
