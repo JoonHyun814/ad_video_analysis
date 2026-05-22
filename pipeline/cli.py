@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pipeline.audio_analysis import analyze_audio
 from pipeline.cut_analysis import analyze_cuts
+from pipeline.cut_analysis_codex import analyze_cuts_codex
 from pipeline.cuts import detect_cuts, merge_to_max_cuts
 from pipeline.frames import extract_frames_at_fps
 from pipeline.keyframe import extract_keyframes
@@ -56,6 +57,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--skip_scene_analysis",
         action="store_true",
         help="scene_analysis 단계를 건너뜀. 기존 scene_analysis.json 이 있으면 삭제하지 않고 유지",
+    )
+    parser.add_argument(
+        "--cut_analysis_backend",
+        choices=("claude", "codex"),
+        default="claude",
+        help="cut 분석 백엔드 (기본: claude)",
     )
     parser.add_argument(
         "--skip_cut_analysis",
@@ -133,8 +140,13 @@ def main() -> None:
 
     if args.skip_cut_analysis:
         print("[9/9] Cut 분석 생략 (--skip_cut_analysis)")
+    elif args.cut_analysis_backend == "codex":
+        print(f"[9/9] Cut 분석 중... (codex, 컷 수={len(cuts)})")
+        cut_results = analyze_cuts_codex(cuts, out / "frames", ocr_results)
+        _save_json(out / "cut_analysis.json", cut_results)
+        print(f"      완료  →  {out / 'cut_analysis.json'}")
     else:
-        print(f"[9/9] Cut 분석 중... (frames 기준 시간 흐름, 컷 수={len(cuts)})")
+        print(f"[9/9] Cut 분석 중... (claude -p, 컷 수={len(cuts)})")
         cut_results = analyze_cuts(cuts, out / "frames", ocr_results, out)
         _save_json(out / "cut_analysis.json", cut_results)
         print(f"      완료  →  {out / 'cut_analysis.json'}")

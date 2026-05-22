@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pipeline.cuts import Cut
 
-_MAX_FRAMES = 8
+_MAX_FRAMES = 30
 
 _PROMPT = """{start_sec:.2f}~{end_sec:.2f}초 구간의 광고 컷을 시간 순으로 분석하라. 마크다운 없이 순수 JSON만 출력.
 
