@@ -14,12 +14,11 @@ def analyze_scenario_codex(
     cut_analysis: list[dict],
     ocr_data: dict[str, list[str]],
     stt_segments: list[dict],
-    cast_data: list[dict],
     model: str | None = None,
 ) -> dict:
-    """컷분석·OCR·STT·cast 데이터를 codex exec로 종합해 광고 시나리오를 생성한다."""
+    """컷분석·OCR·STT 데이터를 codex exec로 종합해 광고 시나리오를 생성한다."""
     duration = max((c.end_sec for c in cuts), default=0.0)
-    context = _build_context(cuts, cut_analysis, ocr_data, stt_segments, cast_data)
+    context = _build_context(cuts, cut_analysis, ocr_data, stt_segments)
     return _call_codex(context, duration, model)
 
 
@@ -28,7 +27,8 @@ def _call_codex(context: str, duration: float, model: str | None) -> dict:
         "너는 광고 시나리오 전문가다. 아래 분석 데이터를 참고해 이 광고를 재제작할 수 있을 수준의 "
         "완전한 시나리오를 JSON으로 작성해라. 첫 글자가 반드시 '{'여야 한다. 마크다운·설명문 없이 순수 JSON만 출력.\n\n"
         "규칙:\n"
-        "1. cast 필드는 [등장 인물] 섹션에 제공된 캐릭터 목록을 그대로 사용한다.\n"
+        "1. cast: 컷별 흐름의 '인물' 설명을 종합해 전체 등장 인물 목록을 직접 구성한다. "
+        "동일 인물은 하나의 캐릭터 ID('캐릭터1', '캐릭터2' 등)로 통합한다.\n"
         "2. scenes[].beats: 각 컷 안의 시간 순 사건을 beat 단위로 나열한다.\n"
         "   - type=background: 배경·공간 변화 묘사\n"
         "   - type=camera: 카메라 앵글·무브먼트 묘사\n"

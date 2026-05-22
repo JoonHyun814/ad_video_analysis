@@ -12,7 +12,7 @@ _PROMPT = """{start_sec:.2f}~{end_sec:.2f}초 구간의 광고 컷을 시간 순
 아래 {n}개 프레임을 순서대로 읽어라:
 {frame_lines}
 
-{{"flow": "이 컷에서 일어나는 동작·변화를 시작→중간→끝 순으로 묘사", "subjects": "등장 인물·사물", "camera": "카메라 무브먼트 (static/pan/zoom/tilt/tracking 등)", "text_flow": "텍스트 등장·변화·소멸 흐름. 없으면 없음", "mood_shift": "분위기 변화. 없으면 없음"}}"""
+{{"flow": "이 컷에서 일어나는 동작·변화를 시작→중간→끝 순으로 묘사", "subjects": "등장 인물·사물", "cast": "이 컷에 등장하는 각 인물의 외모(성별·나이대·헤어스타일·의상)·표정·역할을 구체적으로 묘사. 인물이 없으면 없음", "camera": "카메라 무브먼트 (static/pan/zoom/tilt/tracking 등)", "text_flow": "텍스트 등장·변화·소멸 흐름. 없으면 없음", "mood_shift": "분위기 변화. 없으면 없음"}}"""
 
 
 def analyze_cuts(
