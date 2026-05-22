@@ -4,8 +4,6 @@ import subprocess
 import time
 from pathlib import Path
 
-import cv2
-
 from pipeline.cuts import Cut
 
 _SCHEMA = (
@@ -29,63 +27,15 @@ _SCHEMA = (
 def analyze_scenario(
     cuts: list[Cut],
     frames_dir: Path,
-    out_dir: Path,
     cut_analysis: list[dict],
     ocr_data: dict[str, list[str]],
     stt_segments: list[dict],
-    face_detection: dict[str, list[dict]],
+    cast_data: list[dict],
 ) -> dict:
-    """컷분석·OCR·STT·얼굴 데이터를 종합해 재제작 가능한 광고 시나리오를 생성한다."""
+    """컷분석·OCR·STT·cast 데이터를 종합해 재제작 가능한 광고 시나리오를 생성한다."""
     duration = max((c.end_sec for c in cuts), default=0.0)
-    face_crops = _save_face_crops(frames_dir, cuts, face_detection, out_dir)
-    context = _build_context(cuts, cut_analysis, ocr_data, stt_segments, face_crops)
-    return _call_claude(context, duration, out_dir)
-
-
-# ── Face crop ─────────────────────────────────────────────────────────────────
-
-def _save_face_crops(
-    frames_dir: Path,
-    cuts: list[Cut],
-    face_detection: dict[str, list[dict]],
-    out_dir: Path,
-) -> list[tuple[Path, str]]:
-    """각 컷에서 가장 큰 얼굴을 패딩 포함해 crop 저장하고 (path, label) 리스트를 반환한다."""
-    crops_dir = out_dir / "face_crops"
-    crops_dir.mkdir(parents=True, exist_ok=True)
-    frame_map = {p.name: p for p in frames_dir.glob("frame_*.jpg")}
-
-    result = []
-    for cut in cuts:
-        best: tuple[float, str, list[int]] | None = None
-        for fname, faces in face_detection.items():
-            try:
-                idx = int(fname.replace("frame_", "").replace(".jpg", ""))
-            except ValueError:
-                continue
-            if not (cut.start_frame <= idx <= cut.end_frame):
-                continue
-            for face in faces:
-                if best is None or face["area_ratio"] > best[0]:
-                    best = (face["area_ratio"], fname, face["bbox"])
-
-        if best is None or best[0] < 0.01 or best[1] not in frame_map:
-            continue
-
-        _, fname, (x, y, w, h) = best
-        img = cv2.imread(str(frame_map[fname]))
-        if img is None:
-            continue
-
-        pad = int(max(w, h) * 0.25)
-        ih, iw = img.shape[:2]
-        crop = img[max(0, y - pad): min(ih, y + h + pad),
-                   max(0, x - pad): min(iw, x + w + pad)]
-        crop_path = crops_dir / f"face_cut{cut.index:02d}.jpg"
-        cv2.imwrite(str(crop_path), crop)
-        result.append((crop_path, f"컷{cut.index} ({cut.start_sec:.1f}~{cut.end_sec:.1f}s)"))
-
-    return result
+    context = _build_context(cuts, cut_analysis, ocr_data, stt_segments, cast_data)
+    return _call_claude(context, duration)
 
 
 # ── Context building ───────────────────────────────────────────────────────────
@@ -95,9 +45,13 @@ def _build_context(
     cut_analysis: list[dict],
     ocr_data: dict[str, list[str]],
     stt_segments: list[dict],
-    face_crops: list[tuple[Path, str]],
+    cast_data: list[dict],
 ) -> str:
     parts: list[str] = []
+
+    if cast_data:
+        lines = [f"{c['id']}: {c['description']}" for c in cast_data]
+        parts.append("[등장 인물]\n" + "\n".join(lines))
 
     if stt_segments:
         stt = " / ".join(f'{s["start_sec"]:.1f}s: "{s["text"]}"' for s in stt_segments)
@@ -121,10 +75,6 @@ def _build_context(
             lines.append(line)
         parts.append("[컷별 흐름]\n" + "\n".join(lines))
 
-    if face_crops:
-        refs = "\n".join(f"파일 {p}  ({label})" for p, label in face_crops)
-        parts.append(f"[등장 인물 얼굴 크롭 — 아래 파일을 읽어 cast 인물 정의에 활용. 동일 인물이 여러 컷에 나오면 같은 캐릭터 ID 사용]\n{refs}")
-
     return "\n\n".join(parts)
 
 
@@ -145,13 +95,12 @@ def _cut_ocr(ocr_data: dict[str, list[str]], cut: Cut) -> str:
 _RETRY_DELAYS = (30, 60, 120)
 
 
-def _call_claude(context: str, duration: float, allowed_dir: Path) -> dict:
+def _call_claude(context: str, duration: float) -> dict:
     prompt = (
         "너는 광고 시나리오 전문가다. 아래 분석 데이터를 참고해 이 광고를 재제작할 수 있을 수준의 "
         "완전한 시나리오를 JSON으로 작성해라. 첫 글자가 반드시 '{'여야 한다. 마크다운·설명문 없이 순수 JSON만 출력.\n\n"
         "규칙:\n"
-        "1. cast: 영상에 등장하는 모든 인물을 '캐릭터1', '캐릭터2' 등 고유 ID로 정의한다. "
-        "첨부 얼굴 이미지를 참고해 외모·인상·역할을 묘사한다.\n"
+        "1. cast 필드는 [등장 인물] 섹션에 제공된 캐릭터 목록을 그대로 사용한다.\n"
         "2. scenes[].beats: 각 컷 안의 시간 순 사건을 beat 단위로 나열한다.\n"
         "   - type=background: 배경·공간 변화 묘사\n"
         "   - type=camera: 카메라 앵글·무브먼트 묘사\n"
@@ -164,7 +113,7 @@ def _call_claude(context: str, duration: float, allowed_dir: Path) -> dict:
         f"{context}\n\n"
         f"{_SCHEMA}"
     )
-    cmd = ["claude", "-p", prompt, "--add-dir", str(allowed_dir)]
+    cmd = ["claude", "-p", prompt]
 
     for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
