@@ -2,6 +2,7 @@ model:
   name: "unsloth/Qwen2.5-VL-3B-Instruct"
   max_seq_length: 4096
   load_in_4bit: true
+  cache_dir: null   # null 이면 HuggingFace 기본 캐시 (~/.cache/huggingface) 사용
 
 lora:
   r: 16

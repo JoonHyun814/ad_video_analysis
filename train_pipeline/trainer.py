@@ -27,11 +27,13 @@ def train(config: dict) -> None:
 
     # ── 모델 로드 ──────────────────────────────────────────────────────────────
     print(f"모델 로드: {model_cfg['name']}")
-    model, tokenizer = FastVisionModel.from_pretrained(
-        model_cfg["name"],
-        max_seq_length=model_cfg.get("max_seq_length", 4096),
-        load_in_4bit=model_cfg.get("load_in_4bit", True),
-    )
+    load_kwargs = {
+        "max_seq_length": model_cfg.get("max_seq_length", 4096),
+        "load_in_4bit": model_cfg.get("load_in_4bit", True),
+    }
+    if model_cfg.get("cache_dir"):
+        load_kwargs["cache_dir"] = model_cfg["cache_dir"]
+    model, tokenizer = FastVisionModel.from_pretrained(model_cfg["name"], **load_kwargs)
     model = FastVisionModel.get_peft_model(
         model,
         r=lora_cfg.get("r", 16),
