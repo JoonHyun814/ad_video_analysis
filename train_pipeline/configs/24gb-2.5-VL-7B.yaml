@@ -2,7 +2,7 @@ model:
   name: "unsloth/Qwen2.5-VL-7B-Instruct"
   max_seq_length: 16384  # scene ~1500 / scenario ~3400 / cut max ~12100 tokens (720p 10장) 전부 커버
   load_in_4bit: true     # 4-bit: ~4.5GB, 7B 기준 합계 ~21-23GB (24GB 안전 마진)
-  cache_dir: null        # null 이면 HuggingFace 기본 캐시 (~/.cache/huggingface) 사용
+  cache_dir: /data/.cache/huggingface        # null 이면 HuggingFace 기본 캐시 (~/.cache/huggingface) 사용
 
 lora:
   r: 16                  # 7B + seq16384 기준 OOM 방지 (r=32는 ~23GB로 위험)
@@ -19,16 +19,16 @@ lora:
   random_state: 3407
 
 dataset:
-  scene_analysis: "data/scene_analysis.jsonl"
-  cut_analysis: "data/cut_analysis.jsonl"
-  scenario_analysis: "data/scenario_analysis.jsonl"
+  scene_analysis: "/workspace/ad_video_anlysis/data/sample/scene_analysis.jsonl"
+  cut_analysis: "/workspace/ad_video_anlysis/data/sample/cut_analysis.jsonl"
+  scenario_analysis: "/workspace/ad_video_anlysis/data/sample/scenario_analysis.jsonl"
 
 training:
   per_device_train_batch_size: 1     # 16384 seq 기준 ~18GB 사용, 24GB 안전 마진 확보
   gradient_accumulation_steps: 4     # effective batch = 8
-  max_steps: 2000
+  max_steps: 10
   learning_rate: 2.0e-4
-  warmup_steps: 100                  # max_steps 비례 조정
+  warmup_steps: 1                  # max_steps 비례 조정
   output_dir: "outputs"
   fp16: false
   bf16: true
@@ -38,4 +38,5 @@ training:
 
 output:
   save_merged: true
-  save_dir: "models/qwen_vl_ad"
+  save_method: "lora"        # lora: 어댑터만 저장 (권장) | merged_16bit | merged_4bit
+  save_dir: "/data/models/qwen_vl_ad"

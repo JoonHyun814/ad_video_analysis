@@ -104,7 +104,7 @@ def _make_sample(image_paths: list[str], prompt: str, response: str) -> dict:
     return {
         "messages": [
             {"role": "user", "content": content},
-            {"role": "assistant", "content": response},
+            {"role": "assistant", "content": [{"type": "text", "text": response}]},
         ]
     }
 

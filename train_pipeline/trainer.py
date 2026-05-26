@@ -89,8 +89,13 @@ def train(config: dict) -> None:
     # ── 저장 ──────────────────────────────────────────────────────────────────
     if out_cfg.get("save_merged"):
         save_dir = out_cfg.get("save_dir", "models/qwen_vl_ad")
-        print(f"\n모델 병합 저장 중...  →  {save_dir}")
-        model.save_pretrained_merged(save_dir, tokenizer)
+        save_method = out_cfg.get("save_method", "lora")
+        print(f"\n모델 저장 중... (method={save_method})  →  {save_dir}")
+        if save_method == "lora":
+            model.save_pretrained(save_dir)
+            tokenizer.save_pretrained(save_dir)
+        else:
+            model.save_pretrained_merged(save_dir, tokenizer, save_method=save_method)
         print("완료")
 
 
