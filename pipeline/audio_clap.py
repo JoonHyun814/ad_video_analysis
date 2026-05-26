@@ -70,9 +70,11 @@ def _audio_features(audios: list[np.ndarray], sr: int):
     if sr != _CLAP_SR:
         audios = [librosa.resample(y, orig_sr=sr, target_sr=_CLAP_SR) for y in audios]
         sr = _CLAP_SR
-    inputs = processor(audios=audios, sampling_rate=sr, return_tensors="pt")
+    inputs = processor(audio=audios, sampling_rate=sr, return_tensors="pt")
     with torch.no_grad():
-        return F.normalize(model.get_audio_features(**inputs), dim=-1)
+        out = model.get_audio_features(**inputs)
+        emb = out.pooler_output if hasattr(out, "pooler_output") else out
+        return F.normalize(emb, dim=-1)
 
 
 def _text_features(texts: list[str]):
@@ -81,7 +83,9 @@ def _text_features(texts: list[str]):
     model, processor = _get_clap()
     inputs = processor(text=texts, return_tensors="pt", padding=True)
     with torch.no_grad():
-        return F.normalize(model.get_text_features(**inputs), dim=-1)
+        out = model.get_text_features(**inputs)
+        emb = out.pooler_output if hasattr(out, "pooler_output") else out
+        return F.normalize(emb, dim=-1)
 
 
 def tag_bgm_genre(y: np.ndarray, sr: int) -> dict:
