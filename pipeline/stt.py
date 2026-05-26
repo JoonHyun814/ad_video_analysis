@@ -1,10 +1,12 @@
-import re
+"""STT + 화자 분리: faster-whisper 전사 + NeMo MSDD 화자 배정 직접 구현."""
+
 import subprocess
-import sys
-import tempfile
 from pathlib import Path
 
-_DIARIZE_SCRIPT = Path(__file__).parent.parent / "tools" / "whisper_diarization" / "diarize.py"
+import nltk
+import torch
+
+_SENT_END = ".?!"
 
 
 def run_diarization(
@@ -13,103 +15,135 @@ def run_diarization(
     language: str = "ko",
     whisper_model: str = "medium",
     device: str = "cuda",
-    stemming: bool = False,
 ) -> list[dict]:
-    """whisper-diarization으로 화자 분리 STT를 수행하고 세그먼트 리스트를 반환한다.
+    """faster-whisper STT + NeMo MSDD 화자 분리를 수행하고 세그먼트 리스트를 반환한다."""
+    from pipeline.stt_nemo import diarize
 
-    stemming=False: 배경음악 분리 비활성화 (광고 영상은 음악이 많아 분리 시 오히려 품질 저하 가능)
-    """
     audio_path = _extract_audio(video_path, out_dir)
-    _run_diarize(audio_path, language, whisper_model, device, stemming)
-    srt_path = audio_path.with_suffix(".srt")
-    segments = _parse_srt(srt_path)
-    return segments
+    words = _transcribe(audio_path, language, whisper_model, device)
+    if not words:
+        return []
+
+    try:
+        speaker_ts = diarize(audio_path, device)
+        words = _assign_speakers(words, speaker_ts)
+        words = _realign_speakers(words)
+    except Exception as exc:
+        print(f"      [WARN] 화자 분리 실패, Speaker 0 으로 통일: {exc}")
+        for w in words:
+            w["speaker"] = 0
+
+    return _group_segments(words)
 
 
 def _extract_audio(video_path: Path, out_dir: Path) -> Path:
-    """ffmpeg로 영상에서 WAV 오디오를 추출한다."""
+    """ffmpeg로 영상에서 16kHz 모노 WAV를 추출한다."""
     out_dir.mkdir(parents=True, exist_ok=True)
     audio_path = out_dir / "audio.wav"
     subprocess.run(
-        [
-            "ffmpeg", "-y", "-i", str(video_path),
-            "-vn", "-ar", "16000", "-ac", "1",
-            str(audio_path),
-        ],
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        ["ffmpeg", "-y", "-i", str(video_path), "-vn", "-ar", "16000", "-ac", "1", str(audio_path)],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     return audio_path.resolve()
 
 
-def _run_diarize(
-    audio_path: Path,
-    language: str,
-    whisper_model: str,
-    device: str,
-    stemming: bool,
-) -> None:
-    """diarize.py를 subprocess로 실행한다. 출력 SRT/TXT는 audio_path 와 동일 디렉토리에 생성된다."""
-    cmd = [
-        sys.executable, str(_DIARIZE_SCRIPT),
-        "-a", str(audio_path),
-        "--whisper-model", whisper_model,
-        "--language", language,
-        "--device", device,
-    ]
-    if not stemming:
-        cmd.append("--no-stem")
+def _transcribe(audio_path: Path, language: str, model_name: str, device: str) -> list[dict]:
+    """faster-whisper로 단어 단위 타임스탬프를 포함한 전사를 수행한다."""
+    import faster_whisper
 
-    subprocess.run(
-        cmd,
-        check=True,
-        cwd=str(_DIARIZE_SCRIPT.parent),
-    )
+    compute = "float16" if device == "cuda" else "int8"
+    model = faster_whisper.WhisperModel(model_name, device=device, compute_type=compute)
+    pipe = faster_whisper.BatchedInferencePipeline(model)
+    audio = faster_whisper.decode_audio(str(audio_path))
+    segs, _ = pipe.transcribe(audio, language=language, word_timestamps=True, batch_size=8)
+
+    words = []
+    for seg in segs:
+        for w in (seg.words or []):
+            if w.start is not None and w.end is not None:
+                words.append({
+                    "word": w.word,
+                    "start": int(w.start * 1000),
+                    "end": int(w.end * 1000),
+                    "speaker": 0,
+                })
+
+    del model, pipe
+    if device == "cuda":
+        torch.cuda.empty_cache()
+    return words
 
 
-def _parse_srt(srt_path: Path) -> list[dict]:
-    """SRT 파일을 파싱해 [{speaker, start_sec, end_sec, text}, ...] 로 변환한다."""
-    text = srt_path.read_text(encoding="utf-8-sig")
-    blocks = re.split(r"\n\n+", text.strip())
-    segments = []
+def _assign_speakers(words: list[dict], speaker_ts: list[tuple]) -> list[dict]:
+    """각 단어에 화자 레이블을 할당한다."""
+    if not speaker_ts:
+        return words
+    idx = 0
+    s, e, sp = speaker_ts[0]
+    for w in words:
+        while w["start"] > e and idx < len(speaker_ts) - 1:
+            idx += 1
+            s, e, sp = speaker_ts[idx]
+        w["speaker"] = sp
+    return words
 
-    for block in blocks:
-        lines = block.strip().splitlines()
-        if len(lines) < 3:
-            continue
-        # lines[0]: 인덱스, lines[1]: 타임코드, lines[2:]: 텍스트
-        time_match = re.match(
-            r"(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})", lines[1]
-        )
-        if not time_match:
-            continue
 
-        start_sec = _srt_time_to_sec(time_match.group(1))
-        end_sec = _srt_time_to_sec(time_match.group(2))
-        full_text = " ".join(lines[2:]).strip()
+def _realign_speakers(words: list[dict], max_words: int = 50) -> list[dict]:
+    """문장 경계에서 화자가 바뀌는 경우 다수결로 조정한다."""
+    spk = [w["speaker"] for w in words]
+    txt = [w["word"] for w in words]
+    k = 0
+    while k < len(words) - 1:
+        if spk[k] != spk[k + 1] and not (txt[k] and txt[k][-1] in _SENT_END):
+            li, ri = _sent_bounds(k, txt, spk, max_words)
+            if li != -1 and ri != -1:
+                chunk = spk[li: ri + 1]
+                maj = max(set(chunk), key=chunk.count)
+                if chunk.count(maj) >= len(chunk) // 2:
+                    spk[li: ri + 1] = [maj] * (ri - li + 1)
+                    k = ri
+        k += 1
+    for i, w in enumerate(words):
+        w["speaker"] = spk[i]
+    return words
 
-        # "Speaker 0: 텍스트" 형태 분리
-        speaker_match = re.match(r"^(Speaker\s+\d+):\s*(.*)", full_text, re.DOTALL)
-        if speaker_match:
-            speaker = speaker_match.group(1)
-            content = speaker_match.group(2).strip()
-        else:
-            speaker = "Speaker 0"
-            content = full_text
 
-        segments.append({
-            "speaker": speaker,
-            "start_sec": round(start_sec, 3),
-            "end_sec": round(end_sec, 3),
-            "text": content,
-        })
+def _sent_bounds(k: int, txt: list[str], spk: list[int], max_w: int) -> tuple[int, int]:
+    """단어 k를 포함하는 문장의 시작·끝 인덱스를 반환한다. 불명확하면 (-1, -1)."""
+    li = k
+    while li > 0 and k - li < max_w and spk[li - 1] == spk[li] and not (txt[li - 1] and txt[li - 1][-1] in _SENT_END):
+        li -= 1
+    li = li if li == 0 or (txt[li - 1] and txt[li - 1][-1] in _SENT_END) else -1
 
+    ri = k
+    while ri < len(txt) - 1 and ri - k < max_w and not (txt[ri] and txt[ri][-1] in _SENT_END):
+        ri += 1
+    ri = ri if ri == len(txt) - 1 or (txt[ri] and txt[ri][-1] in _SENT_END) else -1
+    return li, ri
+
+
+def _group_segments(words: list[dict]) -> list[dict]:
+    """연속된 같은 화자의 단어를 문장 단위로 묶어 세그먼트 리스트로 반환한다."""
+    try:
+        sent_break = nltk.tokenize.PunktSentenceTokenizer().text_contains_sentbreak
+    except Exception:
+        sent_break = lambda t: bool(t) and t.rstrip()[-1:] in _SENT_END
+
+    segments: list[dict] = []
+    cur_spk = f"Speaker {words[0]['speaker']}"
+    cur_s, cur_e, cur_text = words[0]["start"], words[0]["end"], ""
+
+    for w in words:
+        spk = f"Speaker {w['speaker']}"
+        if spk != cur_spk or sent_break(cur_text + " " + w["word"]):
+            if cur_text.strip():
+                segments.append({"speaker": cur_spk, "start_sec": round(cur_s / 1000, 3),
+                                  "end_sec": round(cur_e / 1000, 3), "text": cur_text.strip()})
+            cur_spk, cur_s, cur_text = spk, w["start"], ""
+        cur_e = w["end"]
+        cur_text += w["word"] + " "
+
+    if cur_text.strip():
+        segments.append({"speaker": cur_spk, "start_sec": round(cur_s / 1000, 3),
+                          "end_sec": round(cur_e / 1000, 3), "text": cur_text.strip()})
     return segments
-
-
-def _srt_time_to_sec(t: str) -> float:
-    """'HH:MM:SS,mmm' → 초(float)"""
-    h, m, rest = t.split(":")
-    s, ms = rest.split(",")
-    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
