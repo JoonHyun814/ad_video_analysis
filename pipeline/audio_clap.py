@@ -52,6 +52,13 @@ def _get_clap():
     return _model, _processor
 
 
+def release() -> None:
+    """CLAP 모델을 메모리에서 해제한다."""
+    global _model, _processor
+    _model = None
+    _processor = None
+
+
 _CLAP_SR = 48000
 
 

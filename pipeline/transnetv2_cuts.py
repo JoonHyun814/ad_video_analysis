@@ -17,6 +17,8 @@ def detect_cuts_transnetv2(
     min_scene_sec: 최소 컷 길이(초) 미만은 제거한다.
     """
     os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+    # TF 기본 동작은 GPU 전체 메모리를 선점. 이후 단계(OCR 등)를 위해 필요한 만큼만 할당하도록 설정.
+    os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
     from transnetv2 import TransNetV2
 
     model = TransNetV2()
