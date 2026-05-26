@@ -21,6 +21,7 @@ _CUT_PROMPT = (
     "프레임별 OCR 힌트 (오인식 포함 가능):\n{ocr_hints}\n\n"
     '{{"flow": "이 컷에서 일어나는 동작·변화를 시작→중간→끝 순으로 묘사",'
     ' "subjects": "등장 인물·사물",'
+    ' "cast": "이 컷에 등장하는 각 인물의 외모(성별·나이대·헤어스타일·의상)·표정·역할을 구체적으로 묘사. 인물이 없으면 없음",'
     ' "camera": "카메라 무브먼트 (static/pan/zoom/tilt/tracking 등)",'
     ' "text_flow": "텍스트 등장·변화·소멸 흐름. 없으면 없음",'
     ' "mood_shift": "분위기 변화. 없으면 없음"}}'
@@ -30,14 +31,15 @@ _SCENARIO_PROMPT_PREFIX = (
     "너는 광고 시나리오 전문가다. 아래 분석 데이터를 참고해 이 광고를 재제작할 수 있을 수준의 "
     "완전한 시나리오를 JSON으로 작성해라. 첫 글자가 반드시 '{'여야 한다. 마크다운·설명문 없이 순수 JSON만 출력.\n\n"
     "규칙:\n"
-    "1. cast 필드는 [등장 인물] 섹션에 제공된 캐릭터 목록을 그대로 사용한다.\n"
+    "1. cast: 컷별 흐름의 '인물' 설명을 종합해 전체 등장 인물 목록을 직접 구성한다. "
+    "동일 인물은 하나의 캐릭터 ID('캐릭터1', '캐릭터2' 등)로 통합한다.\n"
     "2. scenes[].beats: 각 컷 안의 시간 순 사건을 beat 단위로 나열한다.\n"
     "   - type=background: 배경·공간 변화 묘사\n"
     "   - type=camera: 카메라 앵글·무브먼트 묘사\n"
-    "   - type=action: cast 필드에 캐릭터 ID, 동작 묘사\n"
+    "   - type=action: cast에 정의된 캐릭터 ID를 cast 필드에 적고 동작 묘사 (여럿이면 '캐릭터1,캐릭터2')\n"
     "   - type=dialogue: 대사·나레이션, cast 필드에 캐릭터 ID\n"
     "   - type=music: 음악·사운드 묘사\n"
-    "   - type=text_overlay: 화면 텍스트. 없으면 beat 생략\n"
+    "   - type=text_overlay: 화면에 표시된 텍스트. 없으면 beat 자체를 생략\n"
     "3. cast에 없는 캐릭터 ID를 beats에서 사용하지 않는다.\n\n"
 )
 
@@ -93,7 +95,7 @@ def _cut_ocr(ocr_data: dict, cut: _Cut) -> str:
             continue
         if cut.start_frame <= idx <= cut.end_frame:
             texts.update(w for w in words if len(w.strip()) > 1)
-    return ", ".join(f'"{t}"' for t in texts) if texts else "없음"
+    return ", ".join(f'"{t}"' for t in texts) if texts else ""
 
 
 def _make_sample(image_paths: list[str], prompt: str, response: str) -> dict:
@@ -132,7 +134,7 @@ def _scene_samples(video_dir: Path, cuts: list[_Cut], ocr_data: dict, scene_anal
         if not kf_path or not kf_path.exists():
             continue
         cut = cut_map.get(entry["cut_index"])
-        ocr_hint = _cut_ocr(ocr_data, cut) if cut else "없음"
+        ocr_hint = _cut_ocr(ocr_data, cut) or "없음" if cut else "없음"
         prompt = _SCENE_PROMPT.format(ocr_hint=ocr_hint)
         output = {k: v for k, v in entry.items() if k not in ("cut_index", "start_sec", "end_sec", "keyframe")}
         samples.append(_make_sample([str(kf_path)], prompt, json.dumps(output, ensure_ascii=False)))
@@ -167,11 +169,12 @@ def _cut_samples(video_dir: Path, cuts: list[_Cut], ocr_data: dict, cut_analysis
 def _scenario_samples(video_dir: Path, cuts: list[_Cut], cut_analysis: list[dict],
                       ocr_data: dict, stt: list[dict], scenario: dict,
                       audio_data: dict | None = None) -> list[dict]:
-    parts = []
+    from pipeline.scenario_analysis import _SCHEMA, _summarize_audio
+
+    parts: list[str] = []
     if stt:
         parts.append("[음성]\n" + " / ".join(f'{s["start_sec"]:.1f}s: "{s["text"]}"' for s in stt))
     if audio_data:
-        from pipeline.scenario_analysis import _summarize_audio
         audio_summary = _summarize_audio(audio_data)
         if audio_summary:
             parts.append(f"[오디오]\n{audio_summary}")
@@ -195,9 +198,15 @@ def _scenario_samples(video_dir: Path, cuts: list[_Cut], cut_analysis: list[dict
                     line += f" | OCR: {ocr}"
             lines.append(line)
         parts.append("[컷별 흐름]\n" + "\n".join(lines))
+
     context = "\n\n".join(parts)
     duration = max((c.end_sec for c in cuts), default=0.0)
-    prompt = _SCENARIO_PROMPT_PREFIX + context + f"\n\n영상 길이: {round(duration, 1)}초"
+    prompt = (
+        _SCENARIO_PROMPT_PREFIX
+        + f"영상 길이: {round(duration, 1)}초\n\n"
+        + context
+        + f"\n\n{_SCHEMA}"
+    )
     return [_make_sample([], prompt, json.dumps(scenario, ensure_ascii=False))]
 
 
