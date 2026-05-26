@@ -32,6 +32,8 @@ def analyze_keyframes_qwen(cuts: list[Cut], keyframes_dir: Path) -> list[dict]:
         prompt = _PROMPT.format(ocr_hint=ocr_hint)
         raw = qwen_client.infer([image_path], prompt)
         analysis = qwen_client.parse_json(raw)
+        status = "FAIL" if analysis.get("error") else "ok"
+        print(f"      [{cut.index}/{len(cuts)}] parse: {status}")
 
         results.append({
             "cut_index": cut.index,

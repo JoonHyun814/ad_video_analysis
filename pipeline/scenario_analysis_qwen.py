@@ -37,5 +37,5 @@ def analyze_scenario_qwen(
         + context
         + f"\n\n{_SCHEMA}"
     )
-    raw = qwen_client.infer([], prompt, max_new_tokens=2048)
+    raw = qwen_client.infer([], prompt, max_new_tokens=8192)
     return qwen_client.parse_json(raw)

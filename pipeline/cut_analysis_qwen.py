@@ -50,6 +50,8 @@ def analyze_cuts_qwen(
         )
         raw = qwen_client.infer([p for _, p in sampled], prompt)
         analysis = qwen_client.parse_json(raw)
+        status = "FAIL" if analysis.get("error") else "ok"
+        print(f"      [{cut.index}/{len(cuts)}] parse: {status}")
 
         results.append({
             "cut_index": cut.index,
