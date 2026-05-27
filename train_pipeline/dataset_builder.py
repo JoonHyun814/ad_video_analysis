@@ -1,6 +1,7 @@
 """pipeline 분석 결과를 Qwen VL 3 학습용 JSONL 데이터셋으로 변환한다."""
 
 import json
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -54,6 +55,16 @@ class _Cut:
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
+
+def _copy_image(src: Path, out_dir: Path, video_id: str) -> str:
+    """이미지를 out_dir/images/<video_id>/ 에 복사하고 상대경로 문자열을 반환한다."""
+    dest_dir = out_dir / "images" / video_id
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / src.name
+    if not dest.exists():
+        shutil.copy2(src, dest)
+    return str(Path("images") / video_id / src.name)
+
 
 def _load(path: Path):
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
@@ -119,7 +130,8 @@ def _save_jsonl(samples: list[dict], path: Path) -> None:
 
 # ── Per-step builders ──────────────────────────────────────────────────────────
 
-def _scene_samples(video_dir: Path, cuts: list[_Cut], ocr_data: dict, scene_analysis: list[dict]) -> list[dict]:
+def _scene_samples(video_dir: Path, cuts: list[_Cut], ocr_data: dict, scene_analysis: list[dict],
+                   out_dir: Path, video_id: str) -> list[dict]:
     cut_map = {c.index: c for c in cuts}
     kf_dir = video_dir / "keyframes"
     samples = []
@@ -137,11 +149,13 @@ def _scene_samples(video_dir: Path, cuts: list[_Cut], ocr_data: dict, scene_anal
         ocr_hint = _cut_ocr(ocr_data, cut) or "없음" if cut else "없음"
         prompt = _SCENE_PROMPT.format(ocr_hint=ocr_hint)
         output = {k: v for k, v in entry.items() if k not in ("cut_index", "start_sec", "end_sec", "keyframe")}
-        samples.append(_make_sample([str(kf_path)], prompt, json.dumps(output, ensure_ascii=False)))
+        rel = _copy_image(kf_path, out_dir, video_id)
+        samples.append(_make_sample([rel], prompt, json.dumps(output, ensure_ascii=False)))
     return samples
 
 
-def _cut_samples(video_dir: Path, cuts: list[_Cut], ocr_data: dict, cut_analysis: list[dict]) -> list[dict]:
+def _cut_samples(video_dir: Path, cuts: list[_Cut], ocr_data: dict, cut_analysis: list[dict],
+                 out_dir: Path, video_id: str) -> list[dict]:
     cut_map = {c.index: c for c in cuts}
     frame_map = _build_frame_map(video_dir / "frames")
     samples = []
@@ -162,7 +176,8 @@ def _cut_samples(video_dir: Path, cuts: list[_Cut], ocr_data: dict, cut_analysis
         hints = "\n".join(hints_lines)
         prompt = _CUT_PROMPT.format(start_sec=cut.start_sec, end_sec=cut.end_sec, ocr_hints=hints)
         output = {k: v for k, v in entry.items() if k not in ("cut_index", "start_sec", "end_sec", "n_frames")}
-        samples.append(_make_sample([str(p) for _, p in sampled], prompt, json.dumps(output, ensure_ascii=False)))
+        rels = [_copy_image(p, out_dir, video_id) for _, p in sampled]
+        samples.append(_make_sample(rels, prompt, json.dumps(output, ensure_ascii=False)))
     return samples
 
 
@@ -233,11 +248,11 @@ def build_all(data_dir: Path, out_dir: Path) -> dict[str, int]:
 
         vid = vdir.name
         if scene:
-            s = _scene_samples(vdir, cuts, ocr_data, scene)
+            s = _scene_samples(vdir, cuts, ocr_data, scene, out_dir, vid)
             buckets["scene_analysis"].extend(s)
             print(f"  [{vid}] scene: {len(s)}개")
         if cut_a:
-            s = _cut_samples(vdir, cuts, ocr_data, cut_a)
+            s = _cut_samples(vdir, cuts, ocr_data, cut_a, out_dir, vid)
             buckets["cut_analysis"].extend(s)
             print(f"  [{vid}] cut: {len(s)}개")
         if scenario and not scenario.get("error") and cut_a:

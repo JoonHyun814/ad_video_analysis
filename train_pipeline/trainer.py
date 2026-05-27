@@ -56,8 +56,9 @@ def train(config: dict) -> None:
 
         print(f"\n[{step_name}] 학습 시작  ({ds_path})")
         dataset = load_dataset("json", data_files=ds_path, split="train")
+        ds_base = Path(ds_path).parent
         dataset = dataset.map(
-            lambda ex: _preprocess(ex, tokenizer),
+            lambda ex: _preprocess(ex, tokenizer, ds_base),
             remove_columns=dataset.column_names,
         )
         print(f"  샘플 수: {len(dataset)}")
@@ -99,7 +100,7 @@ def train(config: dict) -> None:
         print("완료")
 
 
-def _preprocess(example: dict, processor) -> dict:
+def _preprocess(example: dict, processor, base_dir: Path | None = None) -> dict:
     """메시지에서 이미지를 로드하고 chat template 을 적용한다."""
     from PIL import Image
 
@@ -110,8 +111,13 @@ def _preprocess(example: dict, processor) -> dict:
         for item in msg.get("content", []):
             if isinstance(item, dict) and item.get("type") == "image":
                 path = item.get("image", "")
-                if path and Path(path).exists():
-                    images.append(Image.open(path).convert("RGB"))
+                img_path = (
+                    (base_dir / path)
+                    if (base_dir and path and not Path(path).is_absolute())
+                    else Path(path)
+                )
+                if path and img_path.exists():
+                    images.append(Image.open(img_path).convert("RGB"))
                 clean_content.append({"type": "image"})
             else:
                 clean_content.append(item)
