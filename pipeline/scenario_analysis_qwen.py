@@ -35,7 +35,8 @@ def analyze_scenario_qwen(
         _PROMPT_PREFIX
         + f"영상 길이: {round(duration, 1)}초\n\n"
         + context
-        + f"\n\n{_SCHEMA}"
+        + "\n\n아래 JSON 구조를 참고해 위 분석 데이터를 실제 내용으로 채워 출력하라 (플레이스홀더 문자열 그대로 출력 금지):\n"
+        + _SCHEMA
     )
     raw = qwen_client.infer([], prompt, max_new_tokens=8192)
     return qwen_client.parse_json(raw)

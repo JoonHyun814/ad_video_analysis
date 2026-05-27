@@ -71,7 +71,8 @@ def train(config: dict) -> None:
             args=SFTConfig(
                 per_device_train_batch_size=train_cfg.get("per_device_train_batch_size", 1),
                 gradient_accumulation_steps=train_cfg.get("gradient_accumulation_steps", 4),
-                max_steps=train_cfg.get("max_steps", 1000),
+                num_train_epochs=train_cfg.get("num_train_epochs", 3),
+                max_steps=train_cfg.get("max_steps", -1),  # -1 → num_train_epochs 우선
                 learning_rate=train_cfg.get("learning_rate", 2e-4),
                 warmup_steps=train_cfg.get("warmup_steps", 50),
                 output_dir=str(step_out),

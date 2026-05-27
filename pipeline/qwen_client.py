@@ -39,7 +39,8 @@ def init(model: str = _DEFAULT_MODEL, lora_path: str | None = None, load_in_4bit
         dtype="bfloat16",
         max_model_len=8192,
         limit_mm_per_prompt={"image": 30},
-        gpu_memory_utilization=0.78,
+        gpu_memory_utilization=0.92,
+        enforce_eager=True,          # CUDA graph 비활성 → ~1-2GB 절약
         # 이미지 1장당 최대 128 tile(≈128 토큰)로 제한 → ViT 메모리 절약
         mm_processor_kwargs={"min_pixels": 4 * 28 * 28, "max_pixels": 128 * 28 * 28},
         trust_remote_code=True,
