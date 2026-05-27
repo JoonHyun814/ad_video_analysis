@@ -32,7 +32,13 @@ _QWEN_DEFAULT_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="영상 분석 파이프라인 (컷 감지 → keyframe → frames → OCR)")
-    parser.add_argument("--video_id", type=int, required=True, help="video_uploads.id")
+    parser.add_argument("--video_id", type=int, default=None, help="video_uploads.id (단일)")
+    parser.add_argument(
+        "--video_ids",
+        type=str,
+        default=None,
+        help="처리할 video_id 범위 (예: 1-10 / 1,3,5 / 1-5,7,9-12). --video_id 와 함께 사용 불가",
+    )
     parser.add_argument(
         "--cut_backend",
         choices=_CUT_BACKENDS,
@@ -126,26 +132,49 @@ def main() -> None:
     args = _build_parser().parse_args()
     os.environ["HF_HOME"] = args.cache_dir
 
+    video_ids = _parse_video_ids(args)
+    llm = args.llm_backend
+
+    if llm == "qwen":
+        from pipeline import qwen_client
+        qwen_client.init(model=args.qwen_model, lora_path=args.lora_path)
+
+    for i, video_id in enumerate(video_ids, 1):
+        if len(video_ids) > 1:
+            print(f"\n{'─'*50}")
+            print(f"  [{i}/{len(video_ids)}] video_id={video_id}")
+            print(f"{'─'*50}")
+        _run_video(args, video_id)
+
+    if llm == "qwen":
+        from pipeline import qwen_client
+        qwen_client.release()
+        _flush_gpu()
+
+
+def _run_video(args: argparse.Namespace, video_id: int) -> None:
+    """단일 video_id에 대한 전처리 + 분석 파이프라인을 실행한다."""
     base = args.out_dir if args.out_dir is not None else _OUTPUT_ROOT
-    out = base / str(args.video_id)
+    out = base / str(video_id)
+    llm = args.llm_backend
 
     if args.skip_preprocess:
-        print("[1-7/10] 전처리 단계 생략 (--skip_preprocess)")
+        print("[1-7/11] 전처리 단계 생략 (--skip_preprocess)")
         cuts, ocr_results, stt_segments, audio_result = _load_preprocess_cache(out)
     else:
         if out.exists():
             _clean_out_dir(out, args.skip_scene_analysis, args.skip_cut_analysis, args.skip_scenario_analysis)
             print(f"      기존 결과 삭제: {out}")
 
-        print(f"[1/11] 영상 정보 조회 중... (video_id={args.video_id})")
-        video_path, meta = get_video_info(args.video_id)
+        print(f"[1/11] 영상 정보 조회 중... (video_id={video_id})")
+        video_path, meta = get_video_info(video_id)
         print(f"      파일: {video_path}")
 
         print(f"[2/11] 컷 감지 중... (backend={args.cut_backend}, threshold={args.threshold}, max_cuts={args.max_cuts})")
         cuts = _detect(video_path, args.cut_backend, args.threshold, args.max_cuts)
         _save_json(out / "cuts.json", [dataclasses.asdict(c) for c in cuts])
         print(f"      컷 수: {len(cuts)}  →  {out / 'cuts.json'}")
-        _flush_gpu()  # TransNetV2 TF 캐시 정리
+        _flush_gpu()
 
         print("[3/11] Keyframe 추출 중...")
         keyframes = extract_keyframes(video_path, cuts, out / "keyframes")
@@ -161,7 +190,7 @@ def main() -> None:
         print(f"      완료  →  {out / 'ocr.json'}")
         from pipeline import ocr as _ocr_mod
         _ocr_mod.release()
-        _flush_gpu()  # EasyOCR 해제
+        _flush_gpu()
 
         print("[6/11] STT + 화자 분리 중... (whisper-diarization)")
         stt_segments = run_diarization(video_path, out / "stt")
@@ -177,13 +206,7 @@ def main() -> None:
             _clap_mod.release()
         except ImportError:
             pass
-        _flush_gpu()  # CLAP 해제
-
-    llm = args.llm_backend
-
-    if llm == "qwen":
-        from pipeline import qwen_client
-        qwen_client.init(model=args.qwen_model, lora_path=args.lora_path)
+        _flush_gpu()
 
     scene_results: list = []
     scenario: dict = {}
@@ -238,39 +261,18 @@ def main() -> None:
         print("[10/11] 시나리오 분석 생략 (--skip_scenario_analysis)")
     elif llm == "codex":
         print("[10/11] 시나리오 분석 중... (codex)")
-        scenario = analyze_scenario_codex(
-            cuts=cuts,
-            frames_dir=out / "frames",
-            cut_analysis=cut_results,
-            ocr_data=ocr_results,
-            stt_segments=stt_segments,
-            audio_data=audio_result,
-        )
+        scenario = analyze_scenario_codex(cuts=cuts, frames_dir=out / "frames", cut_analysis=cut_results, ocr_data=ocr_results, stt_segments=stt_segments, audio_data=audio_result)
         _save_json(out / "scenario_analysis.json", scenario)
         print(f"      완료  →  {out / 'scenario_analysis.json'}")
     elif llm == "qwen":
         from pipeline.scenario_analysis_qwen import analyze_scenario_qwen
         print("[10/11] 시나리오 분석 중... (qwen)")
-        scenario = analyze_scenario_qwen(
-            cuts=cuts,
-            frames_dir=out / "frames",
-            cut_analysis=cut_results,
-            ocr_data=ocr_results,
-            stt_segments=stt_segments,
-            audio_data=audio_result,
-        )
+        scenario = analyze_scenario_qwen(cuts=cuts, frames_dir=out / "frames", cut_analysis=cut_results, ocr_data=ocr_results, stt_segments=stt_segments, audio_data=audio_result)
         _save_json(out / "scenario_analysis.json", scenario)
         print(f"      완료  →  {out / 'scenario_analysis.json'}")
     else:
         print("[10/11] 시나리오 분석 중... (claude -p)")
-        scenario = analyze_scenario(
-            cuts=cuts,
-            frames_dir=out / "frames",
-            cut_analysis=cut_results,
-            ocr_data=ocr_results,
-            stt_segments=stt_segments,
-            audio_data=audio_result,
-        )
+        scenario = analyze_scenario(cuts=cuts, frames_dir=out / "frames", cut_analysis=cut_results, ocr_data=ocr_results, stt_segments=stt_segments, audio_data=audio_result)
         _save_json(out / "scenario_analysis.json", scenario)
         print(f"      완료  →  {out / 'scenario_analysis.json'}")
 
@@ -279,47 +281,45 @@ def main() -> None:
     elif llm == "codex":
         from pipeline.parsed_analysis_codex import analyze_parsed_codex
         print("[11/11] Parsed 분석 중... (codex)")
-        parsed = analyze_parsed_codex(
-            scenario=scenario,
-            cuts=cuts,
-            cut_analysis=cut_results,
-            scene_analysis=scene_results,
-            stt_segments=stt_segments,
-            audio_data=audio_result,
-        )
+        parsed = analyze_parsed_codex(scenario=scenario, cuts=cuts, cut_analysis=cut_results, scene_analysis=scene_results, stt_segments=stt_segments, audio_data=audio_result)
         _save_json(out / "parsed_analysis.json", parsed)
         print(f"      완료  →  {out / 'parsed_analysis.json'}")
     elif llm == "qwen":
         from pipeline.parsed_analysis_qwen import analyze_parsed_qwen
         print("[11/11] Parsed 분석 중... (qwen)")
-        parsed = analyze_parsed_qwen(
-            scenario=scenario,
-            cuts=cuts,
-            cut_analysis=cut_results,
-            scene_analysis=scene_results,
-            stt_segments=stt_segments,
-            audio_data=audio_result,
-        )
+        parsed = analyze_parsed_qwen(scenario=scenario, cuts=cuts, cut_analysis=cut_results, scene_analysis=scene_results, stt_segments=stt_segments, audio_data=audio_result)
         _save_json(out / "parsed_analysis.json", parsed)
         print(f"      완료  →  {out / 'parsed_analysis.json'}")
     else:
         from pipeline.parsed_analysis import analyze_parsed
         print("[11/11] Parsed 분석 중... (claude -p)")
-        parsed = analyze_parsed(
-            scenario=scenario,
-            cuts=cuts,
-            cut_analysis=cut_results,
-            scene_analysis=scene_results,
-            stt_segments=stt_segments,
-            audio_data=audio_result,
-        )
+        parsed = analyze_parsed(scenario=scenario, cuts=cuts, cut_analysis=cut_results, scene_analysis=scene_results, stt_segments=stt_segments, audio_data=audio_result)
         _save_json(out / "parsed_analysis.json", parsed)
         print(f"      완료  →  {out / 'parsed_analysis.json'}")
 
-    if llm == "qwen":
-        from pipeline import qwen_client
-        qwen_client.release()
-        _flush_gpu()  # Qwen 해제
+
+def _parse_video_ids(args: argparse.Namespace) -> list[int]:
+    """--video_id / --video_ids 인자를 정수 목록으로 변환한다."""
+    if args.video_id is not None and args.video_ids is not None:
+        raise SystemExit("오류: --video_id 와 --video_ids 는 동시에 사용할 수 없습니다.")
+    if args.video_ids:
+        return _expand_id_range(args.video_ids)
+    if args.video_id is not None:
+        return [args.video_id]
+    raise SystemExit("오류: --video_id 또는 --video_ids 를 지정하세요.")
+
+
+def _expand_id_range(spec: str) -> list[int]:
+    """'1-5,7,9-12' 형식의 문자열을 정수 목록으로 변환한다."""
+    ids: list[int] = []
+    for part in spec.split(","):
+        part = part.strip()
+        if "-" in part:
+            a, b = part.split("-", 1)
+            ids.extend(range(int(a), int(b) + 1))
+        else:
+            ids.append(int(part))
+    return ids
 
 
 def _load_preprocess_cache(out: Path) -> tuple:
