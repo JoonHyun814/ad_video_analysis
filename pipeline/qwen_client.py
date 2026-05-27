@@ -1,4 +1,4 @@
-"""Qwen2.5-VL 로컬 추론 클라이언트.
+"""Qwen2.5-VL vLLM 추론 클라이언트.
 
 init() 한 번 호출 후 infer() 로 재사용한다. 모델은 모듈 레벨 싱글턴으로 캐싱된다.
 """
@@ -10,30 +10,56 @@ from PIL import Image
 
 _DEFAULT_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
 
-_model = None
-_tokenizer = None
+_llm = None
+_processor = None
+_lora_path: str | None = None
 
 
-def init(model_path: str = _DEFAULT_MODEL, load_in_4bit: bool = True) -> None:
-    """모델을 로드하고 추론 모드로 전환한다. lora_path 를 넘기면 어댑터를 자동 인식한다."""
-    global _model, _tokenizer
-    from unsloth import FastVisionModel
+def init(model: str = _DEFAULT_MODEL, lora_path: str | None = None, load_in_4bit: bool = True) -> None:
+    """vLLM LLM 인스턴스를 초기화한다.
 
-    print(f"  Qwen 모델 로드 중: {model_path}")
-    _model, _tokenizer = FastVisionModel.from_pretrained(
-        model_name=model_path,
-        load_in_4bit=load_in_4bit,
+    model: 베이스 모델명 또는 경로.
+    lora_path: 학습된 LoRA 어댑터 경로. None 이면 베이스 모델만 사용한다.
+    load_in_4bit 는 호환성 유지를 위해 수용하지만 무시된다.
+    """
+    global _llm, _processor, _lora_path
+
+    from vllm import LLM
+    from transformers import AutoProcessor
+
+    _lora_path = lora_path
+    enable_lora = lora_path is not None
+
+    if enable_lora:
+        print(f"  LoRA 어댑터 적용: base={model}, lora={lora_path}")
+    print(f"  vLLM 모델 로드 중: {model}")
+
+    kwargs = dict(
+        model=model,
+        dtype="bfloat16",
+        max_model_len=8192,
+        limit_mm_per_prompt={"image": 30},
+        gpu_memory_utilization=0.78,
+        # 이미지 1장당 최대 128 tile(≈128 토큰)로 제한 → ViT 메모리 절약
+        mm_processor_kwargs={"min_pixels": 4 * 28 * 28, "max_pixels": 128 * 28 * 28},
+        trust_remote_code=True,
     )
-    FastVisionModel.for_inference(_model)
-    print("  Qwen 모델 로드 완료")
+    if enable_lora:
+        kwargs["enable_lora"] = True
+        kwargs["max_lora_rank"] = 64
+
+    _llm = LLM(**kwargs)
+    _processor = AutoProcessor.from_pretrained(model, trust_remote_code=True)
+    print("  vLLM 모델 로드 완료")
 
 
 def infer(image_paths: list[str | Path], prompt: str, max_new_tokens: int = 4096) -> str:
     """이미지(없어도 됨)와 프롬프트로 모델 응답 텍스트를 반환한다."""
-    if _model is None:
+    if _llm is None:
         raise RuntimeError("qwen_client.init()를 먼저 호출하세요.")
 
-    import torch
+    from vllm import SamplingParams
+    from vllm.lora.request import LoRARequest
 
     images = [Image.open(p).convert("RGB") for p in image_paths] if image_paths else []
 
@@ -41,35 +67,35 @@ def infer(image_paths: list[str | Path], prompt: str, max_new_tokens: int = 4096
     content.append({"type": "text", "text": prompt})
     messages = [{"role": "user", "content": content}]
 
-    text = _tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    text = _processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
 
-    if images:
-        inputs = _tokenizer(
-            images, text, return_tensors="pt", add_special_tokens=False
-        ).to("cuda")
-    else:
-        inputs = _tokenizer(
-            text=text, return_tensors="pt", add_special_tokens=False
-        ).to("cuda")
+    sampling_params = SamplingParams(
+        temperature=0,
+        max_tokens=max_new_tokens,
+        repetition_penalty=1.1,
+    )
 
-    with torch.inference_mode():
-        out_ids = _model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-            repetition_penalty=1.1,  # 반복 억제 → 장황한 중첩 JSON 감소 → 출력 단축
-            use_cache=True,
-        )
+    mm_data = {"image": images} if images else {}
 
-    new_ids = out_ids[0][inputs["input_ids"].shape[1]:]
-    return _tokenizer.decode(new_ids, skip_special_tokens=True).strip()
+    generate_kwargs = dict(
+        prompts=[{"prompt": text, "multi_modal_data": mm_data}],
+        sampling_params=sampling_params,
+    )
+    if _lora_path:
+        generate_kwargs["lora_request"] = LoRARequest("ad_lora", 1, _lora_path)
+
+    outputs = _llm.generate(**generate_kwargs)
+    return outputs[0].outputs[0].text.strip()
 
 
 def release() -> None:
-    """Qwen 모델을 메모리에서 해제한다."""
-    global _model, _tokenizer
-    _model = None
-    _tokenizer = None
+    """vLLM 인스턴스를 메모리에서 해제한다."""
+    global _llm, _processor, _lora_path
+    _llm = None
+    _processor = None
+    _lora_path = None
 
 
 def parse_json(text: str) -> dict:
@@ -132,7 +158,6 @@ def _repair_json(text: str) -> dict | None:
             if depth == 0:
                 last_safe = i + 1
             elif depth == 1 and ch == "}":
-                # 중첩 객체/배열의 값 하나가 완전히 닫힘
                 depth1_safe = i + 1
 
     if not stack and not in_string:
@@ -146,14 +171,11 @@ def _repair_json(text: str) -> dict | None:
 
     candidate = text.rstrip()
 
-    # 열린 문자열 닫기 (이스케이프 진행 중이면 미완성 이스케이프 제거 후 닫기)
     if in_string:
         if escape:
-            candidate = candidate[:-1]  # 미완성 '\' 제거
+            candidate = candidate[:-1]
         candidate += '"'
 
-    # 마지막 불완전 키-값 제거.
-    # 값이 문자열("..."), 비문자열(숫자·true 등), 없음 세 가지 모두 처리.
     _STR = r'"(?:[^"\\]|\\.)*"'
     _NONSTR = r'[^,}\]"\\]*'
     candidate = re.sub(
@@ -171,7 +193,6 @@ def _repair_json(text: str) -> dict | None:
     except json.JSONDecodeError:
         pass
 
-    # 닫기 실패 시 안전 지점으로 후퇴
     for pos in (depth1_safe, last_safe):
         if pos > 0:
             try:

@@ -90,6 +90,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="scenario_analysis 단계를 건너뜀. 기존 scenario_analysis.json 이 있으면 삭제하지 않고 유지",
     )
+    parser.add_argument(
+        "--skip_preprocess",
+        action="store_true",
+        help="전처리 단계(1~7)를 건너뜀. out_dir 내 기존 cuts.json·ocr.json·stt.json·audio_analysis.json을 재사용한다.",
+    )
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        default="/root/.cache",
+        help="HuggingFace·모델 캐시 루트 경로 (기본: /root/.cache)",
+    )
     return parser
 
 
@@ -108,61 +119,66 @@ def _detect(video_path: Path, backend: str, threshold: float | None, max_cuts: i
 
 def main() -> None:
     args = _build_parser().parse_args()
+    os.environ["HF_HOME"] = args.cache_dir
+
     base = args.out_dir if args.out_dir is not None else _OUTPUT_ROOT
     out = base / str(args.video_id)
 
-    if out.exists():
-        _clean_out_dir(out, args.skip_scene_analysis, args.skip_cut_analysis, args.skip_scenario_analysis)
-        print(f"      기존 결과 삭제: {out}")
+    if args.skip_preprocess:
+        print("[1-7/10] 전처리 단계 생략 (--skip_preprocess)")
+        cuts, ocr_results, stt_segments, audio_result = _load_preprocess_cache(out)
+    else:
+        if out.exists():
+            _clean_out_dir(out, args.skip_scene_analysis, args.skip_cut_analysis, args.skip_scenario_analysis)
+            print(f"      기존 결과 삭제: {out}")
 
-    print(f"[1/10] 영상 정보 조회 중... (video_id={args.video_id})")
-    video_path, meta = get_video_info(args.video_id)
-    print(f"      파일: {video_path}")
+        print(f"[1/10] 영상 정보 조회 중... (video_id={args.video_id})")
+        video_path, meta = get_video_info(args.video_id)
+        print(f"      파일: {video_path}")
 
-    print(f"[2/10] 컷 감지 중... (backend={args.cut_backend}, threshold={args.threshold}, max_cuts={args.max_cuts})")
-    cuts = _detect(video_path, args.cut_backend, args.threshold, args.max_cuts)
-    _save_json(out / "cuts.json", [dataclasses.asdict(c) for c in cuts])
-    print(f"      컷 수: {len(cuts)}  →  {out / 'cuts.json'}")
-    _flush_gpu()  # TransNetV2 TF 캐시 정리
+        print(f"[2/10] 컷 감지 중... (backend={args.cut_backend}, threshold={args.threshold}, max_cuts={args.max_cuts})")
+        cuts = _detect(video_path, args.cut_backend, args.threshold, args.max_cuts)
+        _save_json(out / "cuts.json", [dataclasses.asdict(c) for c in cuts])
+        print(f"      컷 수: {len(cuts)}  →  {out / 'cuts.json'}")
+        _flush_gpu()  # TransNetV2 TF 캐시 정리
 
-    print("[3/10] Keyframe 추출 중...")
-    keyframes = extract_keyframes(video_path, cuts, out / "keyframes")
-    print(f"      추출된 keyframe: {len(keyframes)}장  →  {out / 'keyframes'}")
+        print("[3/10] Keyframe 추출 중...")
+        keyframes = extract_keyframes(video_path, cuts, out / "keyframes")
+        print(f"      추출된 keyframe: {len(keyframes)}장  →  {out / 'keyframes'}")
 
-    print("[4/10] Frames 추출 중... (fps=2)")
-    frames = extract_frames_at_fps(video_path, out / "frames", fps=2.0)
-    print(f"      추출된 frames: {len(frames)}장  →  {out / 'frames'}")
+        print("[4/10] Frames 추출 중... (fps=2)")
+        frames = extract_frames_at_fps(video_path, out / "frames", fps=2.0)
+        print(f"      추출된 frames: {len(frames)}장  →  {out / 'frames'}")
 
-    print("[5/10] OCR 진행 중... (전체 frames 기준)")
-    ocr_results = run_ocr_batch(frames)
-    _save_json(out / "ocr.json", ocr_results)
-    print(f"      완료  →  {out / 'ocr.json'}")
-    from pipeline import ocr as _ocr_mod
-    _ocr_mod.release()
-    _flush_gpu()  # EasyOCR 해제
+        print("[5/10] OCR 진행 중... (전체 frames 기준)")
+        ocr_results = run_ocr_batch(frames)
+        _save_json(out / "ocr.json", ocr_results)
+        print(f"      완료  →  {out / 'ocr.json'}")
+        from pipeline import ocr as _ocr_mod
+        _ocr_mod.release()
+        _flush_gpu()  # EasyOCR 해제
 
-    print("[6/10] STT + 화자 분리 중... (whisper-diarization)")
-    stt_segments = run_diarization(video_path, out / "stt")
-    _save_json(out / "stt.json", stt_segments)
-    print(f"      세그먼트 수: {len(stt_segments)}  →  {out / 'stt.json'}")
+        print("[6/10] STT + 화자 분리 중... (whisper-diarization)")
+        stt_segments = run_diarization(video_path, out / "stt")
+        _save_json(out / "stt.json", stt_segments)
+        print(f"      세그먼트 수: {len(stt_segments)}  →  {out / 'stt.json'}")
 
-    print("[7/10] BGM + SFX 분석 중...")
-    audio_result = analyze_audio(video_path, cuts)
-    _save_json(out / "audio_analysis.json", audio_result)
-    print(f"      완료  →  {out / 'audio_analysis.json'}")
-    try:
-        from pipeline import audio_clap as _clap_mod
-        _clap_mod.release()
-    except ImportError:
-        pass
-    _flush_gpu()  # CLAP 해제
+        print("[7/10] BGM + SFX 분석 중...")
+        audio_result = analyze_audio(video_path, cuts)
+        _save_json(out / "audio_analysis.json", audio_result)
+        print(f"      완료  →  {out / 'audio_analysis.json'}")
+        try:
+            from pipeline import audio_clap as _clap_mod
+            _clap_mod.release()
+        except ImportError:
+            pass
+        _flush_gpu()  # CLAP 해제
 
     llm = args.llm_backend
 
     if llm == "qwen":
         from pipeline import qwen_client
-        model_path = args.lora_path if args.lora_path else args.qwen_model
-        qwen_client.init(model_path)
+        qwen_client.init(model=args.qwen_model, lora_path=args.lora_path)
 
     if args.skip_scene_analysis:
         print("[8/10] Scene 분석 생략 (--skip_scene_analysis)")
@@ -248,6 +264,30 @@ def main() -> None:
         from pipeline import qwen_client
         qwen_client.release()
         _flush_gpu()  # Qwen 해제
+
+
+def _load_preprocess_cache(out: Path) -> tuple:
+    """기존 전처리 결과를 로드해 (cuts, ocr_results, stt_segments, audio_result) 를 반환한다."""
+    from pipeline.cuts import Cut
+
+    cuts_json = out / "cuts.json"
+    if not cuts_json.exists():
+        raise FileNotFoundError(
+            f"전처리 캐시 없음: {cuts_json}\n--skip_preprocess 사용 전에 전처리를 먼저 실행하세요."
+        )
+
+    cuts = [Cut(**d) for d in json.loads(cuts_json.read_text(encoding="utf-8"))]
+
+    def _load(name: str, default):
+        p = out / name
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else default
+
+    ocr_results = _load("ocr.json", {})
+    stt_segments = _load("stt.json", [])
+    audio_result = _load("audio_analysis.json", {})
+
+    print(f"      컷 수: {len(cuts)}, OCR: {len(ocr_results)}항목, STT: {len(stt_segments)}개 세그먼트")
+    return cuts, ocr_results, stt_segments, audio_result
 
 
 def _clean_out_dir(out: Path, keep_scene_analysis: bool, keep_cut_analysis: bool, keep_scenario_analysis: bool) -> None:

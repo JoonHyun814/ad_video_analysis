@@ -5,7 +5,7 @@ from pipeline import qwen_client
 from pipeline.cut_analysis import _build_frame_map, _get_cut_frames, _sample
 from pipeline.cuts import Cut
 
-_MAX_FRAMES = 30
+_MAX_FRAMES = 16
 
 _PROMPT = (
     "첨부 이미지들은 {start_sec:.2f}~{end_sec:.2f}초 구간 광고 컷의 시간 순 프레임이다. "
