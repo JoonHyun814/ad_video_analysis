@@ -1,0 +1,42 @@
+model:
+  name: "unsloth/Qwen3-VL-8B-Instruct"
+  max_seq_length: 8192   # scenario max ~3400 tok / cut p90(8장) ~8000 tok 커버; 16384 대비 ~5GB 절약
+  load_in_4bit: true     # 4-bit: ~4.5GB + LoRA grad ~3GB + act ~10GB → L4 23GB 안전 마진
+  cache_dir: /data/.cache/huggingface
+
+lora:
+  r: 32                  # seq 8192로 여유 생겨 r=16→32 상향; 표현력 향상
+  lora_alpha: 64         # 2×r 비율 유지
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  use_gradient_checkpointing: "unsloth"
+  random_state: 3407
+
+dataset:
+  scene_analysis: "/data/data_20260526/scene_analysis.jsonl"
+  cut_analysis: "/data/data_20260526/cut_analysis.jsonl"
+  scenario_analysis: "/data/data_20260526/scenario_analysis.jsonl"
+
+training:
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 4     # effective batch = 4
+  num_train_epochs: 3                # max_steps 대신 에폭 기반: scene 362×3=1086 / cut 488×3=1464 / scenario 49×3=147 스텝
+  learning_rate: 2.0e-4
+  warmup_steps: 50                   # 첫 에폭의 ~5% 수준
+  output_dir: "/data/outputs/20260526"
+  fp16: false
+  bf16: true
+  logging_steps: 10
+  save_steps: 50                    # scenario 소규모 데이터셋 고려해 체크포인트 주기 단축
+  report_to: "none"
+
+output:
+  save_merged: true
+  save_method: "lora"        # lora: 어댑터만 저장 (권장) | merged_16bit | merged_4bit
+  save_dir: "/data/outputs/20260526/models/qwen3_vl_ad"

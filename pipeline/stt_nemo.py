@@ -35,17 +35,20 @@ _CFG = {
         "clustering": {
             "parameters": {
                 "oracle_num_speakers": False, "max_num_speakers": 8,
-                "enhanced_count_thres": 80, "max_rp_threshold": 0.25,
+                "enhanced_count_thres": 40,  # 80→40: 짧은 영상에서 임베딩 수가 적어도 enhanced counting 작동
+                "max_rp_threshold": 0.25,
                 "sparse_search_volume": 30, "maj_vote_spk_count": False,
-                "chunk_cluster_count": 50, "embeddings_per_chunk": 10000,
+                "chunk_cluster_count": 20,  # 50→20: 짧은 영상 대응
+                "embeddings_per_chunk": 2000,  # 10000→2000
             },
         },
         "msdd_model": {
             "model_path": "diar_msdd_telephonic",
             "parameters": {
                 "use_speaker_model_from_ckpt": True, "infer_batch_size": 25,
-                "sigmoid_threshold": [0.7], "seq_eval_mode": False,
-                "split_infer": True, "diar_window_length": 50,
+                "sigmoid_threshold": [0.3],  # 0.7→0.5: 낮출수록 2+ 화자 검출 민감도 증가
+                "seq_eval_mode": False,
+                "split_infer": True, "diar_window_length": 3,  # 50→15: 광고 영상 길이에 맞게
                 "overlap_infer_spk_limit": 5,
             },
             "test_ds": {
@@ -59,9 +62,17 @@ _CFG = {
 
 def diarize(audio_path: Path, device: str) -> list[tuple[int, int, int]]:
     """NeMo MSDD로 화자 분리를 수행하고 [(start_ms, end_ms, speaker_id), ...] 를 반환한다."""
+    import torch
     from nemo.collections.asr.models.msdd_models import NeuralDiarizer
     from nemo.collections.asr.parts.utils.speaker_utils import rttm_to_labels
     from omegaconf import OmegaConf
+
+    # cuSOLVER 초기화 실패 방지: MAGMA 백엔드가 있으면 우선 사용
+    if device == "cuda" and torch.cuda.is_available():
+        try:
+            torch.backends.cuda.preferred_linalg_library("magma")
+        except Exception:
+            pass
 
     with tempfile.TemporaryDirectory() as tmp_str:
         tmp = Path(tmp_str)

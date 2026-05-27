@@ -1,0 +1,336 @@
+{
+  "video_id": 30,
+  "original_filename": "센티바 세정살균티슈_청소와 살균을 쉽게, 향으로 기분 좋게!.mp4",
+  "ad_id": "",
+  "duration": null,
+  "fps": null,
+  "inference_time_sec": 1456.27,
+  "stt_segments": null,
+  "stt_full_text": null,
+  "gpu_memory_gb": null,
+  "transnet_cuts": null,
+  "model_cuts": [
+    {
+      "cut_num": 1,
+      "start": 0.0,
+      "end": 1.47
+    },
+    {
+      "cut_num": 2,
+      "start": 1.47,
+      "end": 2.6
+    },
+    {
+      "cut_num": 3,
+      "start": 2.6,
+      "end": 3.94
+    },
+    {
+      "cut_num": 4,
+      "start": 3.94,
+      "end": 5.07
+    },
+    {
+      "cut_num": 5,
+      "start": 5.07,
+      "end": 6.81
+    },
+    {
+      "cut_num": 6,
+      "start": 6.81,
+      "end": 9.68
+    },
+    {
+      "cut_num": 7,
+      "start": 9.68,
+      "end": 11.64
+    },
+    {
+      "cut_num": 8,
+      "start": 11.64,
+      "end": 15.07
+    }
+  ],
+  "parsed": {
+    "ad_id": "",
+    "duration": null,
+    "schema_version": "claude_preprocessed_v1",
+    "narrative_type": "NARRATIVE",
+    "narrative_structure": "problem_agitation_solution",
+    "confidence": 0.75,
+    "narrative_classification": {
+      "narrative_type": "NARRATIVE",
+      "confidence": 0.75,
+      "reasoning": "문제 상황(아이의 낙서, 갑작스러운 방문객)을 제시하고 센티바 세정살균티슈가 해결책으로 등장하는 PROBLEM→SOLUTION→FEATURE 구조가 명확하다. 다만 기능 시연 컷이 다수를 차지하여 순수 서사보다 제품 소개에 가중치가 실린다."
+    },
+    "overall_strategy": {
+      "narrative_structure": "problem_agitation_solution",
+      "creative_style": "problem_solution",
+      "hook_strategy": {
+        "technique": "visual_impact",
+        "skip_resistance_strategy": "immediate_value",
+        "opening_device": "브랜드명과 제품 패키지를 든 여성 모델이 첫 프레임에 등장하며 제품을 직접 제시하는 방식으로 시선을 사로잡는다.",
+        "first_frame_element": "크림색 가디건의 여성 모델이 SCENTIVA 세정살균티슈 패키지를 오른손으로 들어 카메라 방향으로 제시하는 장면.",
+        "speech_in_first_scene": true,
+        "text_in_first_scene": true,
+        "brand_in_first_scene": true
+      },
+      "audio_visual_strategy": {
+        "voiceover_type": "narrator",
+        "voiceover_tone": "energetic",
+        "music_role": "background_mood",
+        "music_tempo": "fast",
+        "text_carries_primary_message": true
+      },
+      "close_strategy": {
+        "close_type": "brand_emotion",
+        "end_card_elements": [
+          "logo",
+          "product_image",
+          "tagline"
+        ],
+        "cta_type": null,
+        "promo_info": null
+      },
+      "tagline": null,
+      "message_hierarchy": {
+        "primary_message": "센티바 세정살균티슈로 청소와 살균을 쉽게 하고 향기로 기분 좋은 일상을 누리세요.",
+        "supporting_messages": [
+          "유해세균 99.9% 제거 효능",
+          "청소와 살균을 동시에",
+          "유한 CLOROX 브랜드 제품"
+        ],
+        "message_repetition_count": 11
+      }
+    },
+    "sequences": [
+      {
+        "sequence_id": 1,
+        "sequence_label": "Hook",
+        "start_sec": 0.0,
+        "end_sec": 5.07,
+        "intent": "provoke_curiosity",
+        "num_cuts": 4,
+        "delivery": "voice_and_text",
+        "brand_visible": true,
+        "product_visible": true
+      },
+      {
+        "sequence_id": 2,
+        "sequence_label": "Body",
+        "start_sec": 5.07,
+        "end_sec": 11.64,
+        "intent": "demonstrate_value",
+        "num_cuts": 4,
+        "delivery": "voice_and_text",
+        "brand_visible": true,
+        "product_visible": true
+      },
+      {
+        "sequence_id": 3,
+        "sequence_label": "Close",
+        "start_sec": 11.64,
+        "end_sec": 15.07,
+        "intent": "reinforce_brand",
+        "num_cuts": 1,
+        "delivery": "voice_and_text",
+        "brand_visible": true,
+        "product_visible": true
+      }
+    ],
+    "cuts": [
+      {
+        "cut_id": 1,
+        "sequence_id": null,
+        "start_sec": 0.0,
+        "end_sec": 1.47,
+        "role": "ESTABLISH_CONTEXT",
+        "plot": "광고 오프닝에서 여성 모델이 센티바 세정살균티슈 제품을 들어 보이며 브랜드명과 제품명이 화면에 나타나 시청자에게 브랜드·제품을 처음 소개한다.",
+        "narration": "세정살 센티쇼 센티바",
+        "text": null,
+        "brand_visible": true,
+        "product_visible": true,
+        "brand_assets": [
+          "packaging"
+        ]
+      },
+      {
+        "cut_id": 2,
+        "sequence_id": null,
+        "start_sec": 1.47,
+        "end_sec": 2.6,
+        "role": "PROBLEM",
+        "plot": "아이가 거실 바닥에 크레용 낙서와 부스러기를 잔뜩 어질러놓은 상황을 보여주며 청소가 필요한 문제 상황을 제시한다.",
+        "narration": "세정살 센티쇼 센티바 / 오?",
+        "text": null,
+        "brand_visible": true,
+        "product_visible": false,
+        "brand_assets": [
+          "logo"
+        ]
+      },
+      {
+        "cut_id": 3,
+        "sequence_id": null,
+        "start_sec": 2.6,
+        "end_sec": 3.94,
+        "role": "ESTABLISH_CONTEXT",
+        "plot": "아이가 방문자 알림에 놀라며 반응하고 도어 인터콤 화면에 반갑게 손 흔드는 인물이 등장해 일상적인 가정 공간과 상황을 제시한다.",
+        "narration": "오? / 안녕",
+        "text": null,
+        "brand_visible": true,
+        "product_visible": false,
+        "brand_assets": [
+          "logo"
+        ]
+      },
+      {
+        "cut_id": 4,
+        "sequence_id": null,
+        "start_sec": 3.94,
+        "end_sec": 5.07,
+        "role": "PROBLEM",
+        "plot": "예상치 못한 오염 상황에 당황한 여성의 반응을 보여주며 '이럴 땐 센티바'라는 해결책 제시로 자연스럽게 이어지는 문제 제기 컷이다.",
+        "narration": "안녕 / 이럴 땐 센티바",
+        "text": null,
+        "brand_visible": true,
+        "product_visible": false,
+        "brand_assets": [
+          "logo"
+        ]
+      },
+      {
+        "cut_id": 5,
+        "sequence_id": null,
+        "start_sec": 5.07,
+        "end_sec": 6.81,
+        "role": "SOLUTION",
+        "plot": "'이럴 땐 센티바'라는 나레이션과 함께 제품을 처음 등장시켜 문제 상황에 대한 해결책으로 전환하는 컷이다.",
+        "narration": "이럴 땐 센티바 / 셋",
+        "text": null,
+        "brand_visible": true,
+        "product_visible": true,
+        "brand_assets": [
+          "packaging"
+        ]
+      },
+      {
+        "cut_id": 6,
+        "sequence_id": null,
+        "start_sec": 6.81,
+        "end_sec": 7.81,
+        "role": "FEATURE",
+        "plot": "유해세균 제거율 수치(94.6→99.9%)를 텍스트로 강조하면서 손으로 티슈를 사용해 표면을 직접 닦는 장면으로 제품의 살균 기능을 시연한다.",
+        "narration": "셋 / 셋",
+        "text": null,
+        "brand_visible": true,
+        "product_visible": true,
+        "brand_assets": [
+          "logo"
+        ]
+      },
+      {
+        "cut_id": 7,
+        "sequence_id": null,
+        "start_sec": 7.81,
+        "end_sec": 9.68,
+        "role": "FEATURE",
+        "plot": "세정살균 티슈로 인덕션과 변기를 닦는 시연과 함께 '유해세균 99.9% 제거' 효능을 텍스트·세균 CG로 시각적으로 강조하는 기능 설명 컷이다.",
+        "narration": "셋 / 셋 / 셋",
+        "text": null,
+        "brand_visible": true,
+        "product_visible": true,
+        "brand_assets": [
+          "logo"
+        ]
+      },
+      {
+        "cut_id": 8,
+        "sequence_id": null,
+        "start_sec": 9.68,
+        "end_sec": 11.64,
+        "role": "FEATURE",
+        "plot": "여성과 아이가 센티바 세정살균티슈를 카메라 앞에 들어 보이며 청소·살균·향기의 제품 혜택을 경쾌하고 감성적으로 강조하는 컷.",
+        "narration": "셋 / 깍끝 / 청소와 살견을 쉽게 향으로 기분정켓 센티바",
+        "text": null,
+        "brand_visible": true,
+        "product_visible": true,
+        "brand_assets": [
+          "packaging"
+        ]
+      },
+      {
+        "cut_id": 9,
+        "sequence_id": null,
+        "start_sec": 11.64,
+        "end_sec": 15.07,
+        "role": "BRAND",
+        "plot": "브랜드 슬로건과 제품 패키징을 전면에 내세우며 광고를 마무리하는 브랜드 클로징 컷.",
+        "narration": "청소와 살견을 쉽게 향으로 기분정켓 센티바",
+        "text": null,
+        "brand_visible": true,
+        "product_visible": true,
+        "brand_assets": [
+          "packaging"
+        ]
+      }
+    ],
+    "key_scenes": [
+      {
+        "start_sec": 0.0,
+        "end_sec": 1.47,
+        "location": "indoor",
+        "subject": "person_with_product",
+        "key_scene_describe": "크림색 가디건의 여성 모델이 SCENTIVA 세정살균티슈를 들어 올리며 브랜드명과 제품명이 화면에 등장하는 광고 오프닝으로, 가장 높은 음악 다이나믹(8.78dB)이 동반된다."
+      },
+      {
+        "start_sec": 7.81,
+        "end_sec": 9.68,
+        "location": "indoor",
+        "subject": "person_with_product",
+        "key_scene_describe": "인덕션과 변기에서 세균 CG와 함께 티슈로 표면을 닦는 시연 장면. '유해세균 99.9% 제거' 텍스트와 세균 소멸 효과로 제품 핵심 효능을 시각화한다."
+      },
+      {
+        "start_sec": 9.68,
+        "end_sec": 11.64,
+        "location": "indoor",
+        "subject": "person_with_product",
+        "key_scene_describe": "여성과 아이가 센티바 세정살균티슈를 함께 들고 팔을 크게 벌리며 환하게 웃는 감정적 클라이맥스로, 청소 후 기분 좋은 일상을 생동감 있게 표현한다."
+      },
+      {
+        "start_sec": 11.64,
+        "end_sec": 15.07,
+        "location": "indoor",
+        "subject": "product",
+        "key_scene_describe": "센티바 세정살균티슈 2종이 거실 전경에 나란히 배치되고 슬로건·브랜드 로고가 전면에 표시되는 브랜드 클로징으로, 복수의 음향 이벤트가 집중되는 피크 구간이다."
+      }
+    ],
+    "role_sequence": "ESTABLISH_CONTEXT,PROBLEM,ESTABLISH_CONTEXT,PROBLEM,SOLUTION,FEATURE,FEATURE,BRAND",
+    "narrative_summary": "일상의 청소 문제(아이의 낙서, 갑작스러운 방문객)를 연속으로 보여주며 '이럴 땐 센티바'로 해결책을 제시한다. 세정살균티슈로 테이블·인덕션·변기를 직접 닦으며 유해세균 99.9% 제거 효능을 수치와 CG로 증명한다. 마지막에는 여성과 아이가 제품을 함께 들고 기쁘게 웃으며 청소 후 향기로운 일상을 표현하고, 제품 2종과 브랜드 슬로건으로 마무리한다.",
+    "step1_has_problem": true,
+    "step2_has_review": false,
+    "pipeline_inputs": {
+      "model": "claude-sonnet-4-6",
+      "transnet_threshold": null,
+      "stt_model": null,
+      "max_cuts": null
+    },
+    "brief": {
+      "campaign_objective": "consideration",
+      "industry_category": "retail_ecommerce",
+      "brand_name": "유한락스 센티바",
+      "target_gender": "all",
+      "target_age_range": "25-44",
+      "target_interest": [
+        "청소",
+        "살균",
+        "위생",
+        "육아",
+        "생활용품"
+      ],
+      "placement": "ctv_15s",
+      "key_message": "유한락스 센티바 세정살균티슈로 유해세균 99.9%를 제거하고 청소와 살균을 쉽고 향기롭게 해결하세요."
+    }
+  },
+  "parse_success": true
+}

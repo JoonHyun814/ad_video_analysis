@@ -29,9 +29,22 @@ def run_diarization(
         words = _assign_speakers(words, speaker_ts)
         words = _realign_speakers(words)
     except Exception as exc:
-        print(f"      [WARN] 화자 분리 실패, Speaker 0 으로 통일: {exc}")
-        for w in words:
-            w["speaker"] = 0
+        print(f"      [WARN] 화자 분리 실패 ({type(exc).__name__}: {exc})")
+        if device == "cuda":
+            print("      [INFO] CPU로 재시도...")
+            try:
+                speaker_ts = diarize(audio_path, "cpu")
+                words = _assign_speakers(words, speaker_ts)
+                words = _realign_speakers(words)
+                print("      [INFO] CPU 재시도 성공")
+            except Exception as exc2:
+                print(f"      [WARN] CPU 재시도 실패, Speaker 0 으로 통일: {type(exc2).__name__}: {exc2}")
+                for w in words:
+                    w["speaker"] = 0
+        else:
+            print("      [WARN] Speaker 0 으로 통일")
+            for w in words:
+                w["speaker"] = 0
 
     return _group_segments(words)
 
@@ -71,6 +84,7 @@ def _transcribe(audio_path: Path, language: str, model_name: str, device: str) -
     del model, pipe
     if device == "cuda":
         torch.cuda.empty_cache()
+        torch.cuda.synchronize()  # CUDA 작업 완료 후 cuSOLVER 컨텍스트 충돌 방지
     return words
 
 
