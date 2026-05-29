@@ -1,12 +1,10 @@
 """brief_analysis 와 scenario_analysis 를 비교해 Phase 1 평가 결과를 생성한다 (claude 기본 백엔드)."""
 import json
 from utils.json_utils import parse_json as _parse_json
-import subprocess
-import time
+from utils.llm_caller import call_claude
 
 from evaluation.schemas import build_eval_schema
 
-_RETRY_DELAYS = (30, 60, 120)
 
 
 def build_eval_prompt(brief: dict, scenario: dict) -> str:
@@ -27,7 +25,7 @@ def build_eval_prompt(brief: dict, scenario: dict) -> str:
 def evaluate_scenario(brief: dict, scenario: dict) -> dict:
     """시나리오를 브리프와 비교 평가한다 (claude 백엔드)."""
     prompt = build_eval_prompt(brief, scenario)
-    raw = _call_claude(prompt)
+    raw = call_claude(prompt, timeout=600)
     return _compute_scores(raw)
 
 
@@ -61,16 +59,4 @@ def _compute_scores(raw: dict) -> dict:
     return raw
 
 
-def _call_claude(prompt: str) -> dict:
-    cmd = ["claude", "-p", prompt]
-    result = subprocess.CompletedProcess(args=cmd, returncode=1, stdout="")
-    for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        if "529" not in result.stdout and "Overloaded" not in result.stdout:
-            return _parse_json(result.stdout)
-        if delay is None:
-            break
-        print(f"      API 과부하(529), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
-        time.sleep(delay)
-    return _parse_json(result.stdout)
 

@@ -1,7 +1,6 @@
 import json
 from utils.json_utils import parse_json as _parse_json
-import subprocess
-import time
+from utils.llm_caller import call_claude
 from pathlib import Path
 
 from pipeline.cuts import Cut
@@ -129,8 +128,6 @@ def _cut_ocr(ocr_data: dict[str, list[str]], cut: Cut) -> str:
 
 # ── Claude call ────────────────────────────────────────────────────────────────
 
-_RETRY_DELAYS = (30, 60, 120)
-
 
 def _call_claude(context: str, duration: float) -> dict:
     prompt = (
@@ -151,16 +148,5 @@ def _call_claude(context: str, duration: float) -> dict:
         f"{context}\n\n"
         f"{_SCHEMA}"
     )
-    cmd = ["claude", "-p", prompt]
-
-    for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        if "529" not in result.stdout and "Overloaded" not in result.stdout:
-            return _parse_json(result.stdout)
-        if delay is None:
-            break
-        print(f"      API 과부하(529), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
-        time.sleep(delay)
-
-    return _parse_json(result.stdout)
+    return call_claude(prompt, timeout=600)
 

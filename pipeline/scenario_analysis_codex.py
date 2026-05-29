@@ -1,8 +1,7 @@
 import json
-from utils.json_utils import parse_json as _parse_json
-import subprocess
-import tempfile
 from pathlib import Path
+
+from utils.llm_caller import call_codex
 
 from pipeline.cuts import Cut
 from pipeline.scenario_analysis import _SCHEMA, _build_context
@@ -42,15 +41,5 @@ def _call_codex(context: str, duration: float, model: str | None) -> dict:
         f"{context}\n\n"
         f"{_SCHEMA}"
     )
-
-    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
-        out_file = Path(f.name)
-
-    cmd = ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "-o", str(out_file)]
-    if model:
-        cmd += ["-m", model]
-    cmd.append(prompt)
-
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
-    return _parse_json(out_file.read_text(encoding="utf-8"))
+    return call_codex(prompt, model=model, timeout=600)
 

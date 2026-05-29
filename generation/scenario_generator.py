@@ -1,13 +1,7 @@
 """브리프 기반 광고 시나리오 생성 (claude 백엔드)."""
 import json
-import subprocess
-import tempfile
-import time
-from pathlib import Path
 
-from utils.json_utils import parse_json as _parse_json
-
-_RETRY_DELAYS = (30, 60, 120)
+from utils.llm_caller import call_claude as _call_claude
 
 _SCHEMA = (
     '{"title": "광고 제목", "brand": "브랜드/제품명", "concept": "광고 핵심 컨셉 한 줄",'
@@ -56,23 +50,7 @@ def build_scenario_prompt(brief: dict) -> str:
 
 def generate_scenario(brief: dict) -> dict:
     """브리프에서 시나리오를 생성한다 (claude 백엔드)."""
-    return _call_claude(build_scenario_prompt(brief))
+    return _call_claude(build_scenario_prompt(brief), timeout=600)
 
 
-def _call_claude(prompt: str) -> dict:
-    cmd = ["claude", "-p", prompt]
-    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False, mode="w", encoding="utf-8") as f:
-        out_path = Path(f.name)
-    text = ""
-    for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
-        with open(out_path, "w", encoding="utf-8") as out_f:
-            subprocess.run(cmd, stdout=out_f, stderr=subprocess.DEVNULL, timeout=600)
-        text = out_path.read_text(encoding="utf-8")
-        if "529" not in text and "Overloaded" not in text:
-            return _parse_json(text)
-        if delay is None:
-            break
-        print(f"      API 과부하(529), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
-        time.sleep(delay)
-    return _parse_json(text)
 

@@ -72,3 +72,32 @@ utils/          # 프로젝트 전반에서 재사용하는 헬퍼 (env 로딩 �
 - 경로: `ROOT_VIDEO_DIR` (dir.env)
 - DB의 `video_uploads.file_path`는 이 경로를 루트로 하는 상대경로다.
 - 절대경로가 필요할 때는 `ROOT_VIDEO_DIR + file_path`로 조합한다.
+
+---
+
+## 공통 유틸리티 (`utils/`)
+
+프로젝트 전반에서 재사용하는 헬퍼 모듈. **새 파일에서 LLM 호출 또는 JSON 파싱이 필요하면 반드시 아래 모듈을 import해서 쓴다.** 로컬에 복붙하지 않는다.
+
+### `utils/json_utils.py`
+
+| 함수 | 설명 |
+|------|------|
+| `parse_json(text: str) -> dict` | LLM 응답에서 JSON을 파싱한다. 마크다운 펜스 제거 → `raw_decode`(후행 텍스트) → 괄호 스택 복구 순으로 시도하고, 모두 실패하면 `{"error": "parse_failed"}` 반환 |
+
+```python
+from utils.json_utils import parse_json
+```
+
+### `utils/llm_caller.py`
+
+| 함수 | 설명 |
+|------|------|
+| `call_claude(prompt, timeout=300) -> dict` | Claude CLI 호출. stdout 파일 출력(PIPE 버퍼 방지) + 529 과부하 자동 재시도 |
+| `call_codex(prompt, model=None, timeout=300) -> dict` | Codex CLI 호출. `-o` 파일 출력 방식 |
+
+```python
+from utils.llm_caller import call_claude, call_codex
+```
+
+> **예외**: `pipeline/cast_analysis.py`는 `--add-dir` 플래그, `cast_analysis_codex.py`는 `-i` 이미지 플래그가 필요해 공통 모듈을 사용하지 않는다.

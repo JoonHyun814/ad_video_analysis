@@ -1,16 +1,12 @@
 """인터넷 검색 기반 광고 브리프 생성."""
 import json
-import subprocess
-import tempfile
-import time
-from pathlib import Path
 
-from utils.json_utils import parse_json as _parse_json
+from utils.llm_caller import call_claude as _call_claude
+from utils.llm_caller import call_codex as _call_codex
 
 from evaluation.schemas import _BRIEF_SCHEMA
 from generation.web_searcher import search_brand_product
 
-_RETRY_DELAYS = (30, 60, 120)
 
 
 def generate_brief_from_web(
@@ -98,31 +94,4 @@ def _override_user_inputs(generated: dict, user_inputs: dict) -> dict:
     return generated
 
 
-def _call_codex(prompt: str, model: str | None = None) -> dict:
-    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
-        out_file = Path(f.name)
-    cmd = ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "-o", str(out_file)]
-    if model:
-        cmd += ["-m", model]
-    cmd.append(prompt)
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
-    return _parse_json(out_file.read_text(encoding="utf-8"))
-
-
-def _call_claude(prompt: str) -> dict:
-    cmd = ["claude", "-p", prompt]
-    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False, mode="w", encoding="utf-8") as f:
-        out_path = Path(f.name)
-    text = ""
-    for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
-        with open(out_path, "w", encoding="utf-8") as out_f:
-            subprocess.run(cmd, stdout=out_f, stderr=subprocess.DEVNULL, timeout=300)
-        text = out_path.read_text(encoding="utf-8")
-        if "529" not in text and "Overloaded" not in text:
-            return _parse_json(text)
-        if delay is None:
-            break
-        print(f"      API 과부하(529), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
-        time.sleep(delay)
-    return _parse_json(text)
 

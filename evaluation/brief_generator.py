@@ -1,12 +1,10 @@
 """scenario_analysis 에서 광고 브리프를 추출한다 (claude 기본 백엔드)."""
 import json
 from utils.json_utils import parse_json as _parse_json
-import subprocess
-import time
+from utils.llm_caller import call_claude as _call_claude
 
 from evaluation.schemas import _BRIEF_SCHEMA
 
-_RETRY_DELAYS = (30, 60, 120)
 
 
 def build_brief_prompt(scenario: dict) -> str:
@@ -37,16 +35,4 @@ def _condense_scenario(scenario: dict) -> str:
     return json.dumps(out, ensure_ascii=False, indent=2)
 
 
-def _call_claude(prompt: str) -> dict:
-    cmd = ["claude", "-p", prompt]
-    result = subprocess.CompletedProcess(args=cmd, returncode=1, stdout="")
-    for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        if "529" not in result.stdout and "Overloaded" not in result.stdout:
-            return _parse_json(result.stdout)
-        if delay is None:
-            break
-        print(f"      API 과부하(529), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
-        time.sleep(delay)
-    return _parse_json(result.stdout)
 

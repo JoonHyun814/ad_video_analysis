@@ -1,14 +1,12 @@
 """scenario_analysis 결과를 DB 저장용 parsed 구조로 정제한다 (claude 백엔드)."""
 import json
 from utils.json_utils import parse_json as _parse_json
-import subprocess
-import time
+from utils.llm_caller import call_claude
 
 from pipeline.cuts import Cut
 from pipeline.scenario_analysis import _summarize_audio
 
 _SCHEMA_VERSION = "pipeline_v1"
-_RETRY_DELAYS = (30, 60, 120)
 
 _ENUMS = (
     "[허용 값 — 반드시 아래 값만 사용]\n"
@@ -175,14 +173,5 @@ def _inject_meta(result: dict, cuts: list[Cut], model: str) -> None:
 
 
 def _call_claude(prompt: str) -> dict:
-    cmd = ["claude", "-p", prompt]
-    for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        if "529" not in result.stdout and "Overloaded" not in result.stdout:
-            return _parse_json(result.stdout)
-        if delay is None:
-            break
-        print(f"      API 과부하(529), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
-        time.sleep(delay)
-    return _parse_json(result.stdout)
+    return call_claude(prompt, timeout=600)
 
