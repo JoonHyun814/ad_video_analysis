@@ -1,6 +1,6 @@
 """scenario_analysis 에서 광고 브리프를 추출한다 (claude 기본 백엔드)."""
 import json
-import re
+from utils.json_utils import parse_json as _parse_json
 import subprocess
 import time
 
@@ -50,17 +50,3 @@ def _call_claude(prompt: str) -> dict:
         time.sleep(delay)
     return _parse_json(result.stdout)
 
-
-def _parse_json(text: str) -> dict:
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    start = text.find("{")
-    if start != -1:
-        try:
-            return json.loads(text[start:])
-        except json.JSONDecodeError:
-            pass
-    return {"error": "parse_failed", "raw": text[:500]}

@@ -1,5 +1,5 @@
 import json
-import re
+from utils.json_utils import parse_json as _parse_json
 import subprocess
 import time
 from pathlib import Path
@@ -164,17 +164,3 @@ def _call_claude(context: str, duration: float) -> dict:
 
     return _parse_json(result.stdout)
 
-
-def _parse_json(text: str) -> dict:
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    start = text.find("{")
-    if start != -1:
-        try:
-            return json.loads(text[start:])
-        except json.JSONDecodeError:
-            pass
-    return {"error": "parse_failed", "raw": text[:500]}

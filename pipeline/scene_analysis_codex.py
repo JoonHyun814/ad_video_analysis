@@ -1,5 +1,5 @@
 import json
-import re
+from utils.json_utils import parse_json as _parse_json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -70,14 +70,3 @@ def _analyze_one(image_path: Path, ocr_hint: str, model: str | None) -> dict:
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
     return _parse_json(out_file.read_text(encoding="utf-8"))
 
-
-def _parse_json(text: str) -> dict:
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("{"):
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError:
-                continue
-    return {"error": "parse_failed", "raw": text}

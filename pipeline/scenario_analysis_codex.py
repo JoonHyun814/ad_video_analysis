@@ -1,5 +1,5 @@
 import json
-import re
+from utils.json_utils import parse_json as _parse_json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -54,17 +54,3 @@ def _call_codex(context: str, duration: float, model: str | None) -> dict:
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
     return _parse_json(out_file.read_text(encoding="utf-8"))
 
-
-def _parse_json(text: str) -> dict:
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    start = text.find("{")
-    if start != -1:
-        try:
-            return json.loads(text[start:])
-        except json.JSONDecodeError:
-            pass
-    return {"error": "parse_failed", "raw": text[:500]}

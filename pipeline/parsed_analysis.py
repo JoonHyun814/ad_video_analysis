@@ -1,6 +1,6 @@
 """scenario_analysis 결과를 DB 저장용 parsed 구조로 정제한다 (claude 백엔드)."""
 import json
-import re
+from utils.json_utils import parse_json as _parse_json
 import subprocess
 import time
 
@@ -186,12 +186,3 @@ def _call_claude(prompt: str) -> dict:
         time.sleep(delay)
     return _parse_json(result.stdout)
 
-
-def _parse_json(text: str) -> dict:
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    for candidate in (text, text[text.find("{"):] if "{" in text else ""):
-        try:
-            return json.loads(candidate)
-        except (json.JSONDecodeError, ValueError):
-            pass
-    return {"error": "parse_failed", "raw": text[:500]}

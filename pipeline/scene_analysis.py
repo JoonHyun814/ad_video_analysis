@@ -1,5 +1,5 @@
 import json
-import re
+from utils.json_utils import parse_json as _parse_json
 import subprocess
 from pathlib import Path
 
@@ -69,10 +69,3 @@ def _analyze_one(image_path: Path, allowed_dir: Path, ocr_hint: str) -> dict:
     )
     return _parse_json(result.stdout)
 
-
-def _parse_json(text: str) -> dict:
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {"error": "parse_failed", "raw": text}
