@@ -1,6 +1,8 @@
 """인터넷 검색 기반 광고 브리프 생성."""
 import json
 
+from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
+from utils.gemini_caller import call_gemini as _call_gemini
 from utils.llm_caller import call_claude as _call_claude
 from utils.llm_caller import call_codex as _call_codex
 
@@ -22,6 +24,7 @@ def generate_brief_from_web(
     functions: list[str] | None = None,
     llm_backend: str = "claude",
     codex_model: str | None = None,
+    gemini_model: str = _GEMINI_DEFAULT_MODEL,
 ) -> dict:
     """웹 검색 결과 기반으로 브리프를 생성한다. 사용자 입력값은 우선 적용한다."""
     user_inputs = _collect_user_inputs(
@@ -33,6 +36,8 @@ def generate_brief_from_web(
     print(f"  브리프 생성 중 [{llm_backend}]...")
     if llm_backend == "codex":
         result = _call_codex(prompt, model=codex_model)
+    elif llm_backend == "gemini":
+        result = _call_gemini(prompt, model=gemini_model)
     else:
         result = _call_claude(prompt)
     return _override_user_inputs(result, user_inputs)

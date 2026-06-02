@@ -23,10 +23,11 @@ from pipeline.scene_analysis import analyze_keyframes
 from pipeline.scene_analysis_codex import analyze_keyframes_codex
 from pipeline.stt import run_diarization
 from pipeline.video_loader import get_video_info
+from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
 
 _OUTPUT_ROOT = Path("output")
 _CUT_BACKENDS = ("transnetv2", "scenedetect")
-_LLM_BACKENDS = ("claude", "codex", "qwen")
+_LLM_BACKENDS = ("claude", "codex", "qwen", "gemini")
 _QWEN_DEFAULT_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
 
 
@@ -62,6 +63,12 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=_LLM_BACKENDS,
         default="claude",
         help="LLM 분석 백엔드 — scene/cut/cast/scenario 전체 적용 (기본: claude)",
+    )
+    parser.add_argument(
+        "--gemini_model",
+        type=str,
+        default=_GEMINI_DEFAULT_MODEL,
+        help=f"[gemini 백엔드] 사용할 Gemini 모델명 (기본: {_GEMINI_DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--lora_path",
@@ -204,6 +211,12 @@ def main() -> None:
         scene_results = analyze_keyframes_qwen(cuts, out / "keyframes")
         _save_json(out / "scene_analysis.json", scene_results)
         print(f"      완료  →  {out / 'scene_analysis.json'}")
+    elif llm == "gemini":
+        from pipeline.scene_analysis_gemini import analyze_keyframes_gemini
+        print(f"[8/11] Scene 분석 중... (gemini, 컷 수={len(cuts)})")
+        scene_results = analyze_keyframes_gemini(cuts, out / "keyframes", model=args.gemini_model)
+        _save_json(out / "scene_analysis.json", scene_results)
+        print(f"      완료  →  {out / 'scene_analysis.json'}")
     else:
         print(f"[8/11] Scene 분석 중... (claude -p, 컷 수={len(cuts)})")
         scene_results = analyze_keyframes(cuts, out / "keyframes", out)
@@ -223,6 +236,12 @@ def main() -> None:
         from pipeline.cut_analysis_qwen import analyze_cuts_qwen
         print(f"[9/11] Cut 분석 중... (qwen, 컷 수={len(cuts)})")
         cut_results = analyze_cuts_qwen(cuts, out / "frames", ocr_results)
+        _save_json(out / "cut_analysis.json", cut_results)
+        print(f"      완료  →  {out / 'cut_analysis.json'}")
+    elif llm == "gemini":
+        from pipeline.cut_analysis_gemini import analyze_cuts_gemini
+        print(f"[9/11] Cut 분석 중... (gemini, 컷 수={len(cuts)})")
+        cut_results = analyze_cuts_gemini(cuts, out / "frames", ocr_results, model=args.gemini_model)
         _save_json(out / "cut_analysis.json", cut_results)
         print(f"      완료  →  {out / 'cut_analysis.json'}")
     else:
@@ -258,6 +277,20 @@ def main() -> None:
             ocr_data=ocr_results,
             stt_segments=stt_segments,
             audio_data=audio_result,
+        )
+        _save_json(out / "scenario_analysis.json", scenario)
+        print(f"      완료  →  {out / 'scenario_analysis.json'}")
+    elif llm == "gemini":
+        from pipeline.scenario_analysis_gemini import analyze_scenario_gemini
+        print("[10/11] 시나리오 분석 중... (gemini)")
+        scenario = analyze_scenario_gemini(
+            cuts=cuts,
+            frames_dir=out / "frames",
+            cut_analysis=cut_results,
+            ocr_data=ocr_results,
+            stt_segments=stt_segments,
+            audio_data=audio_result,
+            model=args.gemini_model,
         )
         _save_json(out / "scenario_analysis.json", scenario)
         print(f"      완료  →  {out / 'scenario_analysis.json'}")
@@ -299,6 +332,20 @@ def main() -> None:
             scene_analysis=scene_results,
             stt_segments=stt_segments,
             audio_data=audio_result,
+        )
+        _save_json(out / "parsed_analysis.json", parsed)
+        print(f"      완료  →  {out / 'parsed_analysis.json'}")
+    elif llm == "gemini":
+        from pipeline.parsed_analysis_gemini import analyze_parsed_gemini
+        print("[11/11] Parsed 분석 중... (gemini)")
+        parsed = analyze_parsed_gemini(
+            scenario=scenario,
+            cuts=cuts,
+            cut_analysis=cut_results,
+            scene_analysis=scene_results,
+            stt_segments=stt_segments,
+            audio_data=audio_result,
+            model=args.gemini_model,
         )
         _save_json(out / "parsed_analysis.json", parsed)
         print(f"      완료  →  {out / 'parsed_analysis.json'}")

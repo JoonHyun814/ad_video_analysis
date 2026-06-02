@@ -4,8 +4,10 @@ import json
 import sys
 from pathlib import Path
 
-_LLM_BACKENDS = ("claude", "codex", "qwen")
+_LLM_BACKENDS = ("claude", "codex", "qwen", "gemini")
 _QWEN_DEFAULT_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
+
+from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -17,6 +19,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default="claude", help="LLM 백엔드 (기본: claude)")
     p.add_argument("--qwen_model", default=_QWEN_DEFAULT_MODEL, help="[qwen] 베이스 모델명/경로")
     p.add_argument("--codex_model", default=None, help="[codex] 사용할 모델명")
+    p.add_argument("--gemini_model", default=_GEMINI_DEFAULT_MODEL, help=f"[gemini] 사용할 모델명 (기본: {_GEMINI_DEFAULT_MODEL})")
     return p
 
 
@@ -71,6 +74,9 @@ def _dispatch_brief(scenario: dict, args: argparse.Namespace) -> dict:
         qwen_client.init(model=args.qwen_model)
         from evaluation.brief_generator_qwen import generate_brief_qwen
         return generate_brief_qwen(scenario)
+    if args.llm_backend == "gemini":
+        from evaluation.brief_generator_gemini import generate_brief_gemini
+        return generate_brief_gemini(scenario, model=args.gemini_model)
     from evaluation.brief_generator import generate_brief
     return generate_brief(scenario)
 
@@ -85,6 +91,9 @@ def _dispatch_eval(brief: dict, scenario: dict, args: argparse.Namespace) -> dic
             qwen_client.init(model=args.qwen_model)
         from evaluation.evaluator_qwen import evaluate_scenario_qwen
         return evaluate_scenario_qwen(brief, scenario)
+    if args.llm_backend == "gemini":
+        from evaluation.evaluator_gemini import evaluate_scenario_gemini
+        return evaluate_scenario_gemini(brief, scenario, model=args.gemini_model)
     from evaluation.evaluator import evaluate_scenario
     return evaluate_scenario(brief, scenario)
 

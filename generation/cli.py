@@ -4,8 +4,10 @@ import json
 import sys
 from pathlib import Path
 
-_LLM_BACKENDS = ("claude", "codex", "qwen")
+_LLM_BACKENDS = ("claude", "codex", "qwen", "gemini")
 _QWEN_DEFAULT_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
+
+from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -26,6 +28,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default="claude", help="LLM 백엔드 (기본: claude)")
     p.add_argument("--codex_model", default=None, help="[codex] 사용할 모델명")
     p.add_argument("--qwen_model", default=_QWEN_DEFAULT_MODEL, help="[qwen] 베이스 모델명/경로")
+    p.add_argument("--gemini_model", default=_GEMINI_DEFAULT_MODEL, help=f"[gemini] 사용할 모델명 (기본: {_GEMINI_DEFAULT_MODEL})")
     p.add_argument("--output_dir", type=Path, default=Path("output/generation"), help="저장 디렉토리 (기본: output/generation)")
     return p
 
@@ -58,6 +61,7 @@ def _run_brief(args: argparse.Namespace) -> dict:
         functions=args.functions,
         llm_backend=args.llm_backend,
         codex_model=args.codex_model,
+        gemini_model=args.gemini_model,
     )
     if "error" in brief:
         print(f"  [경고] 브리프 생성 실패: {brief.get('error')}", file=sys.stderr)
@@ -84,6 +88,9 @@ def _dispatch_scenario(brief: dict, args: argparse.Namespace) -> dict:
         qwen_client.init(model=args.qwen_model)
         from generation.scenario_generator_qwen import generate_scenario_qwen
         return generate_scenario_qwen(brief)
+    if args.llm_backend == "gemini":
+        from generation.scenario_generator_gemini import generate_scenario_gemini
+        return generate_scenario_gemini(brief, model=args.gemini_model)
     from generation.scenario_generator import generate_scenario
     return generate_scenario(brief)
 

@@ -101,3 +101,18 @@ from utils.llm_caller import call_claude, call_codex
 ```
 
 > **예외**: `pipeline/cast_analysis.py`는 `--add-dir` 플래그, `cast_analysis_codex.py`는 `-i` 이미지 플래그가 필요해 공통 모듈을 사용하지 않는다.
+
+### `utils/gemini_caller.py`
+
+API 키는 `env/api.env`의 `GEMINI_API_KEY` 또는 동명 환경변수에서 읽는다.
+
+| 함수 | 설명 |
+|------|------|
+| `call_gemini(prompt, model=DEFAULT_MODEL, timeout=300) -> dict` | Gemini API 텍스트 호출. 429 과부하 자동 재시도 |
+| `call_gemini_with_images(prompt, image_paths, model=DEFAULT_MODEL, timeout=300) -> dict` | Gemini Vision API 호출 (이미지 바이트 인라인 전송). JSON dict 반환 |
+| `call_gemini_with_images_raw(prompt, image_paths, model=DEFAULT_MODEL, timeout=300) -> str` | Gemini Vision API 호출. 원시 텍스트 반환 (list 파싱 등 직접 처리 시 사용) |
+| `DEFAULT_MODEL` | `"gemini-2.5-flash-lite"` |
+
+```python
+from utils.gemini_caller import call_gemini, call_gemini_with_images, DEFAULT_MODEL
+```
