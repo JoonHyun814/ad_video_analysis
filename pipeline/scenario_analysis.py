@@ -154,9 +154,13 @@ def _call_claude(context: str, duration: float) -> dict:
     cmd = ["claude", "-p", prompt]
 
     for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        if "529" not in result.stdout and "Overloaded" not in result.stdout:
-            return _parse_json(result.stdout)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=600,
+        )
+        stdout = result.stdout or ""
+        if "529" not in stdout and "Overloaded" not in stdout:
+            return _parse_json(stdout)
         if delay is None:
             break
         print(f"      API 과부하(529), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
@@ -165,7 +169,9 @@ def _call_claude(context: str, duration: float) -> dict:
     return _parse_json(result.stdout)
 
 
-def _parse_json(text: str) -> dict:
+def _parse_json(text: str | None) -> dict:
+    if not text:
+        return {"error": "empty_output", "raw": ""}
     text = re.sub(r"```(?:json)?\s*", "", text).strip()
     try:
         return json.loads(text)

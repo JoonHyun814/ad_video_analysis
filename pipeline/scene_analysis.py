@@ -65,12 +65,16 @@ def _analyze_one(image_path: Path, allowed_dir: Path, ocr_hint: str) -> dict:
         ["claude", "-p", prompt, "--add-dir", str(allowed_dir)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=120,
     )
     return _parse_json(result.stdout)
 
 
-def _parse_json(text: str) -> dict:
+def _parse_json(text: str | None) -> dict:
+    if not text:
+        return {"error": "empty_output", "raw": ""}
     text = re.sub(r"```(?:json)?\s*", "", text).strip()
     try:
         return json.loads(text)
