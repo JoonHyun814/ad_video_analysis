@@ -1,7 +1,6 @@
 import json
-import re
-import subprocess
-import time
+from utils.json_utils import parse_json as _parse_json
+from utils.llm_caller import call_claude
 from pathlib import Path
 
 from pipeline.cuts import Cut
@@ -129,8 +128,6 @@ def _cut_ocr(ocr_data: dict[str, list[str]], cut: Cut) -> str:
 
 # ── Claude call ────────────────────────────────────────────────────────────────
 
-_RETRY_DELAYS = (30, 60, 120)
-
 
 def _call_claude(context: str, duration: float) -> dict:
     prompt = (
@@ -151,36 +148,5 @@ def _call_claude(context: str, duration: float) -> dict:
         f"{context}\n\n"
         f"{_SCHEMA}"
     )
-    cmd = ["claude", "-p", prompt]
+    return call_claude(prompt, timeout=600)
 
-    for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
-        result = subprocess.run(
-            cmd, capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=600,
-        )
-        stdout = result.stdout or ""
-        if "529" not in stdout and "Overloaded" not in stdout:
-            return _parse_json(stdout)
-        if delay is None:
-            break
-        print(f"      API 과부하(529), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
-        time.sleep(delay)
-
-    return _parse_json(result.stdout)
-
-
-def _parse_json(text: str | None) -> dict:
-    if not text:
-        return {"error": "empty_output", "raw": ""}
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    start = text.find("{")
-    if start != -1:
-        try:
-            return json.loads(text[start:])
-        except json.JSONDecodeError:
-            pass
-    return {"error": "parse_failed", "raw": text[:500]}

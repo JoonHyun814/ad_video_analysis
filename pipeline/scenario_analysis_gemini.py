@@ -1,28 +1,27 @@
-import json
+"""컷분석·OCR·STT·오디오 데이터를 종합해 광고 시나리오를 생성한다 (gemini 백엔드)."""
 from pathlib import Path
-
-from utils.llm_caller import call_codex
 
 from pipeline.cuts import Cut
 from pipeline.scenario_analysis import _SCHEMA, _build_context
+from utils.gemini_caller import DEFAULT_MODEL, call_gemini
 
 
-def analyze_scenario_codex(
+def analyze_scenario_gemini(
     cuts: list[Cut],
     frames_dir: Path,
     cut_analysis: list[dict],
     ocr_data: dict[str, list[str]],
     stt_segments: list[dict],
     audio_data: dict | None = None,
-    model: str | None = None,
+    model: str = DEFAULT_MODEL,
 ) -> dict:
-    """컷분석·OCR·STT·오디오 데이터를 codex exec로 종합해 광고 시나리오를 생성한다."""
+    """컷분석·OCR·STT·오디오 데이터를 Gemini로 종합해 광고 시나리오를 생성한다."""
     duration = max((c.end_sec for c in cuts), default=0.0)
     context = _build_context(cuts, cut_analysis, ocr_data, stt_segments, audio_data)
-    return _call_codex(context, duration, model)
+    return _call_gemini(context, duration, model)
 
 
-def _call_codex(context: str, duration: float, model: str | None) -> dict:
+def _call_gemini(context: str, duration: float, model: str) -> dict:
     prompt = (
         "너는 광고 시나리오 전문가다. 아래 분석 데이터를 참고해 이 광고를 재제작할 수 있을 수준의 "
         "완전한 시나리오를 JSON으로 작성해라. 첫 글자가 반드시 '{'여야 한다. 마크다운·설명문 없이 순수 JSON만 출력.\n\n"
@@ -41,5 +40,4 @@ def _call_codex(context: str, duration: float, model: str | None) -> dict:
         f"{context}\n\n"
         f"{_SCHEMA}"
     )
-    return call_codex(prompt, model=model, timeout=600)
-
+    return call_gemini(prompt, model=model, timeout=600)

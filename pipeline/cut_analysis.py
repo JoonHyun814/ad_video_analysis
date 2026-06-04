@@ -1,5 +1,5 @@
 import json
-import re
+from utils.json_utils import parse_json as _parse_json
 import subprocess
 from pathlib import Path
 
@@ -101,20 +101,3 @@ def _analyze_one(
         timeout=180,
     )
     return _parse_json(result.stdout)
-
-
-def _parse_json(text: str | None) -> dict:
-    if not text:
-        return {"error": "empty_output", "raw": ""}
-    text = re.sub(r"```(?:json)?\s*", "", text).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        for line in text.splitlines():
-            line = line.strip()
-            if line.startswith("{"):
-                try:
-                    return json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-    return {"error": "parse_failed", "raw": text}

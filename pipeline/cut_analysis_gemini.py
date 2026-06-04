@@ -1,11 +1,11 @@
+"""컷 프레임 시퀀스를 Gemini Vision으로 분석한다."""
 import json
-from utils.json_utils import parse_json as _parse_json
-import subprocess
-import tempfile
+import re
 from pathlib import Path
 
 from pipeline.cut_analysis import _build_frame_map, _get_cut_frames, _sample
 from pipeline.cuts import Cut
+from utils.gemini_caller import DEFAULT_MODEL, call_gemini_with_images
 
 _MAX_FRAMES = 30
 
@@ -17,16 +17,13 @@ _PROMPT = """첨부 이미지들은 {start_sec:.2f}~{end_sec:.2f}초 구간 광�
 {{"flow": "이 컷에서 일어나는 동작·변화를 시작→중간→끝 순으로 묘사", "subjects": "등장 인물·사물", "cast": "이 컷에 등장하는 각 인물의 외모(성별·나이대·헤어스타일·의상)·표정·역할을 구체적으로 묘사. 인물이 없으면 없음", "camera": "카메라 무브먼트 (static/pan/zoom/tilt/tracking 등)", "text_flow": "텍스트 등장·변화·소멸 흐름. 없으면 없음", "mood_shift": "분위기 변화. 없으면 없음"}}"""
 
 
-def analyze_cuts_codex(
+def analyze_cuts_gemini(
     cuts: list[Cut],
     frames_dir: Path,
     ocr_data: dict[str, list[str]],
-    model: str | None = None,
+    model: str = DEFAULT_MODEL,
 ) -> list[dict]:
-    """각 컷의 프레임 시퀀스를 codex exec로 분석해 시간 흐름을 묘사한다.
-
-    model: codex 모델명. None 이면 codex 기본값 사용.
-    """
+    """각 컷의 프레임 시퀀스를 Gemini Vision으로 분석해 시간 흐름을 묘사한다."""
     frame_map = _build_frame_map(frames_dir)
     results = []
 
@@ -52,7 +49,7 @@ def _analyze_one(
     frames: list[tuple[float, Path]],
     ocr_data: dict[str, list[str]],
     cut: Cut,
-    model: str | None,
+    model: str,
 ) -> dict:
     hints = []
     for t, p in frames:
@@ -65,18 +62,5 @@ def _analyze_one(
         end_sec=cut.end_sec,
         ocr_hints="\n".join(hints),
     )
-
-    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
-        out_file = Path(f.name)
-
-    cmd = ["codex", "exec"]
-    for _, p in frames:
-        cmd += ["-i", str(p)]
-    cmd += ["--dangerously-bypass-approvals-and-sandbox", "-o", str(out_file)]
-    if model:
-        cmd += ["-m", model]
-    cmd.append(prompt)
-
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
-    return _parse_json(out_file.read_text(encoding="utf-8"))
-
+    image_paths = [p for _, p in frames]
+    return call_gemini_with_images(prompt, image_paths, model=model, timeout=180)
