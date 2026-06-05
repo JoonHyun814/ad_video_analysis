@@ -41,6 +41,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="처리할 video_id 범위 (예: 1-10 / 1,3,5 / 1-5,7,9-12). --video_id 와 함께 사용 불가",
     )
     parser.add_argument(
+        "--video_path",
+        type=Path,
+        default=None,
+        help="영상 파일 경로 직접 지정. --video_id / --video_ids 없이 실행 가능 (DB 조회 생략)",
+    )
+    parser.add_argument(
         "--cut_backend",
         choices=_CUT_BACKENDS,
         default="transnetv2",
@@ -55,8 +61,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max_cuts",
         type=int,
-        default=None,
-        help="결과로 사용할 최대 컷 수 (기본: 전체)",
+        default=10,
+        help="결과로 사용할 최대 컷 수 (기본: 10)",
     )
     parser.add_argument(
         "--out_dir",
@@ -139,19 +145,24 @@ def main() -> None:
     args = _build_parser().parse_args()
     os.environ["HF_HOME"] = args.cache_dir
 
-    video_ids = _parse_video_ids(args)
     llm = args.llm_backend
 
     if llm == "qwen":
         from pipeline import qwen_client
         qwen_client.init(model=args.qwen_model, lora_path=args.lora_path)
 
-    for i, video_id in enumerate(video_ids, 1):
-        if len(video_ids) > 1:
-            print(f"\n{'─'*50}")
-            print(f"  [{i}/{len(video_ids)}] video_id={video_id}")
-            print(f"{'─'*50}")
-        _run_video(args, video_id)
+    if args.video_path is not None:
+        if args.video_id is not None or args.video_ids is not None:
+            raise SystemExit("오류: --video_path 와 --video_id / --video_ids 는 동시에 사용할 수 없습니다.")
+        _run_video(args, video_id=None, video_path_override=args.video_path)
+    else:
+        video_ids = _parse_video_ids(args)
+        for i, video_id in enumerate(video_ids, 1):
+            if len(video_ids) > 1:
+                print(f"\n{'─'*50}")
+                print(f"  [{i}/{len(video_ids)}] video_id={video_id}")
+                print(f"{'─'*50}")
+            _run_video(args, video_id)
 
     if llm == "qwen":
         from pipeline import qwen_client
@@ -159,10 +170,10 @@ def main() -> None:
         _flush_gpu()
 
 
-def _run_video(args: argparse.Namespace, video_id: int) -> None:
-    """단일 video_id에 대한 전처리 + 분석 파이프라인을 실행한다."""
+def _run_video(args: argparse.Namespace, video_id: int | None, video_path_override: Path | None = None) -> None:
+    """단일 영상에 대한 전처리 + 분석 파이프라인을 실행한다."""
     base = args.out_dir if args.out_dir is not None else _OUTPUT_ROOT
-    out = base / str(video_id)
+    out = base / (video_path_override.stem if video_path_override is not None else str(video_id))
     llm = args.llm_backend
 
     if args.skip_preprocess:
@@ -173,9 +184,14 @@ def _run_video(args: argparse.Namespace, video_id: int) -> None:
             _clean_out_dir(out, args.skip_scene_analysis, args.skip_cut_analysis, args.skip_scenario_analysis)
             print(f"      기존 결과 삭제: {out}")
 
-        print(f"[1/11] 영상 정보 조회 중... (video_id={video_id})")
-        video_path, meta = get_video_info(video_id)
-        print(f"      파일: {video_path}")
+        if video_path_override is not None:
+            print(f"[1/11] 영상 파일 확인 중... ({video_path_override})")
+            video_path = video_path_override
+            print(f"      파일: {video_path}")
+        else:
+            print(f"[1/11] 영상 정보 조회 중... (video_id={video_id})")
+            video_path, _ = get_video_info(video_id)
+            print(f"      파일: {video_path}")
 
         print(f"[2/11] 컷 감지 중... (backend={args.cut_backend}, threshold={args.threshold}, max_cuts={args.max_cuts})")
         cuts = _detect(video_path, args.cut_backend, args.threshold, args.max_cuts)
