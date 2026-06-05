@@ -24,71 +24,81 @@
 
 ### [구조] 스키마 완전성
 
-- [ ] 🤖 최상위 필드 모두 존재: `title`, `brand`, `concept`, `narrative`, `cast`, `scenes`, `key_messages`, `production_notes`
-- [ ] 🤖 각 씬에 `cut_index`, `time`, `beats` 필드 존재
-- [ ] 🤖 각 beat에 `type`과 `description` 필드 존재
-- [ ] 🤖 `cast`에 정의된 ID만 beat의 `cast` 참조에 사용됨 (고아 참조 없음)
+- [ ] 🤖 `schema_top_fields` 최상위 필드 모두 존재: `title`, `brand`, `concept`, `narrative`, `cast`, `scenes`, `key_messages`, `production_notes`
+- [ ] 🤖 `schema_scene_fields` 각 씬에 `cut_index`, `time`, `beats` 필드 존재
+- [ ] 🤖 `schema_beat_fields` 각 beat에 `type`과 `description` 필드 존재
+- [ ] 🤖 `schema_cast_ref` `cast`에 정의된 ID만 beat의 `cast` 참조에 사용됨 (고아 참조 없음)
 
 ### [구조] 타임코드 일관성
 
-- [ ] 🤖 씬 타임코드 형식 통일 (`X.XX~X.XX s`)
-- [ ] 🤖 씬 타임코드 연속성: 이전 씬 종료 ≈ 다음 씬 시작 (허용 오차 ±0.1s)
-- [ ] 🤖 마지막 씬 종료 시각 = `production_notes`에 명시된 총 러닝타임
+- [ ] 🤖 `timecode_format` 씬 타임코드 형식 통일 (`X.XX~X.XX s`)
+- [ ] 🤖 `timecode_continuity` 씬 타임코드 연속성: 이전 씬 종료 ≈ 다음 씬 시작 (허용 오차 ±0.1s)
+- [ ] 🤖 `timecode_total_match` 마지막 씬 종료 시각 = `production_notes`에 명시된 총 러닝타임
 
 ### [구조] 필수 요소 텍스트 확인
 
-- [ ] 🤖 `text_overlay` beat가 최소 1개 이상 존재 (자막·타이포그래피)
-- [ ] 🤖 `production_notes`에 명시된 필수 컷 번호가 `scenes[].cut_index`에 존재
-- [ ] 🤖 "패키지" 또는 "제품" 언급 씬 존재 (background/text_overlay description 기준)
-- [ ] 🤖 "로고" 또는 브랜드명 언급 씬 존재 (text_overlay description 기준)
-- [ ] 🤖 브랜드 로고 노출 씬이 광고 후반(총 러닝타임 60% 이후)에 배치됨
-- [ ] 🤖 제품 패키지 쇼트가 마지막 3초 이내에 언급됨
+- [ ] 🤖 `required_text_overlay` `text_overlay` beat가 최소 1개 이상 존재 (자막·타이포그래피)
+- [ ] 🤖 `required_cut_index` `production_notes`에 명시된 필수 컷 번호가 `scenes[].cut_index`에 존재
+- [ ] 🤖 `required_product_mention` "패키지" 또는 "제품" 언급 씬 존재 (background/text_overlay description 기준)
+- [ ] 🤖 `required_logo_mention` "로고" 또는 브랜드명 언급 씬 존재 (text_overlay description 기준)
+- [ ] 🤖 `logo_timing` 브랜드 로고 노출 씬이 광고 후반(총 러닝타임 60% 이후)에 배치됨
+- [ ] 🤖 `package_endcard` 제품 패키지 쇼트가 마지막 3초 이내에 언급됨
 
 ### [구조] 씬 분량 균형
 
-- [ ] 🧑 단일 씬이 전체 러닝타임의 30% 이상을 차지하지 않음
-- [ ] 🧑 오프닝(첫 2초)과 엔딩(마지막 2초)에 각각 독립 씬 배정
+- [ ] 🧑 `scene_length_balance` 단일 씬이 전체 러닝타임의 30% 이상을 차지하지 않음
+- [ ] 🧑 `scene_opening_ending` 오프닝(첫 2초)과 엔딩(마지막 2초)에 각각 독립 씬 배정
 
 ---
 
 ### [전략] 메시지 명확성
 
-- [ ] 🧠 `key_messages`를 한 문장으로 요약했을 때 소비자가 직관적으로 이해 가능한가
-- [ ] 🧠 콘티 전체에서 전달하는 메시지가 1~2개 이내로 집중됨 (과잉 정보 없음)
-- [ ] 🧑 씬별 메시지가 최종 구매 설득으로 수렴하는 구조인가
-- [ ] 🧑 CTA(Call to Action) 또는 구매 채널 안내가 엔딩 부근에 배치됨
+- [ ] 🧠 `message_comprehensibility` `key_messages`를 한 문장으로 요약했을 때 소비자가 직관적으로 이해 가능한가
+- [ ] 🧠 `message_focus` 콘티 전체에서 전달하는 메시지가 1~2개 이내로 집중됨 (과잉 정보 없음)
+- [ ] 🧑 `message_conversion` 씬별 메시지가 최종 구매 설득으로 수렴하는 구조인가
+- [ ] 🧑 `cta_placement` CTA(Call to Action) 또는 구매 채널 안내가 엔딩 부근에 배치됨
 
 ### [전략] 차별화·포지셔닝
 
-- [ ] 🧠 `concept` 필드에 경쟁 제품과 구별되는 고유한 비주얼 콘셉트가 명시됐는가
-- [ ] 🧠 `concept` → `narrative` → 씬 순서가 동일한 브랜드 포지셔닝을 일관되게 유지하는가
-- [ ] 🧑 씬 순서에서 성분 → 효능 → 감성 편익으로 이어지는 설득 논리가 드러나는가
+- [ ] 🧠 `concept_uniqueness` `concept` 필드에 경쟁 제품과 구별되는 고유한 비주얼 콘셉트가 명시됐는가
+- [ ] 🧠 `positioning_consistency` `concept` → `narrative` → 씬 순서가 동일한 브랜드 포지셔닝을 일관되게 유지하는가
+- [ ] 🧑 `persuasion_logic` 씬 순서에서 성분 → 효능 → 감성 편익으로 이어지는 설득 논리가 드러나는가
 
 ---
 
 ### [서사] 구조 및 흐름
 
-- [ ] 🧠 씬 순서에서 "오프닝 훅 → 문제/감성 자극 → 제품 해결 → 엔딩 CTA" 구조가 확인되는가
-- [ ] 🧠 `narrative` 필드 내용과 실제 씬 구성이 일치하는가
-- [ ] 🧠 씬별 beat description 키워드로 일관된 감정 여정(예: 긴장→신비→해방→희망)이 형성되는가
-- [ ] 🧑 씬 간 전환에 시각적·감정적 이유가 있는가 (단순 나열 아님)
-- [ ] 🧑 감정적 단절이나 맥락 없는 톤 전환이 없는가
+- [ ] 🧠 `narrative_structure` 씬 순서에서 발단(공감 설정) → 상승행동(갈등 축적) → 절정(브랜드 개입) → 하강행동(결과 입증) → 결말(새로운 균형)의 인과적 흐름이 확인되는가
+- [ ] 🧠 `narrative_scene_match` `narrative` 필드 내용과 실제 씬 구성이 일치하는가
+- [ ] 🧠 `narrative_type_fit` 선택된 내러티브 유형(고전적 드라마 / 생활의 단면 / 비넷 / 퍼포먼스)이 `concept`·`narrative`에 명시된 브랜드 커뮤니케이션 목적에 부합하는가
+- [ ] 🧠 `narrative_exposition` 발단 씬이 타겟 소비자의 일상과 동일시될 수 있는 현상태(Status Quo)를 설정하며, 불필요한 배경 설명 없이 빠르게 갈등 국면으로 진입하는가
+- [ ] 🧠 `narrative_rising_action` 상승행동 씬에서 주인공의 결핍·갈등이 점진적으로 축적되어 브랜드 개입의 당위적 공간이 형성되는가
+- [ ] 🧠 `narrative_climax_brand` 절정 씬에서 브랜드·제품이 단순 화면 노출이 아닌 서사적 전환점(Pivot)의 핵심 도구로 위치하는가 (제품이 '운명을 바꾸는 도구'로 조명되는가)
+- [ ] 🧠 `narrative_brand_result` 절정 이후 씬에서 브랜드 솔루션의 인과적 결과가 차분하게 입증되어 수용자의 논리적 수용을 이끄는가
+- [ ] 🧑 `narrative_denouement` 결말 씬이 '새로운 균형' 상태를 제시하며 긍정적 여운을 남겨 브랜드 회상 가능성을 높이는가
+- [ ] 🧠 `consumer_as_hero` 소비자(주인공)가 서사의 중심이고, 브랜드는 그 여정의 조력자·해결 수단으로 위치하는가 (브랜드 자체가 영웅인 구조가 아닌가)
+- [ ] 🧠 `self_brand_connection` 서사가 소비자의 목표·가치관과 브랜드를 자연스럽게 연결 짓는 자아-브랜드 연결(SBC)의 단서를 제공하는가
+- [ ] 🧠 `emotion_journey` 씬별 beat description 키워드로 일관된 감정 여정(예: 긴장→신비→해방→희망)이 형성되는가
+- [ ] 🧑 `scene_transition_reason` 씬 간 전환에 시각적·감정적 인과 이유가 있는가 (단순 나열 아님)
+- [ ] 🧑 `tone_consistency` 감정적 단절이나 맥락 없는 톤 전환이 없는가
 
 ### [서사] 오프닝 훅
 
-- [ ] 🧠 첫 씬 beat description에 시선 집중·긴장감·궁금증 유발 요소가 포함됐는가
-- [ ] 🧑 텍스트만으로도 "첫 2초가 강렬하다"는 확신이 드는가
+- [ ] 🧠 `opening_hook_elements` 첫 씬 beat description에 시선 집중·긴장감·궁금증 유발 요소가 포함됐는가
+- [ ] 🧑 `opening_hook_impact` 텍스트만으로도 "첫 2초가 강렬하다"는 확신이 드는가
+- [ ] 🧠 `opening_hook_quick_entry` 발단 씬이 과도한 상황 설명 없이 빠르게 대립 국면으로 진입하여 서사적 시간의 팽창(지루함)을 방지하는가
 
 ### [서사] 대사·내레이션
 
-- [ ] 🧑 대사가 과도하게 설명적이거나 광고 냄새 나지 않는가
-- [ ] 🤖 대사 없는 씬(dialogue beat 0개) 수 — 침묵·음악 장면이 의도적으로 배치됐는지 확인
+- [ ] 🧑 `dialogue_naturalness` 대사가 과도하게 설명적이거나 광고 냄새 나지 않는가
+- [ ] 🧑 `dialogue_non_descriptive` 등장인물이 카메라를 향해 제품 장점을 직접 설명하는 증언형(Testimonial) 구성이 없이, 극적 행위(Action) 중심으로 이야기가 전달되는가
+- [ ] 🤖 `silent_scene_count` 대사 없는 씬(dialogue beat 0개) 수 — 침묵·음악 장면이 의도적으로 배치됐는지 확인
 
 ### [서사] 브랜드 효과 가능성 (텍스트 수준)
 
-- [ ] 🧠 비주얼 콘셉트(색상·이미지·분위기)가 `production_notes` 컬러 가이드와 텍스트상 일치하는가
-- [ ] 🧑 이 콘티의 비주얼 언어가 시리즈 확장(다른 제품·시즌)에 재사용 가능한가
-- [ ] 🧑 브랜드 세계관과 일관된 톤으로 향후 광고와 연속성을 가질 수 있는가
+- [ ] 🧠 `visual_concept_color_match` 비주얼 콘셉트(색상·이미지·분위기)가 `production_notes` 컬러 가이드와 텍스트상 일치하는가
+- [ ] 🧑 `series_extensibility` 이 콘티의 비주얼 언어가 시리즈 확장(다른 제품·시즌)에 재사용 가능한가
+- [ ] 🧑 `brand_continuity` 브랜드 세계관과 일관된 톤으로 향후 광고와 연속성을 가질 수 있는가
 
 ---
 
@@ -98,43 +108,43 @@
 
 ### [구조] 타임코드
 
-- [ ] 🤖 총 러닝타임이 브리프 지정 시간 이내 (`brief.duration` 기준)
+- [ ] 🤖 `brief_duration_compliance` 총 러닝타임이 브리프 지정 시간 이내 (`brief.duration` 기준)
 
 ### [구조] 필수 요소 텍스트 확인
 
-- [ ] 🤖 성분·효능 콜아웃 씬 존재 — `brief.ingredients` · `brief.functions` 키워드가 `text_overlay` 또는 `key_messages`에 포함됨
-- [ ] 🤖 엔드컷에 패키지 + 브랜드명 + 슬로건 3요소 언급 — `brief.slogan` 텍스트 기준
+- [ ] 🤖 `brief_ingredients_callout` 성분·효능 콜아웃 씬 존재 — `brief.ingredients` · `brief.functions` 키워드가 `text_overlay` 또는 `key_messages`에 포함됨
+- [ ] 🤖 `brief_endcard_elements` 엔드컷에 패키지 + 브랜드명 + 슬로건 3요소 언급 — `brief.slogan` 텍스트 기준
 
 ---
 
 ### [브리프] 기본 정보 정확성
 
-- [ ] 🤖 `brand` 필드가 `brief.brand` · `brief.product`와 일치 (오탈자 없음)
-- [ ] 🤖 `brief.ingredients` 핵심 성분 키워드가 `key_messages` 또는 씬 description에 등장
-- [ ] 🤖 `brief.functions` 핵심 기능 키워드가 `key_messages`에 명시됨
-- [ ] 🧠 `key_messages`가 `brief.usp`와 의미적으로 일치하는가
-- [ ] 🧠 씬의 분위기·음악·톤이 `brief.target_age` 감성에 부합하는가
+- [ ] 🤖 `brief_brand_match` `brand` 필드가 `brief.brand` · `brief.product`와 일치 (오탈자 없음)
+- [ ] 🤖 `brief_ingredients_in_key_messages` `brief.ingredients` 핵심 성분 키워드가 `key_messages` 또는 씬 description에 등장
+- [ ] 🤖 `brief_functions_in_key_messages` `brief.functions` 핵심 기능 키워드가 `key_messages`에 명시됨
+- [ ] 🧠 `brief_usp_match` `key_messages`가 `brief.usp`와 의미적으로 일치하는가
+- [ ] 🧠 `brief_target_tone_match` 씬의 분위기·음악·톤이 `brief.target_age` 감성에 부합하는가
 
 ### [브리프] 금지·필수 요건
 
-- [ ] 🧑 경쟁 브랜드명 또는 직접 비교 표현이 텍스트에 없음
-- [ ] 🧑 브리프에서 필수 지정한 장면·슬로건·자막이 씬에 모두 포함됨
-- [ ] 🧑 브리프에서 금지한 표현·이미지가 씬 description에 없음
-- [ ] 🧑 `cast` 캐릭터 연령·이미지 설정이 `brief.target_persona`와 부합
+- [ ] 🧑 `brief_no_competitor` 경쟁 브랜드명 또는 직접 비교 표현이 텍스트에 없음
+- [ ] 🧑 `brief_required_scenes` 브리프에서 필수 지정한 장면·슬로건·자막이 씬에 모두 포함됨
+- [ ] 🧑 `brief_no_prohibited` 브리프에서 금지한 표현·이미지가 씬 description에 없음
+- [ ] 🧑 `brief_cast_persona_match` `cast` 캐릭터 연령·이미지 설정이 `brief.target_persona`와 부합
 
 ---
 
 ### [전략] 차별화·포지셔닝
 
-- [ ] 🧑 `brief.positioning`이 프리미엄인 경우, 저가 이미지를 주는 요소(과도한 세일·가격 강조 등)가 없는가
+- [ ] 🧑 `brief_positioning_no_cheap` `brief.positioning`이 프리미엄인 경우, 저가 이미지를 주는 요소(과도한 세일·가격 강조 등)가 없는가
 
 ### [서사] 대사·내레이션
 
-- [ ] 🧠 `dialogue` beat 텍스트가 `brief.target_age` · `brief.target_persona` 언어 감성에 맞는가
+- [ ] 🧠 `brief_dialogue_tone` `dialogue` beat 텍스트가 `brief.target_age` · `brief.target_persona` 언어 감성에 맞는가
 
 ### [서사] 브랜드 효과 가능성 (텍스트 수준)
 
-- [ ] 🧠 슬로건/태그라인이 `brief.slogan` · `brief.positioning`과 논리적으로 부합하는가
+- [ ] 🧠 `brief_slogan_match` 슬로건/태그라인이 `brief.slogan` · `brief.positioning`과 논리적으로 부합하는가
 
 ---
 
@@ -147,33 +157,33 @@
 
 ### [구조] 영상 타임코드 검증
 
-- [ ] 🤖 영상에서 실제 감지된 컷 수 ↔ JSON의 씬 수 일치 (cut detection 활용)
-- [ ] 🤖 실제 컷 전환 타임코드 ↔ JSON 타임코드 오차 ±0.5s 이내
-- [ ] 🧑 컷 전환 시 점프컷 오류·화면 깜박임 없음
+- [ ] 🤖 `video_cut_count_match` 영상에서 실제 감지된 컷 수 ↔ JSON의 씬 수 일치 (cut detection 활용)
+- [ ] 🤖 `video_timecode_accuracy` 실제 컷 전환 타임코드 ↔ JSON 타임코드 오차 ±0.5s 이내
+- [ ] 🧑 `video_no_jump_cut_error` 컷 전환 시 점프컷 오류·화면 깜박임 없음
 
 ### [브리프] 비주얼 구현 충실도
 
-- [ ] 🧑 모델 외형(연령감·피부·헤어·표정)이 `cast` description과 실제로 일치하는가
-- [ ] 🧑 컬러 팔레트(푸른색 계열, 흰 포말 등)가 `production_notes` 컬러 가이드와 일치하는가
-- [ ] 🧑 브리프에서 지정한 필수 장면이 실제 화면에 명확하게 구현됐는가
-- [ ] 🧑 성분 콜아웃·자막 텍스트가 화면에서 정확히 표기됐는가 (오탈자, 수치 오류 없음)
+- [ ] 🧑 `video_cast_appearance` 모델 외형(연령감·피부·헤어·표정)이 `cast` description과 실제로 일치하는가
+- [ ] 🧑 `video_color_palette` 컬러 팔레트(푸른색 계열, 흰 포말 등)가 `production_notes` 컬러 가이드와 일치하는가
+- [ ] 🧑 `video_required_scenes` 브리프에서 지정한 필수 장면이 실제 화면에 명확하게 구현됐는가
+- [ ] 🧑 `video_text_accuracy` 성분 콜아웃·자막 텍스트가 화면에서 정확히 표기됐는가 (오탈자, 수치 오류 없음)
 
 ### [서사] 감정 흐름 및 리듬
 
-- [ ] 🧑 오프닝 2초의 비주얼 훅이 실제로 시선을 끄는가 (프레임 직접 확인)
-- [ ] 🧑 씬이 진행될수록 감정이 자연스럽게 고조되거나 전환되는가
-- [ ] 🧑 음악 전환 타이밍이 씬 전환과 실제로 맞물려 있는가
-- [ ] 🧑 기억에 남는 시그니처 샷(Signature Shot)이 프레임에서 명확히 식별되는가
-- [ ] 🧑 엔딩 비주얼이 브랜드/제품 인상을 강하게 남기는가
+- [ ] 🧑 `video_opening_hook_visual` 오프닝 2초의 비주얼 훅이 실제로 시선을 끄는가 (프레임 직접 확인)
+- [ ] 🧑 `video_emotion_escalation` 씬이 진행될수록 감정이 자연스럽게 고조되거나 전환되는가
+- [ ] 🧑 `video_music_cut_sync` 음악 전환 타이밍이 씬 전환과 실제로 맞물려 있는가
+- [ ] 🧑 `video_signature_shot` 기억에 남는 시그니처 샷(Signature Shot)이 프레임에서 명확히 식별되는가
+- [ ] 🧑 `video_ending_brand_impact` 엔딩 비주얼이 브랜드/제품 인상을 강하게 남기는가
 
 ### [브랜드] 브랜드 요소 가시성
 
-- [ ] 🧑 브랜드 로고의 크기·위치·노출 시간이 충분한 가독성을 확보하는가
-- [ ] 🧑 제품 패키지가 왜곡·가림 없이 명확하게 보이는가
-- [ ] 🧑 자막·text_overlay가 배경 대비 충분한 명도 차이로 읽히는가
-- [ ] 🧑 브랜드 폰트·컬러 가이드라인이 실제 자막·오버레이에 적용됐는가 (브랜드팀 확인)
-- [ ] 🤖 키프레임 dominant color 분석 — 브랜드 컬러 점유 비율이 목표 수준인가
-- [ ] 🧑 동일 카테고리 경쟁 광고와 구별되는 독자적 미장센이 실제로 구현됐는가
+- [ ] 🧑 `video_logo_visibility` 브랜드 로고의 크기·위치·노출 시간이 충분한 가독성을 확보하는가
+- [ ] 🧑 `video_package_visibility` 제품 패키지가 왜곡·가림 없이 명확하게 보이는가
+- [ ] 🧑 `video_text_readability` 자막·text_overlay가 배경 대비 충분한 명도 차이로 읽히는가
+- [ ] 🧑 `video_brand_guidelines` 브랜드 폰트·컬러 가이드라인이 실제 자막·오버레이에 적용됐는가 (브랜드팀 확인)
+- [ ] 🤖 `video_brand_color_ratio` 키프레임 dominant color 분석 — 브랜드 컬러 점유 비율이 목표 수준인가
+- [ ] 🧑 `video_visual_differentiation` 동일 카테고리 경쟁 광고와 구별되는 독자적 미장센이 실제로 구현됐는가
 
 ---
 
@@ -186,46 +196,46 @@
 
 ### [플랫폼] 시청 행동 지표
 
-- [ ] 🤖 영상 완주율(View Through Rate) — 목표 기준 이상인가 (예: 15초 광고 완주율 ≥ 60%)
-- [ ] 🤖 Skip Rate 및 스킵 발생 구간 히트맵 — 특정 씬에서 집중적으로 스킵되진 않는가
-- [ ] 🤖 CTR(Click-Through Rate) — 엔딩 CTA 반응률
-- [ ] 🤖 광고 노출 전후 브랜드 키워드 검색량 변화 (Search Lift)
-- [ ] 🧠 댓글·반응 텍스트 감성 분류 — 긍정·부정·중립 비율 및 주요 언급 키워드
+- [ ] 🤖 `platform_view_through_rate` 영상 완주율(View Through Rate) — 목표 기준 이상인가 (예: 15초 광고 완주율 ≥ 60%)
+- [ ] 🤖 `platform_skip_rate` Skip Rate 및 스킵 발생 구간 히트맵 — 특정 씬에서 집중적으로 스킵되진 않는가
+- [ ] 🤖 `platform_ctr` CTR(Click-Through Rate) — 엔딩 CTA 반응률
+- [ ] 🤖 `platform_search_lift` 광고 노출 전후 브랜드 키워드 검색량 변화 (Search Lift)
+- [ ] 🧠 `platform_comment_sentiment` 댓글·반응 텍스트 감성 분류 — 긍정·부정·중립 비율 및 주요 언급 키워드
 
 ### [브랜드] 브랜드 효과 실증
 
-- [ ] 🔬 광고 시청 후 브랜드 비보조 인지율 (Unaided Brand Recall) — Pre/Post 비교
-- [ ] 🔬 브랜드 이미지 속성 점수 변화 (예: "신뢰", "혁신", "프리미엄" 등)
-- [ ] 🔬 시그니처 비주얼 장면 기억률 — "광고에서 기억나는 장면" 자유 응답
-- [ ] 🔬 장기 캠페인 연속성 평가 — 시리즈 후속 광고 노출 시 브랜드 연상 일관성
+- [ ] 🔬 `brand_unaided_recall` 광고 시청 후 브랜드 비보조 인지율 (Unaided Brand Recall) — Pre/Post 비교
+- [ ] 🔬 `brand_image_score` 브랜드 이미지 속성 점수 변화 (예: "신뢰", "혁신", "프리미엄" 등)
+- [ ] 🔬 `brand_visual_recall` 시그니처 비주얼 장면 기억률 — "광고에서 기억나는 장면" 자유 응답
+- [ ] 🔬 `brand_campaign_continuity` 장기 캠페인 연속성 평가 — 시리즈 후속 광고 노출 시 브랜드 연상 일관성
 
 ### [소비자] 광고 호감도 (Likeability)
 
-- [ ] 🔬 타겟 오디언스 FGI/온라인 설문: 광고 전반 호감 점수 (5점 척도)
-- [ ] 🔬 비주얼 톤(차갑고 신비로운 수중 이미지)에 대한 긍정·부정 반응 비율
-- [ ] 🔬 음악·연출 방식에 대한 수용도
+- [ ] 🔬 `consumer_likeability_score` 타겟 오디언스 FGI/온라인 설문: 광고 전반 호감 점수 (5점 척도)
+- [ ] 🔬 `consumer_visual_tone_response` 비주얼 톤(차갑고 신비로운 수중 이미지)에 대한 긍정·부정 반응 비율
+- [ ] 🔬 `consumer_music_direction_acceptance` 음악·연출 방식에 대한 수용도
 
 ### [소비자] 메시지 이해도 (Comprehension)
 
-- [ ] 🔬 시청 후 핵심 기능(리프팅·화이트닝)을 정확히 떠올리는가
-- [ ] 🔬 성분 키워드(예: "해마추출물")가 기억에 남는가
-- [ ] 🔬 15초 안에 정보 전달이 과하거나 부족하지 않은가 (정보 부하 Self-report 평가)
+- [ ] 🔬 `consumer_function_recall` 시청 후 핵심 기능(리프팅·화이트닝)을 정확히 떠올리는가
+- [ ] 🔬 `consumer_ingredient_recall` 성분 키워드(예: "해마추출물")가 기억에 남는가
+- [ ] 🔬 `consumer_info_load` 15초 안에 정보 전달이 과하거나 부족하지 않은가 (정보 부하 Self-report 평가)
 
 ### [소비자] 구매 의도 (Purchase Intent)
 
-- [ ] 🔬 시청 후 제품 구매 의향 증가 여부 (Pre/Post 설문 비교)
-- [ ] 🔬 광고 시청 후 브랜드 사이트·쇼핑 채널 방문 의향
+- [ ] 🔬 `consumer_purchase_intent` 시청 후 제품 구매 의향 증가 여부 (Pre/Post 설문 비교)
+- [ ] 🔬 `consumer_channel_visit_intent` 광고 시청 후 브랜드 사이트·쇼핑 채널 방문 의향
 
 ### [소비자] 바이럴 가능성 (Viral Potential)
 
-- [ ] 🔬 "이 광고를 SNS에 공유하고 싶다"는 의향 비율 (설문)
-- [ ] 🔬 실제 SNS 공유 수·UGC(User Generated Content) 발생 여부
-- [ ] 🔬 숏폼(Reels/Shorts) 플랫폼 내 자발적 재업로드·밈화 여부
+- [ ] 🔬 `consumer_share_intent` "이 광고를 SNS에 공유하고 싶다"는 의향 비율 (설문)
+- [ ] 🔬 `consumer_actual_share` 실제 SNS 공유 수·UGC(User Generated Content) 발생 여부
+- [ ] 🔬 `consumer_shortform_viral` 숏폼(Reels/Shorts) 플랫폼 내 자발적 재업로드·밈화 여부
 
 ### [소비자] 광고 회피 위험 (Avoidance Risk)
 
-- [ ] 🔬 스킵 의향: "다시 보고 싶다" vs "건너뛰고 싶다" 비율 (설문)
-- [ ] 🤖 실제 Skip Rate와 설문 스킵 의향 간 정합성 교차 검증
+- [ ] 🔬 `consumer_skip_intent` 스킵 의향: "다시 보고 싶다" vs "건너뛰고 싶다" 비율 (설문)
+- [ ] 🤖 `consumer_skip_intent_validation` 실제 Skip Rate와 설문 스킵 의향 간 정합성 교차 검증
 
 ---
 

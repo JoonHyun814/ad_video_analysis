@@ -15,7 +15,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--video_id", required=True, help="평가할 영상 ID")
     p.add_argument("--data_dir", type=Path, default=Path("output/codex"), help="데이터 루트 (기본: output/codex)")
     p.add_argument("--brief", action="store_true", help="scenario_analysis 로 brief_analysis 생성")
-    p.add_argument("--scenario_evaluation", action="store_true", help="brief_analysis 와 scenario_analysis 비교 평가")
+    p.add_argument("--scenario_evaluation", action="store_true", help="시나리오 평가 — brief_analysis.json 존재 시 브리프 비교 포함, 없으면 시나리오 단독 평가")
     p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default="claude", help="LLM 백엔드 (기본: claude)")
     p.add_argument("--qwen_model", default=_QWEN_DEFAULT_MODEL, help="[qwen] 베이스 모델명/경로")
     p.add_argument("--codex_model", default=None, help="[codex] 사용할 모델명")
@@ -50,10 +50,15 @@ def _run_brief(args: argparse.Namespace, video_dir: Path) -> None:
 
 def _run_evaluation(args: argparse.Namespace, video_dir: Path) -> None:
     scenario = _load_json(video_dir / "scenario_analysis.json", "scenario_analysis")
-    brief = _load_json(video_dir / "brief_analysis.json", "brief_analysis")
+    brief_path = video_dir / "brief_analysis.json"
 
-    print(f"  시나리오 평가 중 [{args.llm_backend}]...")
-    result = _dispatch_eval(brief, scenario, args)
+    if brief_path.exists():
+        brief = json.loads(brief_path.read_text(encoding="utf-8"))
+        print(f"  시나리오 평가 중 [브리프 포함 / {args.llm_backend}]...")
+        result = _dispatch_eval(brief, scenario, args)
+    else:
+        print(f"  시나리오 평가 중 [브리프 없음 — brief_fidelity 항목 제외 / {args.llm_backend}]...")
+        result = _dispatch_eval_no_brief(scenario, args)
 
     if "error" in result:
         print(f"  [경고] 평가 실패: {result.get('error')}")
@@ -61,7 +66,7 @@ def _run_evaluation(args: argparse.Namespace, video_dir: Path) -> None:
         print(f"  전체 점수: {result.get('overall_score', 'N/A')}")
         for cat, data in result.get("categories", {}).items():
             print(f"    {cat}: {data.get('score', 'N/A')}")
-    result["_meta"] = {"video_id": args.video_id, "llm_backend": args.llm_backend}
+    result["_meta"] = {"video_id": args.video_id, "llm_backend": args.llm_backend, "has_brief": brief_path.exists()}
     _save_json(video_dir / "evaluation.json", result)
 
 
@@ -79,6 +84,23 @@ def _dispatch_brief(scenario: dict, args: argparse.Namespace) -> dict:
         return generate_brief_gemini(scenario, model=args.gemini_model)
     from evaluation.brief_generator import generate_brief
     return generate_brief(scenario)
+
+
+def _dispatch_eval_no_brief(scenario: dict, args: argparse.Namespace) -> dict:
+    if args.llm_backend == "codex":
+        from evaluation.evaluator_codex import evaluate_scenario_no_brief_codex
+        return evaluate_scenario_no_brief_codex(scenario, model=args.codex_model)
+    if args.llm_backend == "qwen":
+        from pipeline import qwen_client
+        if qwen_client._llm is None:
+            qwen_client.init(model=args.qwen_model)
+        from evaluation.evaluator_qwen import evaluate_scenario_no_brief_qwen
+        return evaluate_scenario_no_brief_qwen(scenario)
+    if args.llm_backend == "gemini":
+        from evaluation.evaluator_gemini import evaluate_scenario_no_brief_gemini
+        return evaluate_scenario_no_brief_gemini(scenario, model=args.gemini_model)
+    from evaluation.evaluator import evaluate_scenario_no_brief
+    return evaluate_scenario_no_brief(scenario)
 
 
 def _dispatch_eval(brief: dict, scenario: dict, args: argparse.Namespace) -> dict:
