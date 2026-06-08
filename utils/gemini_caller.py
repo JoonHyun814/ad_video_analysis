@@ -13,6 +13,17 @@ _TEMPERATURE = 0.0
 _MAX_OUTPUT_TOKENS = 16384
 _RETRY_DELAYS = (30, 60, 120)
 _client: genai.Client | None = None
+_token_usage: dict[str, int] = {"input": 0, "output": 0, "thinking": 0}
+
+
+def get_token_usage() -> dict[str, int]:
+    """누적 토큰 사용량을 반환한다."""
+    return dict(_token_usage)
+
+
+def reset_token_usage() -> None:
+    """누적 토큰 카운터를 초기화한다."""
+    _token_usage.update({"input": 0, "output": 0, "thinking": 0})
 
 
 def _get_client() -> genai.Client:
@@ -54,6 +65,7 @@ def _generate(model: str, contents) -> str:
                 model=model, contents=contents, config=config
             )
             text = response.text or ""
+            _accumulate_tokens(response)
             return text
         except Exception as e:
             text = str(e)
@@ -90,6 +102,15 @@ def call_gemini_with_images_raw(
 ) -> str:
     """이미지 리스트와 텍스트를 Gemini Vision API로 분석하고 원시 텍스트를 반환한다."""
     return _generate_with_images(prompt, image_paths, model)
+
+
+def _accumulate_tokens(response) -> None:
+    usage = getattr(response, "usage_metadata", None)
+    if usage is None:
+        return
+    _token_usage["input"] += getattr(usage, "prompt_token_count", 0) or 0
+    _token_usage["output"] += getattr(usage, "candidates_token_count", 0) or 0
+    _token_usage["thinking"] += getattr(usage, "thoughts_token_count", 0) or 0
 
 
 def _generate_with_images(prompt: str, image_paths: list[Path], model: str) -> str:
