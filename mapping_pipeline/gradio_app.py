@@ -1,0 +1,159 @@
+"""Gradio GUI — 영상 + 시나리오 txt → cut_analysis·cut_scene_mapping 출력."""
+import json
+import queue
+import threading
+import time
+from pathlib import Path
+
+import gradio as gr
+
+from mapping_pipeline.runner import run_mapping_pipeline
+from utils.gemini_caller import DEFAULT_MODEL
+
+_OUTPUT_ROOT = Path("output")
+
+
+def _make_out_dir(video_path: str) -> Path:
+    stem = Path(video_path).stem
+    ts = str(int(time.time()))
+    return _OUTPUT_ROOT / f"{stem}_{ts}"
+
+
+_BTN_LOADING = gr.update(interactive=False, value="⏳ 분석 중...")
+_BTN_READY = gr.update(interactive=True, value="분석 시작")
+_BTN_NOOP = gr.update()
+
+
+def analyze(
+    video_file: str | None,
+    scenario_file: str | None,
+    scenario_text: str,
+    max_cuts: int,
+    threshold: float,
+    gemini_model: str,
+):
+    """파이프라인을 실행하고 로그·결과를 스트리밍으로 yield한다."""
+    if not video_file:
+        yield "영상 파일을 업로드하세요.", None, None, _BTN_NOOP
+        return
+
+    scenario = ""
+    if scenario_file:
+        scenario = Path(scenario_file).read_text(encoding="utf-8")
+    elif scenario_text.strip():
+        scenario = scenario_text.strip()
+    else:
+        yield "시나리오를 업로드하거나 텍스트로 입력하세요.", None, None, _BTN_NOOP
+        return
+
+    yield "파이프라인 시작...", None, None, _BTN_LOADING
+
+    log_q: queue.Queue[tuple[str, object]] = queue.Queue()
+    result_holder: dict = {}
+
+    def on_progress(msg: str) -> None:
+        log_q.put(("log", msg))
+
+    def run_thread() -> None:
+        try:
+            out_dir = _make_out_dir(video_file)
+            result_holder["data"] = run_mapping_pipeline(
+                video_path=Path(video_file),
+                scenario_txt=scenario,
+                out_dir=out_dir,
+                max_cuts=int(max_cuts),
+                threshold=float(threshold),
+                gemini_model=gemini_model.strip(),
+                on_progress=on_progress,
+            )
+            log_q.put(("done", None))
+        except Exception as exc:
+            log_q.put(("error", str(exc)))
+
+    thread = threading.Thread(target=run_thread, daemon=True)
+    thread.start()
+
+    logs: list[str] = []
+    while True:
+        kind, value = log_q.get()
+        if kind == "log":
+            logs.append(value)
+            yield "\n".join(logs), None, None, _BTN_NOOP
+        elif kind == "done":
+            data = result_holder["data"]
+            cut_analysis_json = json.dumps(data["cut_analysis"], ensure_ascii=False, indent=2)
+            mapping_json = json.dumps(data["cut_scene_mapping"], ensure_ascii=False, indent=2)
+            logs.append("\n파이프라인 완료!")
+            yield "\n".join(logs), cut_analysis_json, mapping_json, _BTN_READY
+            break
+        elif kind == "error":
+            logs.append(f"\n[오류] {value}")
+            yield "\n".join(logs), None, None, _BTN_READY
+            break
+
+
+def build_ui() -> gr.Blocks:
+    with gr.Blocks(title="광고 영상 컷-씬 매핑") as demo:
+        gr.Markdown("## 광고 영상 컷-씬 매핑 분석기")
+        gr.Markdown("영상 파일과 시나리오를 입력하면 **컷 분석** 및 **씬 매핑** 결과를 반환합니다.")
+
+        with gr.Row():
+            with gr.Column(scale=1):
+                video_input = gr.Video(label="영상 파일 (mp4)", sources=["upload"])
+                scenario_file_input = gr.File(
+                    label="시나리오 파일 (.txt)", file_types=[".txt"]
+                )
+                scenario_text_input = gr.Textbox(
+                    label="시나리오 직접 입력 (파일 업로드 우선)",
+                    lines=8,
+                    placeholder="파일을 업로드하거나 여기에 시나리오를 붙여넣으세요.",
+                )
+
+            with gr.Column(scale=1):
+                max_cuts_input = gr.Slider(
+                    label="최대 컷 수", minimum=1, maximum=50, value=10, step=1
+                )
+                threshold_input = gr.Slider(
+                    label="컷 감지 민감도 (낮을수록 민감)", minimum=1.0, maximum=60.0, value=27.0, step=0.5
+                )
+                model_input = gr.Textbox(
+                    label="Gemini 모델", value=DEFAULT_MODEL
+                )
+                run_btn = gr.Button("분석 시작", variant="primary")
+
+        with gr.Row():
+            log_output = gr.Textbox(label="진행 로그", lines=12, interactive=False)
+
+        with gr.Row():
+            cut_analysis_output = gr.Code(
+                label="cut_analysis.json", language="json", lines=20
+            )
+            mapping_output = gr.Code(
+                label="cut_scene_mapping.json", language="json", lines=20
+            )
+
+        run_btn.click(
+            fn=analyze,
+            inputs=[
+                video_input,
+                scenario_file_input,
+                scenario_text_input,
+                max_cuts_input,
+                threshold_input,
+                model_input,
+            ],
+            outputs=[log_output, cut_analysis_output, mapping_output, run_btn],
+        )
+
+    return demo
+
+
+if __name__ == "__main__":
+    import sys
+    import os
+
+    os.chdir(Path(__file__).parent.parent)
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 7860
+    demo = build_ui()
+    demo.queue()
+    demo.launch(server_name="0.0.0.0", server_port=port)
