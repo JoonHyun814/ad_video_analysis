@@ -1,4 +1,4 @@
-"""video_uploads 테이블을 순회하며 pipeline.cli 를 실행한다.
+"""video_uploads 테이블을 순회하며 pipeline.cli 또는 evaluation.cli 를 실행한다.
 
 사용법:
     # 특정 ID 범위/목록 지정 (DB에 없는 ID는 자동 스킵)
@@ -9,7 +9,10 @@
     # start_id 이상의 전체 실행
     python run_batch.py --start_id 1
 
-    # pipeline 옵션은 -- 뒤에 전달
+    # 파이프라인 선택 (기본: pipeline)
+    python run_batch.py --video_ids 1-10 --module evaluation -- --parsed_analysis --data_dir output/codex
+
+    # 추가 옵션은 -- 뒤에 전달
     python run_batch.py --video_ids 1-20 --interval 60 -- --llm_backend codex --max_cuts 10
 """
 
@@ -58,10 +61,16 @@ def _fetch_from(start_id: int) -> list[int]:
         return [row[0] for row in cursor.fetchall()]
 
 
-def _run_pipeline(video_id: int, extra_args: list[str]) -> int:
-    cmd = [sys.executable, "-m", "pipeline.cli", "--video_id", str(video_id)] + extra_args
+_MODULES = {
+    "pipeline": "pipeline.cli",
+    "evaluation": "evaluation.cli",
+}
+
+
+def _run_pipeline(video_id: int, module: str, extra_args: list[str]) -> int:
+    cmd = [sys.executable, "-m", _MODULES[module], "--video_id", str(video_id)] + extra_args
     print(f"\n{'='*60}")
-    print(f"  video_id={video_id}  명령: {' '.join(cmd)}")
+    print(f"  video_id={video_id}  [{module}]  명령: {' '.join(cmd)}")
     print(f"{'='*60}")
     result = subprocess.run(cmd, cwd=Path(__file__).parent)
     return result.returncode
@@ -77,7 +86,7 @@ def main() -> None:
         own_argv, extra_args = argv, []
 
     parser = argparse.ArgumentParser(
-        description="video_uploads를 순회하며 pipeline.cli를 실행",
+        description="video_uploads를 순회하며 pipeline.cli 또는 evaluation.cli를 실행",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -93,6 +102,12 @@ def main() -> None:
         type=int,
         metavar="ID",
         help="이 id 이상의 모든 video를 순서대로 실행",
+    )
+    parser.add_argument(
+        "--module",
+        choices=tuple(_MODULES.keys()),
+        default="pipeline",
+        help="실행할 모듈 선택 (기본: pipeline). evaluation 선택 시 evaluation.cli 호출",
     )
     parser.add_argument(
         "--interval",
@@ -115,14 +130,15 @@ def main() -> None:
         print("처리할 video_id가 없습니다.")
         return
 
+    print(f"실행 모듈: {_MODULES[args.module]}")
     print(f"처리 대상: {len(ids)}건  {ids}")
     if extra_args:
-        print(f"pipeline 추가 옵션: {' '.join(extra_args)}")
+        print(f"추가 옵션: {' '.join(extra_args)}")
 
     for i, video_id in enumerate(ids):
-        rc = _run_pipeline(video_id, extra_args)
+        rc = _run_pipeline(video_id, args.module, extra_args)
         if rc != 0:
-            print(f"  [경고] video_id={video_id} 파이프라인 종료코드 {rc}")
+            print(f"  [경고] video_id={video_id} 종료코드 {rc}")
 
         if args.interval > 0 and i < len(ids) - 1:
             print(f"\n  {args.interval}초 대기 후 다음 영상 (video_id={ids[i + 1]}) 시작...")
