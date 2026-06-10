@@ -1,7 +1,7 @@
 """scenario_analysis 결과를 DB 저장용 parsed 구조로 정제한다 (qwen 백엔드)."""
 from pipeline import qwen_client
 from pipeline.cuts import Cut
-from pipeline.parsed_analysis import _inject_meta, build_prompt
+from evaluation.parsed_analysis import _inject_meta, build_prompt
 
 _QWEN_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
 

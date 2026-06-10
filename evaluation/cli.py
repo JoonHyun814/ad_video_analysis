@@ -55,7 +55,10 @@ def _run_brief(args: argparse.Namespace, video_dir: Path) -> None:
 
 
 def _run_parsed_analysis(args: argparse.Namespace, video_dir: Path) -> None:
-    scenario = _load_json(video_dir / "scenario_analysis.json", "scenario_analysis")
+    scenario_path = video_dir / "scenario_analysis.json"
+    if not scenario_path.exists():
+        raise SystemExit(f"[오류] scenario_analysis.json 없음: {scenario_path}\n--data_dir 안에 scenario_analysis 단계까지 완료된 결과가 필요합니다.")
+    scenario = _load_json(scenario_path, "scenario_analysis")
     cuts = _load_cuts(video_dir / "cuts.json")
     cut_analysis = _load_optional_list(video_dir / "cut_analysis.json")
     scene_analysis = _load_optional_list(video_dir / "scene_analysis.json")
@@ -142,18 +145,18 @@ def _dispatch_parsed(
         audio_data=audio_data,
     )
     if args.llm_backend == "codex":
-        from pipeline.parsed_analysis_codex import analyze_parsed_codex
+        from evaluation.parsed_analysis_codex import analyze_parsed_codex
         return analyze_parsed_codex(**kw)
     if args.llm_backend == "qwen":
         from pipeline import qwen_client
         if qwen_client._llm is None:
             qwen_client.init(model=args.qwen_model)
-        from pipeline.parsed_analysis_qwen import analyze_parsed_qwen
+        from evaluation.parsed_analysis_qwen import analyze_parsed_qwen
         return analyze_parsed_qwen(**kw)
     if args.llm_backend == "gemini":
-        from pipeline.parsed_analysis_gemini import analyze_parsed_gemini
+        from evaluation.parsed_analysis_gemini import analyze_parsed_gemini
         return analyze_parsed_gemini(model=args.gemini_model, **kw)
-    from pipeline.parsed_analysis import analyze_parsed
+    from evaluation.parsed_analysis import analyze_parsed
     return analyze_parsed(**kw)
 
 
