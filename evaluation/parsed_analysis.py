@@ -174,4 +174,3 @@ def _inject_meta(result: dict, cuts: list[Cut], model: str) -> None:
 
 def _call_claude(prompt: str) -> dict:
     return call_claude(prompt, timeout=600)
-

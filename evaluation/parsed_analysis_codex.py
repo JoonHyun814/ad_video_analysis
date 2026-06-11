@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from pipeline.cuts import Cut
-from pipeline.parsed_analysis import _inject_meta, _parse_json, build_prompt
+from evaluation.parsed_analysis import _inject_meta, _parse_json, build_prompt
 
 
 def analyze_parsed_codex(

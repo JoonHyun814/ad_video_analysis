@@ -108,12 +108,14 @@ def _call_claude(context: str, out_dir: Path) -> list[dict]:
     )
     result = subprocess.run(
         ["claude", "-p", prompt, "--add-dir", str(out_dir)],
-        capture_output=True, text=True, timeout=300,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
     )
     return _parse_json(result.stdout)
 
 
-def _parse_json(text: str) -> list:
+def _parse_json(text: str | None) -> list:
+    if not text:
+        return []
     text = re.sub(r"```(?:json)?\s*", "", text).strip()
     try:
         return json.loads(text)

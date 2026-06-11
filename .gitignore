@@ -4,3 +4,5 @@ outputs
 __pycache__
 tmp
 unsloth_compiled_cache
+.bkit
+logs
