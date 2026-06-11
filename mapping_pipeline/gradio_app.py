@@ -1,4 +1,4 @@
-"""Gradio GUI — 영상 + 시나리오 txt → cut_analysis·cut_scene_mapping 출력."""
+"""Gradio GUI — 영상 + 시나리오 txt/json → cut_analysis·cut_scene_mapping 출력."""
 import json
 import queue
 import threading
@@ -11,6 +11,14 @@ from mapping_pipeline.runner import run_mapping_pipeline
 from utils.gemini_caller import DEFAULT_MODEL
 
 _OUTPUT_ROOT = Path("output")
+
+
+def _load_scenario(path: Path) -> str:
+    """시나리오 파일을 읽는다. .json이면 포맷된 JSON 문자열로, 그 외엔 원문 그대로 반환한다."""
+    text = path.read_text(encoding="utf-8")
+    if path.suffix.lower() == ".json":
+        return json.dumps(json.loads(text), ensure_ascii=False, indent=2)
+    return text
 
 
 def _make_out_dir(video_path: str) -> Path:
@@ -39,7 +47,7 @@ def analyze(
 
     scenario = ""
     if scenario_file:
-        scenario = Path(scenario_file).read_text(encoding="utf-8")
+        scenario = _load_scenario(Path(scenario_file))
     elif scenario_text.strip():
         scenario = scenario_text.strip()
     else:
@@ -101,7 +109,7 @@ def build_ui() -> gr.Blocks:
             with gr.Column(scale=1):
                 video_input = gr.Video(label="영상 파일 (mp4)", sources=["upload"])
                 scenario_file_input = gr.File(
-                    label="시나리오 파일 (.txt)", file_types=[".txt"]
+                    label="시나리오 파일 (.txt 또는 .json)", file_types=[".txt", ".json"]
                 )
                 scenario_text_input = gr.Textbox(
                     label="시나리오 직접 입력 (파일 업로드 우선)",

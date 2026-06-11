@@ -18,7 +18,8 @@ _OUTPUT_ROOT = Path("output")
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="영상 mp4 + 시나리오 txt → cut-scene 매핑")
     p.add_argument("--video_path", type=Path, required=True, help="분석할 영상 파일 경로")
-    p.add_argument("--scenario_path", type=Path, required=True, help="시나리오 txt 파일 경로")
+    p.add_argument("--scenario_path", type=Path, required=True,
+                   help="시나리오 파일 경로 (.txt 또는 .json)")
     p.add_argument("--out_dir", type=Path, default=None,
                    help=f"결과 저장 루트 디렉토리 (기본: {_OUTPUT_ROOT}/<video_stem>)")
     p.add_argument("--max_cuts", type=int, default=10, help="최대 컷 수 (기본: 10)")
@@ -56,7 +57,7 @@ def main() -> None:
         print(f"    완료 → {out / 'cut_analysis.json'}")
 
     print("[5] 시나리오 읽는 중...")
-    scenario_txt = args.scenario_path.read_text(encoding="utf-8")
+    scenario_txt = _load_scenario(args.scenario_path)
     print(f"    {len(scenario_txt)}자")
 
     print("[6] Cut-Scene 매핑 중... (gemini)")
@@ -101,6 +102,14 @@ def _load_preprocess_cache(out: Path) -> list[Cut]:
     cuts = [Cut(**d) for d in _load_json(cuts_file, [])]
     print(f"    컷 수: {len(cuts)}")
     return cuts
+
+
+def _load_scenario(path: Path) -> str:
+    """시나리오 파일을 읽는다. .json이면 포맷된 JSON 문자열로, 그 외엔 원문 그대로 반환한다."""
+    text = path.read_text(encoding="utf-8")
+    if path.suffix.lower() == ".json":
+        return json.dumps(json.loads(text), ensure_ascii=False, indent=2)
+    return text
 
 
 def _save_json(path: Path, data: object) -> None:

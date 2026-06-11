@@ -1,4 +1,5 @@
-"""FastAPI 서버 — 영상 + 시나리오 txt → cut_analysis·cut_scene_mapping JSON 반환."""
+"""FastAPI 서버 — 영상 + 시나리오 txt/json → cut_analysis·cut_scene_mapping JSON 반환."""
+import json
 import shutil
 import tempfile
 import time
@@ -28,7 +29,7 @@ def health() -> dict:
 @app.post("/analyze")
 async def analyze(
     video_file: UploadFile = File(..., description="분석할 영상 파일 (mp4)"),
-    scenario_file: UploadFile | None = File(None, description="시나리오 .txt 파일 (scenario_text 대신 사용 가능)"),
+    scenario_file: UploadFile | None = File(None, description="시나리오 .txt 또는 .json 파일 (scenario_text 대신 사용 가능)"),
     scenario_text: str = Form("", description="시나리오 텍스트 (scenario_file 대신 사용 가능)"),
     max_cuts: int = Form(10, description="최대 컷 수"),
     threshold: float = Form(27.0, description="scenedetect 컷 감지 민감도"),
@@ -68,8 +69,10 @@ async def _resolve_scenario(
     scenario_text: str,
 ) -> str:
     if scenario_file and scenario_file.filename:
-        raw = await scenario_file.read()
-        return raw.decode("utf-8")
+        text = (await scenario_file.read()).decode("utf-8")
+        if (scenario_file.filename or "").endswith(".json"):
+            return json.dumps(json.loads(text), ensure_ascii=False, indent=2)
+        return text
     if scenario_text.strip():
         return scenario_text.strip()
     raise HTTPException(
