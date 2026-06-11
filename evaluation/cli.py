@@ -55,10 +55,9 @@ def _run_brief(args: argparse.Namespace, video_dir: Path) -> None:
 
 
 def _run_parsed_analysis(args: argparse.Namespace, video_dir: Path) -> None:
-    scenario_path = video_dir / "scenario_analysis.json"
-    if not scenario_path.exists():
-        raise SystemExit(f"[오류] scenario_analysis.json 없음: {scenario_path}\n--data_dir 안에 scenario_analysis 단계까지 완료된 결과가 필요합니다.")
-    scenario = _load_json(scenario_path, "scenario_analysis")
+    _require_valid(video_dir / "scenario_analysis.json", "scenario_analysis")
+    _require_valid(video_dir / "cut_analysis.json", "cut_analysis")
+    scenario = _load_json(video_dir / "scenario_analysis.json", "scenario_analysis")
     cuts = _load_cuts(video_dir / "cuts.json")
     cut_analysis = _load_optional_list(video_dir / "cut_analysis.json")
     scene_analysis = _load_optional_list(video_dir / "scene_analysis.json")
@@ -76,6 +75,26 @@ def _run_parsed_analysis(args: argparse.Namespace, video_dir: Path) -> None:
     out_path = out_root / str(args.video_id) / "parsed_analysis.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     _save_json(out_path, parsed)
+
+
+def _require_valid(path: Path, label: str) -> None:
+    """파일 존재 + JSON 파싱 가능 + parse_failed 에러 없음 을 검증한다."""
+    if not path.exists():
+        raise SystemExit(f"[오류] {label}.json 없음: {path}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise SystemExit(f"[오류] {label}.json JSON 파싱 실패: {path}\n  {e}")
+    if _has_parse_failed(data):
+        raise SystemExit(f"[오류] {label}.json 에 parse_failed 항목 있음: {path}\n  해당 단계를 재실행하여 정상 결과를 만든 뒤 다시 시도하세요.")
+
+
+def _has_parse_failed(data) -> bool:
+    if isinstance(data, dict):
+        return data.get("error") == "parse_failed"
+    if isinstance(data, list):
+        return any(isinstance(item, dict) and item.get("error") == "parse_failed" for item in data)
+    return False
 
 
 def _load_cuts(path: Path) -> list:
