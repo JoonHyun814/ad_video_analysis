@@ -1,4 +1,8 @@
-"""parsed_analysis.json을 claude_preprocessed_v1 스키마로 변환한다."""
+"""분석 결과 JSON을 출력 형식으로 변환한다.
+
+--mode parsed (기본): parsed_analysis.json → claude_preprocessed_v1 스키마 변환
+--mode brief        : brief_analysis.json → out_dir/<video_id>.json 으로 그대로 저장
+"""
 import argparse
 import json
 from datetime import datetime, timezone
@@ -12,6 +16,13 @@ _PIPELINE_FILES = {
     "audio": "audio_analysis.json",
     "cuts_raw": "cuts.json",
 }
+
+def _build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="분석 결과 JSON 일괄 변환")
+    p.add_argument("--video_dir", type=Path, required=True, help="<video_id> 하위 폴더들이 들어있는 루트 디렉토리")
+    p.add_argument("--out_dir", type=Path, required=True, help="결과 JSON 저장 디렉토리 (<video_id>.json 으로 저장)")
+    p.add_argument("--mode", choices=["parsed", "brief"], default="parsed", help="변환 모드 (기본: parsed)")
+    return p
 
 
 def load_sources(video_dir: Path) -> dict:
@@ -256,18 +267,11 @@ def _lookup_filename(video_id: int) -> str:
     return Path(path).name
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="parsed_analysis.json → claude_preprocessed_v1 일괄 변환")
-    p.add_argument("--video_dir", type=Path, required=True, help="<video_id> 하위 폴더들이 들어있는 루트 디렉토리")
-    p.add_argument("--out_dir", type=Path, required=True, help="결과 JSON 저장 디렉토리 (<video_id>.json 으로 저장)")
-    return p
+def _iter_video_dirs(root: Path, filename: str) -> list[Path]:
+    return sorted(d for d in root.iterdir() if d.is_dir() and (d / filename).exists())
 
 
-def _iter_video_dirs(root: Path) -> list[Path]:
-    return sorted(d for d in root.iterdir() if d.is_dir() and (d / "parsed_analysis.json").exists())
-
-
-def _process_one(video_dir: Path, out_dir: Path) -> None:
+def _process_parsed(video_dir: Path, out_dir: Path) -> None:
     try:
         video_id = int(video_dir.name)
     except ValueError:
@@ -285,19 +289,36 @@ def _process_one(video_dir: Path, out_dir: Path) -> None:
     print(f"      [{video_id}] saved → {out_path}")
 
 
+def _process_brief(video_dir: Path, out_dir: Path) -> None:
+    try:
+        video_id = int(video_dir.name)
+    except ValueError:
+        print(f"      건너뜀(폴더명이 정수 아님): {video_dir.name}")
+        return
+    brief_path = video_dir / "brief_analysis.json"
+    payload = json.loads(brief_path.read_text(encoding="utf-8"))
+    out_path = out_dir / f"{video_id}.json"
+    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"      [{video_id}] saved → {out_path}")
+
+
 def main() -> None:
     args = _build_parser().parse_args()
     if not args.video_dir.is_dir():
         raise SystemExit(f"오류: --video_dir 가 디렉토리가 아님: {args.video_dir}")
-    targets = _iter_video_dirs(args.video_dir)
+
+    source_file = "parsed_analysis.json" if args.mode == "parsed" else "brief_analysis.json"
+    targets = _iter_video_dirs(args.video_dir, source_file)
     if not targets:
-        raise SystemExit(f"오류: parsed_analysis.json 을 포함한 하위 폴더 없음: {args.video_dir}")
+        raise SystemExit(f"오류: {source_file} 을 포함한 하위 폴더 없음: {args.video_dir}")
+
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    print(f"변환 대상: {len(targets)}개")
+    process_fn = _process_parsed if args.mode == "parsed" else _process_brief
+    print(f"변환 대상: {len(targets)}개  (mode={args.mode})")
     for i, vdir in enumerate(targets, 1):
         print(f"[{i}/{len(targets)}] {vdir.name}")
         try:
-            _process_one(vdir, args.out_dir)
+            process_fn(vdir, args.out_dir)
         except Exception as e:
             print(f"      실패: {e}")
     print(f"\n완료 → {args.out_dir}")
