@@ -1,8 +1,8 @@
 """train_pipeline CLI 진입점.
 
 사용법:
-    # 데이터셋 빌드
-    python -m train_pipeline.cli --build_dataset --data_dir output/ [--out_dir data/]
+    # 데이터셋 빌드 (data_dir 여러 경로 가능)
+    python -m train_pipeline.cli --build_dataset --data_dir output/ output2/ --out_dir data/
 
     # 학습
     python -m train_pipeline.cli --config configs/sample
@@ -30,14 +30,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--data_dir",
         type=Path,
-        default=Path("output"),
-        help="분석 결과 루트 디렉토리 (video_id 하위 폴더 포함). 기본: output/",
+        nargs="+",
+        default=[Path("output")],
+        metavar="DIR",
+        help="분석 결과 루트 디렉토리 (video_id 하위 폴더 포함). 여러 경로 가능. 기본: output/",
     )
     parser.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("data"),
-        help="빌드된 JSONL 저장 디렉토리. 기본: data/",
+        required=True,
+        metavar="DIR",
+        help="빌드된 JSONL 저장 디렉토리 (필수)",
     )
     return parser
 

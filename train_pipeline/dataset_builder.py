@@ -227,12 +227,17 @@ def _scenario_samples(video_dir: Path, cuts: list[_Cut], cut_analysis: list[dict
 
 # ── Main entry ─────────────────────────────────────────────────────────────────
 
-def build_all(data_dir: Path, out_dir: Path) -> dict[str, int]:
-    """data_dir 내 <video_id>/ 폴더를 순회해 4종 JSONL 데이터셋을 빌드한다."""
+def build_all(data_dirs: list[Path], out_dir: Path) -> dict[str, int]:
+    """data_dirs 내 <video_id>/ 폴더를 순회해 4종 JSONL 데이터셋을 빌드한다."""
     buckets: dict[str, list[dict]] = {k: [] for k in ("scene_analysis", "cut_analysis", "scenario_analysis")}
 
-    video_dirs = sorted(p for p in data_dir.iterdir() if p.is_dir() and p.name.isdigit())
-    print(f"영상 폴더 {len(video_dirs)}개 발견")
+    video_dirs = sorted(
+        p
+        for data_dir in data_dirs
+        for p in data_dir.iterdir()
+        if p.is_dir() and p.name.isdigit()
+    )
+    print(f"영상 폴더 {len(video_dirs)}개 발견 ({len(data_dirs)}개 경로 탐색)")
 
     for vdir in video_dirs:
         cuts_raw = _load(vdir / "cuts.json")
