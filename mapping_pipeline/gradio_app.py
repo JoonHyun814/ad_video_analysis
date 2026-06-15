@@ -121,10 +121,10 @@ def build_ui() -> gr.Blocks:
 
             with gr.Column(scale=1):
                 min_cuts_input = gr.Slider(
-                    label="최소 컷 수 (0=비활성)", minimum=0, maximum=50, value=0, step=1
+                    label="최소 컷 수 (0=비활성)", minimum=0, maximum=50, value=7, step=1
                 )
                 max_cuts_input = gr.Slider(
-                    label="최대 컷 수", minimum=1, maximum=50, value=10, step=1
+                    label="최대 컷 수", minimum=1, maximum=50, value=15, step=1
                 )
                 threshold_input = gr.Slider(
                     label="컷 감지 민감도 초기값 (낮을수록 민감)", minimum=1.0, maximum=60.0, value=27.0, step=0.5

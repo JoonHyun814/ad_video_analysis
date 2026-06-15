@@ -51,6 +51,7 @@ def detect_cuts(video_path: Path, threshold: float = 27.0) -> list[Cut]:
     """ContentDetector로 컷 경계를 감지하고 Cut 리스트를 반환한다.
 
     threshold: 낮을수록 민감하게 감지 (기본 27.0)
+    씬 변화가 없어 0컷이 감지되면 영상 전체를 단일 컷으로 반환한다.
     """
     video = open_video(str(video_path))
     manager = SceneManager()
@@ -58,13 +59,19 @@ def detect_cuts(video_path: Path, threshold: float = 27.0) -> list[Cut]:
     manager.detect_scenes(video)
 
     scenes = manager.get_scene_list()
-    return [
-        Cut(
-            index=i + 1,
-            start_frame=s[0].get_frames(),
-            end_frame=s[1].get_frames() - 1,
-            start_sec=round(s[0].get_seconds(), 3),
-            end_sec=round(s[1].get_seconds(), 3),
-        )
-        for i, s in enumerate(scenes)
-    ]
+    if scenes:
+        return [
+            Cut(
+                index=i + 1,
+                start_frame=s[0].get_frames(),
+                end_frame=s[1].get_frames() - 1,
+                start_sec=round(s[0].get_seconds(), 3),
+                end_sec=round(s[1].get_seconds(), 3),
+            )
+            for i, s in enumerate(scenes)
+        ]
+
+    duration = video.duration
+    end_frame = (duration.get_frames() - 1) if duration else 0
+    end_sec = round(duration.get_seconds(), 3) if duration else 0.0
+    return [Cut(index=1, start_frame=0, end_frame=end_frame, start_sec=0.0, end_sec=end_sec)]
