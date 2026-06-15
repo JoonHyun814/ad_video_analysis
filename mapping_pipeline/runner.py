@@ -13,12 +13,59 @@ from pipeline.keyframe import extract_keyframes
 from utils.gemini_caller import DEFAULT_MODEL, get_token_usage, reset_token_usage
 
 _OUTPUT_ROOT = Path("output")
+_MAX_THRESHOLD_ITER = 10
+_THRESHOLD_LO = 1.0
+_THRESHOLD_HI = 100.0
+
+
+def _detect_cuts_in_range(
+    video_path: Path,
+    min_cuts: int,
+    max_cuts: int,
+    initial_threshold: float,
+    log: Callable[[str], None],
+) -> tuple[list[Cut], float]:
+    """threshold를 이진 탐색으로 조정해 컷 수를 [min_cuts, max_cuts]로 맞춘다."""
+    lo, hi = _THRESHOLD_LO, _THRESHOLD_HI
+    threshold = initial_threshold
+    cuts = detect_cuts(video_path, threshold=threshold)
+    log(f"    threshold={threshold:.2f} → {len(cuts)}컷")
+
+    for i in range(1, _MAX_THRESHOLD_ITER):
+        n = len(cuts)
+        if min_cuts <= n <= max_cuts:
+            break
+        lo, hi = (threshold, hi) if n > max_cuts else (lo, threshold)
+        threshold = (lo + hi) / 2
+        cuts = detect_cuts(video_path, threshold=threshold)
+        log(f"    [iter {i}] threshold={threshold:.2f} → {len(cuts)}컷")
+
+    return cuts, threshold
+
+
+def _step_detect_cuts(
+    video_path: Path,
+    min_cuts: int | None,
+    max_cuts: int,
+    threshold: float,
+    log: Callable[[str], None],
+) -> list[Cut]:
+    if min_cuts is not None:
+        log(f"[1] 컷 감지 중... (threshold 자동 조정, min={min_cuts}, max={max_cuts})")
+        cuts, _ = _detect_cuts_in_range(video_path, min_cuts, max_cuts, threshold, log)
+        if len(cuts) > max_cuts:
+            log(f"    루프 종료 후 {len(cuts)}컷 초과 → merge_to_max_cuts({max_cuts}) 적용")
+            return merge_to_max_cuts(cuts, max_cuts)
+        return cuts
+    log(f"[1] 컷 감지 중... (threshold={threshold}, max_cuts={max_cuts})")
+    return merge_to_max_cuts(detect_cuts(video_path, threshold=threshold), max_cuts)
 
 
 def run_mapping_pipeline(
     video_path: Path,
     scenario_txt: str,
     out_dir: Path | None = None,
+    min_cuts: int | None = None,
     max_cuts: int = 10,
     threshold: float = 27.0,
     gemini_model: str = DEFAULT_MODEL,
@@ -37,8 +84,7 @@ def run_mapping_pipeline(
         if on_progress:
             on_progress(msg)
 
-    log(f"[1] 컷 감지 중... (threshold={threshold}, max_cuts={max_cuts})")
-    cuts = merge_to_max_cuts(detect_cuts(video_path, threshold=threshold), max_cuts)
+    cuts = _step_detect_cuts(video_path, min_cuts, max_cuts, threshold, log)
     _save_json(out_dir / "cuts.json", [dataclasses.asdict(c) for c in cuts])
     log(f"    컷 수: {len(cuts)} → cuts.json")
 

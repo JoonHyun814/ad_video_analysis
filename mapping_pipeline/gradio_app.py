@@ -36,6 +36,7 @@ def analyze(
     video_file: str | None,
     scenario_file: str | None,
     scenario_text: str,
+    min_cuts: int,
     max_cuts: int,
     threshold: float,
     gemini_model: str,
@@ -69,6 +70,7 @@ def analyze(
                 video_path=Path(video_file),
                 scenario_txt=scenario,
                 out_dir=out_dir,
+                min_cuts=int(min_cuts) if int(min_cuts) > 0 else None,
                 max_cuts=int(max_cuts),
                 threshold=float(threshold),
                 gemini_model=gemini_model.strip(),
@@ -118,11 +120,14 @@ def build_ui() -> gr.Blocks:
                 )
 
             with gr.Column(scale=1):
+                min_cuts_input = gr.Slider(
+                    label="최소 컷 수 (0=비활성)", minimum=0, maximum=50, value=0, step=1
+                )
                 max_cuts_input = gr.Slider(
                     label="최대 컷 수", minimum=1, maximum=50, value=10, step=1
                 )
                 threshold_input = gr.Slider(
-                    label="컷 감지 민감도 (낮을수록 민감)", minimum=1.0, maximum=60.0, value=27.0, step=0.5
+                    label="컷 감지 민감도 초기값 (낮을수록 민감)", minimum=1.0, maximum=60.0, value=27.0, step=0.5
                 )
                 model_input = gr.Textbox(
                     label="Gemini 모델", value=DEFAULT_MODEL
@@ -146,6 +151,7 @@ def build_ui() -> gr.Blocks:
                 video_input,
                 scenario_file_input,
                 scenario_text_input,
+                min_cuts_input,
                 max_cuts_input,
                 threshold_input,
                 model_input,

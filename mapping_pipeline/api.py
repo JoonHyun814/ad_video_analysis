@@ -31,8 +31,9 @@ async def analyze(
     video_file: UploadFile = File(..., description="분석할 영상 파일 (mp4)"),
     scenario_file: UploadFile | None = File(None, description="시나리오 .txt 또는 .json 파일 (scenario_text 대신 사용 가능)"),
     scenario_text: str = Form("", description="시나리오 텍스트 (scenario_file 대신 사용 가능)"),
+    min_cuts: int | None = Form(5, description="최소 컷 수 (None이면 자동 조정 비활성)"),
     max_cuts: int = Form(10, description="최대 컷 수"),
-    threshold: float = Form(27.0, description="scenedetect 컷 감지 민감도"),
+    threshold: float = Form(27.0, description="scenedetect 컷 감지 초기 민감도"),
     gemini_model: str = Form(DEFAULT_MODEL, description="사용할 Gemini 모델명"),
 ) -> JSONResponse:
     """영상 + 시나리오 → cut_analysis·cut_scene_mapping을 JSON으로 반환한다.
@@ -52,6 +53,7 @@ async def analyze(
             video_path=video_path,
             scenario_txt=scenario,
             out_dir=out_dir,
+            min_cuts=min_cuts,
             max_cuts=max_cuts,
             threshold=threshold,
             gemini_model=gemini_model.strip(),
