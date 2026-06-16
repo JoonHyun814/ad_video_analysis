@@ -7,7 +7,13 @@ from pathlib import Path
 
 import gradio as gr
 
-from mapping_pipeline.runner import run_mapping_pipeline
+from mapping_pipeline.runner import (
+    BACKEND_TRANSNETV2,
+    BACKEND_SCENEDETECT,
+    DEFAULT_BACKEND,
+    _DEFAULT_THRESHOLD,
+    run_mapping_pipeline,
+)
 from utils.gemini_caller import DEFAULT_MODEL
 
 _OUTPUT_ROOT = Path("output")
@@ -36,6 +42,7 @@ def analyze(
     video_file: str | None,
     scenario_file: str | None,
     scenario_text: str,
+    backend: str,
     min_cuts: int,
     max_cuts: int,
     threshold: float,
@@ -73,6 +80,7 @@ def analyze(
                 min_cuts=int(min_cuts) if int(min_cuts) > 0 else None,
                 max_cuts=int(max_cuts),
                 threshold=float(threshold),
+                backend=backend,
                 gemini_model=gemini_model.strip(),
                 on_progress=on_progress,
             )
@@ -120,14 +128,21 @@ def build_ui() -> gr.Blocks:
                 )
 
             with gr.Column(scale=1):
+                backend_input = gr.Radio(
+                    label="컷 감지 백엔드",
+                    choices=[BACKEND_TRANSNETV2, BACKEND_SCENEDETECT],
+                    value=DEFAULT_BACKEND,
+                )
                 min_cuts_input = gr.Slider(
-                    label="최소 컷 수 (0=비활성)", minimum=0, maximum=50, value=7, step=1
+                    label="최소 컷 수 (0=비활성)", minimum=0, maximum=50, value=0, step=1
                 )
                 max_cuts_input = gr.Slider(
                     label="최대 컷 수", minimum=1, maximum=50, value=15, step=1
                 )
-                threshold_input = gr.Slider(
-                    label="컷 감지 민감도 초기값 (낮을수록 민감)", minimum=1.0, maximum=60.0, value=27.0, step=0.5
+                threshold_input = gr.Number(
+                    label="컷 감지 민감도 초기값 (transnetv2: 0.3 기본 / scenedetect: 27.0 기본)",
+                    value=_DEFAULT_THRESHOLD[DEFAULT_BACKEND],
+                    precision=3,
                 )
                 model_input = gr.Textbox(
                     label="Gemini 모델", value=DEFAULT_MODEL
@@ -145,12 +160,19 @@ def build_ui() -> gr.Blocks:
                 label="cut_scene_mapping.json", language="json", lines=20
             )
 
+        backend_input.change(
+            fn=lambda b: _DEFAULT_THRESHOLD[b],
+            inputs=[backend_input],
+            outputs=[threshold_input],
+        )
+
         run_btn.click(
             fn=analyze,
             inputs=[
                 video_input,
                 scenario_file_input,
                 scenario_text_input,
+                backend_input,
                 min_cuts_input,
                 max_cuts_input,
                 threshold_input,

@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from mapping_pipeline.runner import run_mapping_pipeline
+from mapping_pipeline.runner import DEFAULT_BACKEND, _DEFAULT_THRESHOLD, run_mapping_pipeline
 from utils.gemini_caller import DEFAULT_MODEL
 
 app = FastAPI(
@@ -31,9 +31,10 @@ async def analyze(
     video_file: UploadFile = File(..., description="분석할 영상 파일 (mp4)"),
     scenario_file: UploadFile | None = File(None, description="시나리오 .txt 또는 .json 파일 (scenario_text 대신 사용 가능)"),
     scenario_text: str = Form("", description="시나리오 텍스트 (scenario_file 대신 사용 가능)"),
-    min_cuts: int | None = Form(7, description="최소 컷 수 (None이면 자동 조정 비활성)"),
+    min_cuts: int | None = Form(None, description="최소 컷 수 (None이면 자동 조정 비활성)"),
     max_cuts: int = Form(15, description="최대 컷 수"),
-    threshold: float = Form(27.0, description="scenedetect 컷 감지 초기 민감도"),
+    backend: str = Form(DEFAULT_BACKEND, description="컷 감지 백엔드 (transnetv2 | scenedetect)"),
+    threshold: float | None = Form(None, description="컷 감지 초기 민감도 (미입력 시 백엔드 기본값 사용)"),
     gemini_model: str = Form(DEFAULT_MODEL, description="사용할 Gemini 모델명"),
 ) -> JSONResponse:
     """영상 + 시나리오 → cut_analysis·cut_scene_mapping을 JSON으로 반환한다.
@@ -56,6 +57,7 @@ async def analyze(
             min_cuts=min_cuts,
             max_cuts=max_cuts,
             threshold=threshold,
+            backend=backend.strip(),
             gemini_model=gemini_model.strip(),
         )
     except Exception as exc:

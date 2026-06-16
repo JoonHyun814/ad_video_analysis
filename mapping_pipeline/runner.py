@@ -14,8 +14,26 @@ from utils.gemini_caller import DEFAULT_MODEL, get_token_usage, reset_token_usag
 
 _OUTPUT_ROOT = Path("output")
 _MAX_THRESHOLD_ITER = 10
-_THRESHOLD_LO = 1.0
-_THRESHOLD_HI = 100.0
+
+BACKEND_TRANSNETV2 = "transnetv2"
+BACKEND_SCENEDETECT = "scenedetect"
+DEFAULT_BACKEND = BACKEND_TRANSNETV2
+
+_THRESHOLD_RANGE: dict[str, tuple[float, float]] = {
+    BACKEND_TRANSNETV2: (0.05, 0.95),
+    BACKEND_SCENEDETECT: (1.0, 100.0),
+}
+_DEFAULT_THRESHOLD: dict[str, float] = {
+    BACKEND_TRANSNETV2: 0.3,
+    BACKEND_SCENEDETECT: 27.0,
+}
+
+
+def _call_detect(video_path: Path, threshold: float, backend: str) -> list[Cut]:
+    if backend == BACKEND_TRANSNETV2:
+        from pipeline.transnetv2_cuts import detect_cuts_transnetv2
+        return detect_cuts_transnetv2(video_path, threshold=threshold)
+    return detect_cuts(video_path, threshold=threshold)
 
 
 def _detect_cuts_in_range(
@@ -23,13 +41,14 @@ def _detect_cuts_in_range(
     min_cuts: int,
     max_cuts: int,
     initial_threshold: float,
+    backend: str,
     log: Callable[[str], None],
 ) -> tuple[list[Cut], float]:
     """threshold를 이진 탐색으로 조정해 컷 수를 [min_cuts, max_cuts]로 맞춘다."""
-    lo, hi = _THRESHOLD_LO, _THRESHOLD_HI
+    lo, hi = _THRESHOLD_RANGE[backend]
     threshold = initial_threshold
-    cuts = detect_cuts(video_path, threshold=threshold)
-    log(f"    threshold={threshold:.2f} → {len(cuts)}컷")
+    cuts = _call_detect(video_path, threshold, backend)
+    log(f"    threshold={threshold:.3f} → {len(cuts)}컷")
 
     for i in range(1, _MAX_THRESHOLD_ITER):
         n = len(cuts)
@@ -37,8 +56,8 @@ def _detect_cuts_in_range(
             break
         lo, hi = (threshold, hi) if n > max_cuts else (lo, threshold)
         threshold = (lo + hi) / 2
-        cuts = detect_cuts(video_path, threshold=threshold)
-        log(f"    [iter {i}] threshold={threshold:.2f} → {len(cuts)}컷")
+        cuts = _call_detect(video_path, threshold, backend)
+        log(f"    [iter {i}] threshold={threshold:.3f} → {len(cuts)}컷")
 
     return cuts, threshold
 
@@ -48,17 +67,18 @@ def _step_detect_cuts(
     min_cuts: int | None,
     max_cuts: int,
     threshold: float,
+    backend: str,
     log: Callable[[str], None],
 ) -> list[Cut]:
     if min_cuts is not None:
-        log(f"[1] 컷 감지 중... (threshold 자동 조정, min={min_cuts}, max={max_cuts})")
-        cuts, _ = _detect_cuts_in_range(video_path, min_cuts, max_cuts, threshold, log)
+        log(f"[1] 컷 감지 중... ({backend}, threshold 자동 조정, min={min_cuts}, max={max_cuts})")
+        cuts, _ = _detect_cuts_in_range(video_path, min_cuts, max_cuts, threshold, backend, log)
         if len(cuts) > max_cuts:
             log(f"    루프 종료 후 {len(cuts)}컷 초과 → merge_to_max_cuts({max_cuts}) 적용")
             return merge_to_max_cuts(cuts, max_cuts)
         return cuts
-    log(f"[1] 컷 감지 중... (threshold={threshold}, max_cuts={max_cuts})")
-    return merge_to_max_cuts(detect_cuts(video_path, threshold=threshold), max_cuts)
+    log(f"[1] 컷 감지 중... ({backend}, threshold={threshold:.3f}, max_cuts={max_cuts})")
+    return merge_to_max_cuts(_call_detect(video_path, threshold, backend), max_cuts)
 
 
 def run_mapping_pipeline(
@@ -67,7 +87,8 @@ def run_mapping_pipeline(
     out_dir: Path | None = None,
     min_cuts: int | None = None,
     max_cuts: int = 10,
-    threshold: float = 27.0,
+    threshold: float | None = None,
+    backend: str = DEFAULT_BACKEND,
     gemini_model: str = DEFAULT_MODEL,
     on_progress: Callable[[str], None] | None = None,
 ) -> dict:
@@ -75,6 +96,8 @@ def run_mapping_pipeline(
     if out_dir is None:
         out_dir = _OUTPUT_ROOT / video_path.stem
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    resolved_threshold = threshold if threshold is not None else _DEFAULT_THRESHOLD.get(backend, 0.3)
 
     reset_token_usage()
     pipeline_start = time.time()
@@ -84,7 +107,7 @@ def run_mapping_pipeline(
         if on_progress:
             on_progress(msg)
 
-    cuts = _step_detect_cuts(video_path, min_cuts, max_cuts, threshold, log)
+    cuts = _step_detect_cuts(video_path, min_cuts, max_cuts, resolved_threshold, backend, log)
     _save_json(out_dir / "cuts.json", [dataclasses.asdict(c) for c in cuts])
     log(f"    컷 수: {len(cuts)} → cuts.json")
 

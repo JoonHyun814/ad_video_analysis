@@ -6,13 +6,21 @@ import time
 from pathlib import Path
 
 from pipeline.cut_analysis_gemini import analyze_cuts_gemini
-from pipeline.cuts import Cut, detect_cuts, merge_to_max_cuts
+from pipeline.cuts import Cut, merge_to_max_cuts
 from pipeline.frames import extract_frames_at_fps
 from pipeline.keyframe import extract_keyframes
 from mapping_pipeline.cut_mapper import map_cuts_to_scenes
+from mapping_pipeline.runner import (
+    BACKEND_TRANSNETV2,
+    BACKEND_SCENEDETECT,
+    DEFAULT_BACKEND,
+    _DEFAULT_THRESHOLD,
+    _call_detect,
+)
 from utils.gemini_caller import DEFAULT_MODEL, get_token_usage, reset_token_usage
 
 _OUTPUT_ROOT = Path("output")
+_BACKENDS = (BACKEND_TRANSNETV2, BACKEND_SCENEDETECT)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -22,9 +30,11 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="시나리오 파일 경로 (.txt 또는 .json)")
     p.add_argument("--out_dir", type=Path, default=None,
                    help=f"결과 저장 루트 디렉토리 (기본: {_OUTPUT_ROOT}/<video_stem>)")
+    p.add_argument("--backend", choices=_BACKENDS, default=DEFAULT_BACKEND,
+                   help=f"컷 감지 백엔드 (기본: {DEFAULT_BACKEND})")
     p.add_argument("--max_cuts", type=int, default=10, help="최대 컷 수 (기본: 10)")
-    p.add_argument("--threshold", type=float, default=27.0,
-                   help="scenedetect 컷 감지 민감도 (기본: 27.0)")
+    p.add_argument("--threshold", type=float, default=None,
+                   help="컷 감지 민감도 (기본: transnetv2=0.3 / scenedetect=27.0)")
     p.add_argument("--gemini_model", type=str, default=DEFAULT_MODEL,
                    help=f"Gemini 모델명 (기본: {DEFAULT_MODEL})")
     p.add_argument("--skip_preprocess", action="store_true",
@@ -41,11 +51,13 @@ def main() -> None:
     reset_token_usage()
     pipeline_start = time.time()
 
+    threshold = args.threshold if args.threshold is not None else _DEFAULT_THRESHOLD[args.backend]
+
     if args.skip_preprocess:
         print("[1-3] 전처리 생략 — 기존 파일 재사용")
         cuts = _load_preprocess_cache(out)
     else:
-        cuts = _run_preprocess(args, out)
+        cuts = _run_preprocess(args, out, threshold)
 
     if args.skip_cut_analysis:
         print("[4] Cut 분석 생략 — 기존 cut_analysis.json 재사용")
@@ -75,10 +87,10 @@ def main() -> None:
     print(f"    파이프라인 총 시간: {output['pipeline_time_s']}s")
 
 
-def _run_preprocess(args: argparse.Namespace, out: Path) -> list[Cut]:
-    print(f"[1] 컷 감지 중... (scenedetect, threshold={args.threshold}, max_cuts={args.max_cuts})")
+def _run_preprocess(args: argparse.Namespace, out: Path, threshold: float) -> list[Cut]:
+    print(f"[1] 컷 감지 중... ({args.backend}, threshold={threshold:.3f}, max_cuts={args.max_cuts})")
     cuts = merge_to_max_cuts(
-        detect_cuts(args.video_path, threshold=args.threshold),
+        _call_detect(args.video_path, threshold, args.backend),
         args.max_cuts,
     )
     _save_json(out / "cuts.json", [dataclasses.asdict(c) for c in cuts])
