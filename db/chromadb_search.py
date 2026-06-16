@@ -19,8 +19,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # 메타데이터 필터 (exact / range)
     f = p.add_argument_group("메타데이터 필터 (exact / range)")
-    f.add_argument("--industry_category", help="산업 카테고리 (예: beauty, healthcare, retail_ecommerce)")
-    f.add_argument("--product_category", help="제품 카테고리 (예: 스킨케어, 음료, 쇼핑몰)")
     f.add_argument("--campaign_objective", help="캠페인 목적 (awareness | consideration | conversion)")
     f.add_argument("--placement", help="게재 지면 (예: ctv_15s, youtube_pre_roll_30s)")
     f.add_argument("--age_min", type=int, metavar="N", help="타겟 연령 하한 (target_age_min >= N)")
@@ -29,6 +27,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # 벡터 유사도 텍스트 입력
     t = p.add_argument_group("벡터 유사도 텍스트 (입력한 값을 합쳐 쿼리 생성)")
+    t.add_argument("--industry_category", help="산업 카테고리 (예: beauty, healthcare, retail_ecommerce)")
+    t.add_argument("--product_category", help="제품 카테고리 (예: 스킨케어, 음료, 쇼핑몰)")
     t.add_argument("--target_persona", help="타겟 페르소나 설명")
     t.add_argument("--key_message", help="핵심 메시지")
     t.add_argument("--usp", help="USP")
@@ -51,12 +51,6 @@ def _build_parser() -> argparse.ArgumentParser:
 def _build_python_filters(args: argparse.Namespace) -> list:
     """get() 결과를 Python에서 후처리할 필터 함수 리스트."""
     fns = []
-    if args.industry_category:
-        v = args.industry_category
-        fns.append(lambda m, v=v: m.get("industry_category") == v)
-    if args.product_category:
-        v = args.product_category.lower()
-        fns.append(lambda m, v=v: v in (m.get("product_category") or "").lower())
     if args.campaign_objective:
         v = args.campaign_objective
         fns.append(lambda m, v=v: m.get("campaign_objective") == v)
@@ -117,8 +111,6 @@ def main() -> None:
 
     # 메타데이터 where 필터 (벡터 검색 시 사용)
     where = build_where(
-        industry_category=args.industry_category,
-        product_category=args.product_category,
         campaign_objective=args.campaign_objective,
         placement=args.placement,
         age_min=args.age_min,
@@ -127,10 +119,7 @@ def main() -> None:
     )
 
     client = chromadb.PersistentClient(path=str(args.db_path))
-    try:
-        col = client.get_collection(args.collection)
-    except Exception:
-        col = client.create_collection(args.collection, metadata={"hnsw:space": "cosine"})
+    col = _get_or_create(client, args.collection)
 
     if col.count() == 0:
         print("[오류] 컬렉션이 비어 있습니다. 먼저 --load_vector 로 데이터를 적재하세요.", file=sys.stderr)

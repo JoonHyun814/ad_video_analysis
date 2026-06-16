@@ -58,6 +58,7 @@ Write-Host "패키지를 설치합니다..."
 & $pip install --upgrade pip | Out-Null
 & $pip install mysql-connector-python
 & $pip install opencv-python "scenedetect[opencv]" easyocr
+& $pip install chromadb sentence-transformers tf-keras
 if ($LASTEXITCODE -ne 0) {
     Write-Error "패키지 설치 실패"
     exit 1

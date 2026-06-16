@@ -2,8 +2,22 @@
 from pathlib import Path
 
 import chromadb
+from chromadb.utils import embedding_functions
 
 _COLLECTION = "video_category"
+EMBEDDING_MODEL = "BAAI/bge-m3"  # 한/영 cross-lingual 임베딩
+
+_ef_cache: embedding_functions.SentenceTransformerEmbeddingFunction | None = None
+
+
+def get_embedding_function() -> embedding_functions.SentenceTransformerEmbeddingFunction:
+    """프로세스 단위로 임베딩 모델을 1회만 로드한다."""
+    global _ef_cache
+    if _ef_cache is None:
+        _ef_cache = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name=EMBEDDING_MODEL
+        )
+    return _ef_cache
 # 벡터화할 필드: 앞 두 항목(industry_category, product_category)은 메타데이터에도 동시 저장
 _TEXT_FIELDS = (
     "industry_category", "product_category",
@@ -56,10 +70,13 @@ def _get_or_create(client, name: str) -> chromadb.Collection:
     """컬렉션이 있으면 그대로 가져오고, 없으면 cosine 유사도로 새로 생성한다.
     get_or_create_collection 에 metadata= 를 넘기면 기존 데이터가 초기화되는
     ChromaDB 1.5.x 버그를 피하기 위해 두 단계로 나눈다."""
+    ef = get_embedding_function()
     try:
-        return client.get_collection(name)
+        return client.get_collection(name, embedding_function=ef)
     except Exception:
-        return client.create_collection(name, metadata={"hnsw:space": "cosine"})
+        return client.create_collection(
+            name, embedding_function=ef, metadata={"hnsw:space": "cosine"}
+        )
 
 
 # ── 적재 ───────────────────────────────────────────────────────────────────────

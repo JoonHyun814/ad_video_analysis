@@ -1,6 +1,6 @@
 import chromadb
 
-client = chromadb.PersistentClient(path="/workspace/ad_analysis/ad_video_analysis/output/vector_db")
+client = chromadb.PersistentClient(path=r"C:\Analysis_workspace\ad_video_analysis\ad_video_analysis\output\vector_db")
 col = client.get_or_create_collection("video_category")
 
 print(f"총 레코드 수: {col.count()}")
