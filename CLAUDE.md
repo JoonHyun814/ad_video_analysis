@@ -1,8 +1,36 @@
 # CLAUDE.md
 
-## 프로젝트 개요
+## 작업 절차 — README 우선
 
-광고 영상 분석 프로젝트. 영상 파일은 네트워크 공유폴더에 저장되며, 메타데이터와 레이블은 MySQL DB에 관리된다.
+이 저장소는 모듈별 README 가 1차 문서다. 어떤 모듈을 손대기 전에 해당 폴더의 README 부터 읽고, 변경 후에는 README 도 같이 갱신한다.
+
+### 작업 시작 전 — 해당 모듈 README 읽기
+
+| 작업 대상 | 참조할 문서 |
+|-----------|-------------|
+| 전체 구조·환경 설정 | [`README.md`](README.md) |
+| `pipeline/` 영상 분석 단계 추가·수정 | [`pipeline/README.md`](pipeline/README.md) |
+| `evaluation/` 평가·카테고리·벡터 적재 | [`evaluation/README.md`](evaluation/README.md) |
+| `train_pipeline/` 학습 데이터셋·트레이너 | [`train_pipeline/README.md`](train_pipeline/README.md) |
+| `mapping_pipeline/` 외부 영상 매핑 (CLI/API/Gradio) | [`mapping_pipeline/README.md`](mapping_pipeline/README.md) |
+| `generation/` 브리프·시나리오 생성 (M1~M7) | [`generation/README.md`](generation/README.md) |
+| `db/` MySQL·ChromaDB | [`db/README.md`](db/README.md) |
+| `utils/` LLM 호출·JSON 파싱·env 로딩 | [`utils/README.md`](utils/README.md) |
+
+LLM 호출이나 JSON 파싱이 필요하면 새로 구현하지 말고 먼저 `utils/README.md` 의 헬퍼 목록을 확인한다.
+
+### 변경 후 — README 동기화 의무
+
+다음 중 하나라도 해당하면 같은 PR/커밋에서 README 를 업데이트한다.
+
+- **CLI 인자 추가/제거/기본값 변경** → 해당 모듈 README 의 옵션 표 갱신
+- **공개 함수·클래스 추가/시그니처 변경** → 모듈 README 의 파일 구성 표 또는 함수 표 갱신
+- **새 파일/스크립트 추가** → 모듈 README 의 파일 구성 표에 행 추가
+- **출력 파일·디렉토리 구조 변경** → 모듈 README 의 출력 구조 갱신
+- **환경 변수·env 파일 추가** → 본 CLAUDE.md 의 환경 변수 표 + `env/README.md` 갱신
+- **새 Python 패키지 설치** → 루트 `CLAUDE.md` 의 패키지 표, `Dockerfile`, `setup_venv.ps1` 동기화
+
+README 가 코드와 어긋난 채로 커밋하지 않는다. 의도적으로 미반영하는 경우(예: WIP) 만 PR 설명에 명시한다.
 
 ---
 
@@ -43,76 +71,3 @@ utils/          # 프로젝트 전반에서 재사용하는 헬퍼 (env 로딩 �
 | `env/python.env` | Python 런타임 및 가상환경 경로 | `PYTHON_PATH`, `VENV_PATH` |
 
 **새 환경 변수가 필요하면** 성격에 맞는 파일에 추가하고, 파일이 없으면 새 `.env` 파일을 만든다. `env/README.md`도 함께 업데이트한다.
-
----
-
-## 가상환경 (`setup_venv.ps1`)
-
-`setup_venv.ps1`은 `env/python.env`를 읽어 `VENV_PATH`에 가상환경을 생성한다.
-
-```powershell
-.\setup_venv.ps1          # 최초 환경 구성
-. .venv\Scripts\Activate.ps1   # 가상환경 활성화
-```
-
-**패키지를 설치하거나 의존성이 바뀔 때마다** `setup_venv.ps1`에도 반영한다. 예를 들어 `pip install` 명령이 추가되면 스크립트 하단에 해당 설치 단계를 추가한다. 이렇게 해야 환경을 새로 구성할 때 스크립트 한 번으로 재현이 가능하다.
-
----
-
-## DB 연결
-
-- 호스트: `DB_HOST:DB_PORT` (db.env)
-- DB명: `DB_NAME` (db.env)
-- 연결 전 `env/db.env`를 파싱해서 사용한다.
-
----
-
-## 공유폴더
-
-- 경로: `ROOT_VIDEO_DIR` (dir.env)
-- DB의 `video_uploads.file_path`는 이 경로를 루트로 하는 상대경로다.
-- 절대경로가 필요할 때는 `ROOT_VIDEO_DIR + file_path`로 조합한다.
-
----
-
-## 공통 유틸리티 (`utils/`)
-
-프로젝트 전반에서 재사용하는 헬퍼 모듈. **새 파일에서 LLM 호출 또는 JSON 파싱이 필요하면 반드시 아래 모듈을 import해서 쓴다.** 로컬에 복붙하지 않는다.
-
-### `utils/json_utils.py`
-
-| 함수 | 설명 |
-|------|------|
-| `parse_json(text: str) -> dict` | LLM 응답에서 JSON을 파싱한다. 마크다운 펜스 제거 → `raw_decode`(후행 텍스트) → 괄호 스택 복구 순으로 시도하고, 모두 실패하면 `{"error": "parse_failed"}` 반환 |
-
-```python
-from utils.json_utils import parse_json
-```
-
-### `utils/llm_caller.py`
-
-| 함수 | 설명 |
-|------|------|
-| `call_claude(prompt, timeout=300) -> dict` | Claude CLI 호출. stdout 파일 출력(PIPE 버퍼 방지) + 529 과부하 자동 재시도 |
-| `call_codex(prompt, model=None, timeout=300) -> dict` | Codex CLI 호출. `-o` 파일 출력 방식 |
-
-```python
-from utils.llm_caller import call_claude, call_codex
-```
-
-> **예외**: `pipeline/cast_analysis.py`는 `--add-dir` 플래그, `cast_analysis_codex.py`는 `-i` 이미지 플래그가 필요해 공통 모듈을 사용하지 않는다.
-
-### `utils/gemini_caller.py`
-
-API 키는 `env/api.env`의 `GEMINI_API_KEY` 또는 동명 환경변수에서 읽는다.
-
-| 함수 | 설명 |
-|------|------|
-| `call_gemini(prompt, model=DEFAULT_MODEL, timeout=300) -> dict` | Gemini API 텍스트 호출. 429 과부하 자동 재시도 |
-| `call_gemini_with_images(prompt, image_paths, model=DEFAULT_MODEL, timeout=300) -> dict` | Gemini Vision API 호출 (이미지 바이트 인라인 전송). JSON dict 반환 |
-| `call_gemini_with_images_raw(prompt, image_paths, model=DEFAULT_MODEL, timeout=300) -> str` | Gemini Vision API 호출. 원시 텍스트 반환 (list 파싱 등 직접 처리 시 사용) |
-| `DEFAULT_MODEL` | `"gemini-2.5-flash-lite"` |
-
-```python
-from utils.gemini_caller import call_gemini, call_gemini_with_images, DEFAULT_MODEL
-```
