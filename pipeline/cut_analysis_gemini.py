@@ -47,11 +47,11 @@ def analyze_cuts_gemini(
         sampled = _sample(cut_frames, _MAX_FRAMES)
         if not sampled:
             continue
-        print(f"      [{cut.index}/{len(cuts)}] {cut.start_sec:.2f}~{cut.end_sec:.2f}s  {len(sampled)}프레임")
+        print(f"      [{cut.index}/{len(cuts)}] {cut.start_sec:.2f}~{cut.end_sec:.2f}s  {len(sampled)} frames")
         sub_cuts = _analyze_one(sampled, ocr_data, cut, model)
         n_sub = len(sub_cuts)
         if n_sub > 1:
-            print(f"        → 모델 추가 분할: {n_sub}개 sub_cut")
+            print(f"        -> Model split into {n_sub} sub_cuts")
         for sc in sub_cuts:
             flat.append({
                 "cut_index": 0,

@@ -48,7 +48,7 @@ def _detect_cuts_in_range(
     lo, hi = _THRESHOLD_RANGE[backend]
     threshold = initial_threshold
     cuts = _call_detect(video_path, threshold, backend)
-    log(f"    threshold={threshold:.3f} → {len(cuts)}컷")
+    log(f"    threshold={threshold:.3f} -> {len(cuts)} cuts")
 
     for i in range(1, _MAX_THRESHOLD_ITER):
         n = len(cuts)
@@ -57,7 +57,7 @@ def _detect_cuts_in_range(
         lo, hi = (threshold, hi) if n > max_cuts else (lo, threshold)
         threshold = (lo + hi) / 2
         cuts = _call_detect(video_path, threshold, backend)
-        log(f"    [iter {i}] threshold={threshold:.3f} → {len(cuts)}컷")
+        log(f"    [iter {i}] threshold={threshold:.3f} -> {len(cuts)} cuts")
 
     return cuts, threshold
 
@@ -71,13 +71,13 @@ def _step_detect_cuts(
     log: Callable[[str], None],
 ) -> list[Cut]:
     if min_cuts is not None:
-        log(f"[1] 컷 감지 중... ({backend}, threshold 자동 조정, min={min_cuts}, max={max_cuts})")
+        log(f"[1] Detecting cuts... ({backend}, auto threshold, min={min_cuts}, max={max_cuts})")
         cuts, _ = _detect_cuts_in_range(video_path, min_cuts, max_cuts, threshold, backend, log)
         if len(cuts) > max_cuts:
-            log(f"    루프 종료 후 {len(cuts)}컷 초과 → merge_to_max_cuts({max_cuts}) 적용")
+            log(f"    Search ended with {len(cuts)} cuts; applying merge_to_max_cuts({max_cuts})")
             return merge_to_max_cuts(cuts, max_cuts)
         return cuts
-    log(f"[1] 컷 감지 중... ({backend}, threshold={threshold:.3f}, max_cuts={max_cuts})")
+    log(f"[1] Detecting cuts... ({backend}, threshold={threshold:.3f}, max_cuts={max_cuts})")
     return merge_to_max_cuts(_call_detect(video_path, threshold, backend), max_cuts)
 
 
@@ -109,22 +109,22 @@ def run_mapping_pipeline(
 
     cuts = _step_detect_cuts(video_path, min_cuts, max_cuts, resolved_threshold, backend, log)
     _save_json(out_dir / "cuts.json", [dataclasses.asdict(c) for c in cuts])
-    log(f"    컷 수: {len(cuts)} → cuts.json")
+    log(f"    Cut count: {len(cuts)} -> cuts.json")
 
-    log("[2] Keyframe 추출 중...")
+    log("[2] Extracting keyframes...")
     keyframes = extract_keyframes(video_path, cuts, out_dir / "keyframes")
-    log(f"    {len(keyframes)}장 → keyframes/")
+    log(f"    {len(keyframes)} images -> keyframes/")
 
-    log("[3] Frames 추출 중... (fps=2)")
+    log("[3] Extracting frames... (fps=2)")
     frames = extract_frames_at_fps(video_path, out_dir / "frames", fps=2.0)
-    log(f"    {len(frames)}장 → frames/")
+    log(f"    {len(frames)} images -> frames/")
 
-    log(f"[4] Cut 분석 중... ({gemini_model}, 컷 수={len(cuts)})")
+    log(f"[4] Analyzing cuts... ({gemini_model}, cuts={len(cuts)})")
     cut_analysis = analyze_cuts_gemini(cuts, out_dir / "frames", {}, model=gemini_model)
     _save_json(out_dir / "cut_analysis.json", cut_analysis)
-    log(f"    완료 — {len(cut_analysis)}컷 → cut_analysis.json")
+    log(f"    Done - {len(cut_analysis)} cuts -> cut_analysis.json")
 
-    log("[5] Cut-Scene 매핑 중... (gemini)")
+    log("[5] Mapping cuts to scenes... (gemini)")
     cut_scene_mapping = map_cuts_to_scenes(cut_analysis, scenario_txt, model=gemini_model)
     tokens = get_token_usage()
     pipeline_time = round(time.time() - pipeline_start, 2)
@@ -135,9 +135,9 @@ def run_mapping_pipeline(
         "pipeline_time_s": pipeline_time,
     }
     _save_json(out_dir / "cut_scene_mapping.json", mapping_output)
-    log(f"    완료 — {len(cut_scene_mapping)}scene → cut_scene_mapping.json")
-    log(f"    토큰: input={tokens['input']}, output={tokens['output']}, thinking={tokens['thinking']}")
-    log(f"    파이프라인 총 시간: {pipeline_time}s")
+    log(f"    Done - {len(cut_scene_mapping)} scenes -> cut_scene_mapping.json")
+    log(f"    Tokens: input={tokens['input']}, output={tokens['output']}, thinking={tokens['thinking']}")
+    log(f"    Pipeline total time: {pipeline_time}s")
 
     return {
         "cut_analysis": cut_analysis,

@@ -43,7 +43,7 @@ def _load_api_key() -> str:
                 key = line.split("=", 1)[1].strip().strip('"').strip("'")
                 if key:
                     return key
-    raise RuntimeError("GEMINI_API_KEY를 환경변수 또는 env/api.env 에서 찾을 수 없다")
+    raise RuntimeError("GEMINI_API_KEY was not found in the environment or env/api.env")
 
 
 def _make_config() -> types.GenerateContentConfig:
@@ -74,7 +74,7 @@ def _generate(model: str, contents) -> str:
                 raise
         if delay is None:
             break
-        print(f"      Gemini 과부하, {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
+        print(f"      Gemini quota/load limit, retrying in {delay}s ({attempt}/{len(_RETRY_DELAYS)})...")
         time.sleep(delay)
     return text
 

@@ -54,25 +54,25 @@ def main() -> None:
     threshold = args.threshold if args.threshold is not None else _DEFAULT_THRESHOLD[args.backend]
 
     if args.skip_preprocess:
-        print("[1-3] 전처리 생략 — 기존 파일 재사용")
+        print("[1-3] Skipping preprocessing - reusing existing files")
         cuts = _load_preprocess_cache(out)
     else:
         cuts = _run_preprocess(args, out, threshold)
 
     if args.skip_cut_analysis:
-        print("[4] Cut 분석 생략 — 기존 cut_analysis.json 재사용")
+        print("[4] Skipping cut analysis - reusing existing cut_analysis.json")
         cut_results = _load_json(out / "cut_analysis.json", [])
     else:
-        print(f"[4] Cut 분석 중... (gemini, 컷 수={len(cuts)})")
+        print(f"[4] Analyzing cuts... (gemini, cuts={len(cuts)})")
         cut_results = analyze_cuts_gemini(cuts, out / "frames", {}, model=args.gemini_model)
         _save_json(out / "cut_analysis.json", cut_results)
-        print(f"    완료 → {out / 'cut_analysis.json'}")
+        print(f"    Done -> {out / 'cut_analysis.json'}")
 
-    print("[5] 시나리오 읽는 중...")
+    print("[5] Reading scenario...")
     scenario_txt = _load_scenario(args.scenario_path)
-    print(f"    {len(scenario_txt)}자")
+    print(f"    {len(scenario_txt)} chars")
 
-    print("[6] Cut-Scene 매핑 중... (gemini)")
+    print("[6] Mapping cuts to scenes... (gemini)")
     scenes = map_cuts_to_scenes(cut_results, scenario_txt, model=args.gemini_model)
 
     output = {
@@ -81,28 +81,28 @@ def main() -> None:
         "pipeline_time_s": round(time.time() - pipeline_start, 2),
     }
     _save_json(out / "cut_scene_mapping.json", output)
-    print(f"    완료 → {out / 'cut_scene_mapping.json'}")
+    print(f"    Done -> {out / 'cut_scene_mapping.json'}")
     tokens = output["tokens"]
-    print(f"    토큰: input={tokens['input']}, output={tokens['output']}, thinking={tokens['thinking']}")
-    print(f"    파이프라인 총 시간: {output['pipeline_time_s']}s")
+    print(f"    Tokens: input={tokens['input']}, output={tokens['output']}, thinking={tokens['thinking']}")
+    print(f"    Pipeline total time: {output['pipeline_time_s']}s")
 
 
 def _run_preprocess(args: argparse.Namespace, out: Path, threshold: float) -> list[Cut]:
-    print(f"[1] 컷 감지 중... ({args.backend}, threshold={threshold:.3f}, max_cuts={args.max_cuts})")
+    print(f"[1] Detecting cuts... ({args.backend}, threshold={threshold:.3f}, max_cuts={args.max_cuts})")
     cuts = merge_to_max_cuts(
         _call_detect(args.video_path, threshold, args.backend),
         args.max_cuts,
     )
     _save_json(out / "cuts.json", [dataclasses.asdict(c) for c in cuts])
-    print(f"    컷 수: {len(cuts)} → {out / 'cuts.json'}")
+    print(f"    Cut count: {len(cuts)} -> {out / 'cuts.json'}")
 
-    print("[2] Keyframe 추출 중...")
+    print("[2] Extracting keyframes...")
     keyframes = extract_keyframes(args.video_path, cuts, out / "keyframes")
-    print(f"    {len(keyframes)}장 → {out / 'keyframes'}")
+    print(f"    {len(keyframes)} images -> {out / 'keyframes'}")
 
-    print("[3] Frames 추출 중... (fps=2)")
+    print("[3] Extracting frames... (fps=2)")
     frames = extract_frames_at_fps(args.video_path, out / "frames", fps=2.0)
-    print(f"    {len(frames)}장 → {out / 'frames'}")
+    print(f"    {len(frames)} images -> {out / 'frames'}")
 
     return cuts
 
@@ -110,9 +110,9 @@ def _run_preprocess(args: argparse.Namespace, out: Path, threshold: float) -> li
 def _load_preprocess_cache(out: Path) -> list[Cut]:
     cuts_file = out / "cuts.json"
     if not cuts_file.exists():
-        raise FileNotFoundError(f"캐시 없음: {cuts_file}. --skip_preprocess 전에 전처리를 먼저 실행하세요.")
+        raise FileNotFoundError(f"Cache not found: {cuts_file}. Run preprocessing before using --skip_preprocess.")
     cuts = [Cut(**d) for d in _load_json(cuts_file, [])]
-    print(f"    컷 수: {len(cuts)}")
+    print(f"    Cut count: {len(cuts)}")
     return cuts
 
 
