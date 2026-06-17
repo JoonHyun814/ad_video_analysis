@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT
+from utils.io_checks import require_valid_json
 
 _LLM_BACKENDS = ("claude", "codex", "gemini")
 
@@ -24,22 +25,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _load_json(path: Path, label: str) -> dict:
-    if not path.exists():
-        print(f"[오류] {label} 없음: {path}", file=sys.stderr)
-        sys.exit(1)
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 def _save_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"  저장: {path}")
 
 
 def _run_category_analysis(args: argparse.Namespace, video_dir: Path) -> dict:
-    scenario = _load_json(video_dir / "scenario_analysis.json", "scenario_analysis")
+    scenario = require_valid_json(video_dir / "scenario_analysis.json", "scenario_analysis")
     brief_path = video_dir / "brief_analysis.json"
-    brief = json.loads(brief_path.read_text(encoding="utf-8")) if brief_path.exists() else None
+    brief = require_valid_json(brief_path, "brief_analysis") if brief_path.exists() else None
 
     print(f"  카테고리 분석 중 [{args.llm_backend}]...")
     result = _dispatch_analysis(scenario, brief, args)
@@ -52,7 +46,7 @@ def _run_category_analysis(args: argparse.Namespace, video_dir: Path) -> dict:
 
 
 def _run_load_vector(args: argparse.Namespace, video_dir: Path) -> None:
-    category = _load_json(video_dir / "category_analysis.json", "category_analysis")
+    category = require_valid_json(video_dir / "category_analysis.json", "category_analysis")
     if "error" in category:
         print(f"[오류] category_analysis.json 에 에러 있음: {category.get('error')}", file=sys.stderr)
         sys.exit(1)

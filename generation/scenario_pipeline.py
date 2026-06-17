@@ -4,16 +4,24 @@ import json
 import sys
 from pathlib import Path
 
+from utils.io_checks import is_parse_failed, require_valid_json
+
 
 def stage_path(output_dir: Path, brand: str, product: str, stage: str) -> Path:
     return output_dir / f"{brand}_{product}_{stage}.json"
 
 
 def load_json(path: Path, label: str) -> dict:
-    if not path.exists():
-        print(f"[오류] {label} 파일 없음: {path}", file=sys.stderr)
-        sys.exit(1)
-    return json.loads(path.read_text(encoding="utf-8"))
+    return require_valid_json(path, label)
+
+
+def _require_stage_ok(result: dict, stage: str) -> None:
+    """직전 단계 결과가 parse_failed 이면 다음 단계로 진행하지 않는다."""
+    if is_parse_failed(result):
+        raise SystemExit(
+            f"[오류] {stage.upper()} 결과에 parse_failed 항목 있음.\n"
+            f"  해당 단계를 재실행해 정상 결과를 만든 뒤 파이프라인을 다시 시도하세요."
+        )
 
 
 def save_json(path: Path, data: dict) -> None:
@@ -142,21 +150,29 @@ def run_brief(args: argparse.Namespace) -> dict:
 def run_pipeline(args: argparse.Namespace, seed_brief: dict) -> None:
     """M1→M4→(웹 검색 브리프)→M5→M7 전체 파이프라인을 순차 실행한다."""
     m1 = run_m1(seed_brief, args)
+    _require_stage_ok(m1, "m1")
     m2 = run_m2(seed_brief, m1, args)
+    _require_stage_ok(m2, "m2")
     m3 = run_m3(seed_brief, m1, m2, args)
+    _require_stage_ok(m3, "m3")
     m4 = run_m4(m3, args)
+    _require_stage_ok(m4, "m4")
     if not check_gate_a(m4):
         return
 
     # GATE A 통과 후 웹 검색으로 브리프 보강 (선정 컨셉 맥락 반영)
     brief = run_brief(args)
+    _require_stage_ok(brief, "brief")
 
     m5 = run_m5(brief, m3, m4, args)
+    _require_stage_ok(m5, "m5")
     m6 = run_m6(brief, m5, args)
+    _require_stage_ok(m6, "m6")
     if not check_gate_b(m6):
         return
 
     m7 = run_m7(m5, m6, brief, args)
+    _require_stage_ok(m7, "m7")
     if check_gate_c(m7):
         print("\n  [GATE C] Go — 캠페인 진행 승인.")
 

@@ -9,6 +9,7 @@ _QWEN_DEFAULT_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
 _STAGES = ("m1", "m2", "m3", "m4", "m5", "m6", "m7")
 
 from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
+from utils.io_checks import is_parse_failed, require_valid_json
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -47,13 +48,6 @@ def _build_seed_brief(args: argparse.Namespace) -> dict:
     if args.functions:
         brief["functions"] = args.functions
     return brief
-
-
-def _load_json(path: Path, label: str) -> dict:
-    if not path.exists():
-        print(f"[오류] {label} 파일 없음: {path}", file=sys.stderr)
-        sys.exit(1)
-    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _save_json(path: Path, data: dict) -> None:
@@ -122,8 +116,10 @@ def main() -> None:
         if args.brief:
             print("  웹 검색 중...")
             brief = _run_brief(args)
+            if is_parse_failed(brief):
+                raise SystemExit("[오류] 브리프 결과에 parse_failed 항목 있음. 재실행 필요.")
         else:
-            brief = _load_json(brief_path, "brief")
+            brief = require_valid_json(brief_path, "brief_analysis")
 
         if args.scenario:
             _run_scenario_legacy(args, brief)

@@ -8,6 +8,7 @@ _LLM_BACKENDS = ("claude", "codex", "qwen", "gemini")
 _QWEN_DEFAULT_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
 
 from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
+from utils.io_checks import load_optional_valid, require_valid_json
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -25,21 +26,13 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _load_json(path: Path, label: str) -> dict:
-    if not path.exists():
-        print(f"[오류] {label} 파일 없음: {path}")
-        sys.exit(1)
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 def _save_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"  저장: {path}")
 
 
 def _run_brief(args: argparse.Namespace, video_dir: Path) -> None:
-    scenario_path = video_dir / "scenario_analysis.json"
-    scenario = _load_json(scenario_path, "scenario_analysis")
+    scenario = require_valid_json(video_dir / "scenario_analysis.json", "scenario_analysis")
 
     print(f"  브리프 추출 중 [{args.llm_backend}]...")
     brief = _dispatch_brief(scenario, args)
@@ -55,14 +48,12 @@ def _run_brief(args: argparse.Namespace, video_dir: Path) -> None:
 
 
 def _run_parsed_analysis(args: argparse.Namespace, video_dir: Path) -> None:
-    _require_valid(video_dir / "scenario_analysis.json", "scenario_analysis")
-    _require_valid(video_dir / "cut_analysis.json", "cut_analysis")
-    scenario = _load_json(video_dir / "scenario_analysis.json", "scenario_analysis")
+    scenario = require_valid_json(video_dir / "scenario_analysis.json", "scenario_analysis")
+    cut_analysis = require_valid_json(video_dir / "cut_analysis.json", "cut_analysis")
     cuts = _load_cuts(video_dir / "cuts.json")
-    cut_analysis = _load_optional_list(video_dir / "cut_analysis.json")
-    scene_analysis = _load_optional_list(video_dir / "scene_analysis.json")
-    stt_segments = _load_optional_list(video_dir / "stt.json")
-    audio_data = _load_optional_dict(video_dir / "audio_analysis.json")
+    scene_analysis = load_optional_valid(video_dir / "scene_analysis.json", "scene_analysis", default=[])
+    stt_segments = load_optional_valid(video_dir / "stt.json", "stt", default=[])
+    audio_data = load_optional_valid(video_dir / "audio_analysis.json", "audio_analysis", default={})
 
     print(f"  Parsed 분석 중 [{args.llm_backend}]...")
     parsed = _dispatch_parsed(scenario, cuts, cut_analysis, scene_analysis, stt_segments, audio_data, args)
@@ -77,48 +68,18 @@ def _run_parsed_analysis(args: argparse.Namespace, video_dir: Path) -> None:
     _save_json(out_path, parsed)
 
 
-def _require_valid(path: Path, label: str) -> None:
-    """파일 존재 + JSON 파싱 가능 + parse_failed 에러 없음 을 검증한다."""
-    if not path.exists():
-        raise SystemExit(f"[오류] {label}.json 없음: {path}")
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        raise SystemExit(f"[오류] {label}.json JSON 파싱 실패: {path}\n  {e}")
-    if _has_parse_failed(data):
-        raise SystemExit(f"[오류] {label}.json 에 parse_failed 항목 있음: {path}\n  해당 단계를 재실행하여 정상 결과를 만든 뒤 다시 시도하세요.")
-
-
-def _has_parse_failed(data) -> bool:
-    if isinstance(data, dict):
-        return data.get("error") == "parse_failed"
-    if isinstance(data, list):
-        return any(isinstance(item, dict) and item.get("error") == "parse_failed" for item in data)
-    return False
-
-
 def _load_cuts(path: Path) -> list:
     from pipeline.cuts import Cut
-    if not path.exists():
-        print(f"[오류] cuts.json 파일 없음: {path}")
-        sys.exit(1)
-    return [Cut(**d) for d in json.loads(path.read_text(encoding="utf-8"))]
-
-
-def _load_optional_list(path: Path) -> list:
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
-
-
-def _load_optional_dict(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    data = require_valid_json(path, "cuts")
+    return [Cut(**d) for d in data]
 
 
 def _run_evaluation(args: argparse.Namespace, video_dir: Path) -> None:
-    scenario = _load_json(video_dir / "scenario_analysis.json", "scenario_analysis")
+    scenario = require_valid_json(video_dir / "scenario_analysis.json", "scenario_analysis")
     brief_path = video_dir / "brief_analysis.json"
 
     if brief_path.exists():
-        brief = json.loads(brief_path.read_text(encoding="utf-8"))
+        brief = require_valid_json(brief_path, "brief_analysis")
         print(f"  시나리오 평가 중 [브리프 포함 / {args.llm_backend}]...")
         result = _dispatch_eval(brief, scenario, args)
     else:

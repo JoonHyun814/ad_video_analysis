@@ -8,6 +8,7 @@
 |------|------|
 | `env_loader.py` | `KEY=VALUE` 형식의 `.env` 파일 파싱 |
 | `json_utils.py` | LLM 응답에서 JSON 안전 파싱 |
+| `io_checks.py` | 파이프라인 입력 JSON 의 존재·`parse_failed` 검증 |
 | `llm_caller.py` | Claude CLI / Codex CLI 호출 |
 | `gemini_caller.py` | Gemini API 호출 (텍스트 / 비전) |
 | `llm_dispatch.py` | `backend` 인자로 위 셋을 일괄 디스패치 |
@@ -31,6 +32,21 @@ db = load_env("env/db.env")
 
 ```python
 from utils.json_utils import parse_json
+```
+
+## `io_checks.py`
+
+| 함수 | 설명 |
+|------|------|
+| `is_parse_failed(data) -> bool` | dict/list 안에 `error == "parse_failed"` 항목이 있는지 검사 |
+| `require_exists(path, label) -> None` | 파일 미존재 시 `SystemExit("[오류] {label} 없음: ...")` |
+| `require_valid_json(path, label) -> Any` | 존재 + JSON 파싱 + parse_failed 미포함 검증 후 데이터 반환 |
+| `load_optional_valid(path, label, default) -> Any` | 선택 입력. 없으면 `default`, 있으면 `require_valid_json` 적용 |
+
+```python
+from utils.io_checks import require_valid_json, load_optional_valid
+scenario = require_valid_json(video_dir / "scenario_analysis.json", "scenario_analysis")
+stt = load_optional_valid(video_dir / "stt.json", "stt", default=[])
 ```
 
 ## `llm_caller.py`
