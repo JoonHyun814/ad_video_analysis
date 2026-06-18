@@ -11,10 +11,13 @@ from mapping_pipeline.runner import (
     BACKEND_TRANSNETV2,
     BACKEND_SCENEDETECT,
     DEFAULT_BACKEND,
+    DEFAULT_LLM_BACKEND,
+    LLM_GEMINI,
+    LLM_OPENAI,
     _DEFAULT_THRESHOLD,
+    default_llm_model,
     run_mapping_pipeline,
 )
-from utils.gemini_caller import DEFAULT_MODEL
 
 _OUTPUT_ROOT = Path("output")
 
@@ -46,7 +49,8 @@ def analyze(
     min_cuts: int,
     max_cuts: int,
     threshold: float,
-    gemini_model: str,
+    llm_backend: str,
+    llm_model: str,
 ):
     """파이프라인을 실행하고 로그·결과를 스트리밍으로 yield한다."""
     if not video_file:
@@ -81,7 +85,8 @@ def analyze(
                 max_cuts=int(max_cuts),
                 threshold=float(threshold),
                 backend=backend,
-                gemini_model=gemini_model.strip(),
+                llm_backend=llm_backend,
+                llm_model=llm_model.strip() or None,
                 on_progress=on_progress,
             )
             log_q.put(("done", None))
@@ -108,6 +113,14 @@ def analyze(
             logs.append(f"\n[오류] {value}")
             yield "\n".join(logs), None, None, _BTN_READY
             break
+
+
+def _update_threshold(backend: str) -> float:
+    return _DEFAULT_THRESHOLD[backend]
+
+
+def _update_llm_model(llm_backend: str) -> str:
+    return default_llm_model(llm_backend)
 
 
 def build_ui() -> gr.Blocks:
@@ -144,8 +157,14 @@ def build_ui() -> gr.Blocks:
                     value=_DEFAULT_THRESHOLD[DEFAULT_BACKEND],
                     precision=3,
                 )
-                model_input = gr.Textbox(
-                    label="Gemini 모델", value=DEFAULT_MODEL
+                llm_backend_input = gr.Radio(
+                    label="LLM 백엔드",
+                    choices=[LLM_GEMINI, LLM_OPENAI],
+                    value=DEFAULT_LLM_BACKEND,
+                )
+                llm_model_input = gr.Textbox(
+                    label="LLM 모델 (비워두면 백엔드 기본값 사용)",
+                    value=default_llm_model(DEFAULT_LLM_BACKEND),
                 )
                 run_btn = gr.Button("분석 시작", variant="primary")
 
@@ -161,9 +180,14 @@ def build_ui() -> gr.Blocks:
             )
 
         backend_input.change(
-            fn=lambda b: _DEFAULT_THRESHOLD[b],
+            fn=_update_threshold,
             inputs=[backend_input],
             outputs=[threshold_input],
+        )
+        llm_backend_input.change(
+            fn=_update_llm_model,
+            inputs=[llm_backend_input],
+            outputs=[llm_model_input],
         )
 
         run_btn.click(
@@ -176,7 +200,8 @@ def build_ui() -> gr.Blocks:
                 min_cuts_input,
                 max_cuts_input,
                 threshold_input,
-                model_input,
+                llm_backend_input,
+                llm_model_input,
             ],
             outputs=[log_output, cut_analysis_output, mapping_output, run_btn],
         )

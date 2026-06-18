@@ -5,12 +5,9 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from mapping_pipeline.cut_mapper import map_cuts_to_scenes
-from pipeline.cut_analysis_gemini import analyze_cuts_gemini
 from pipeline.cuts import Cut, detect_cuts, merge_to_max_cuts
 from pipeline.frames import extract_frames_at_fps
 from pipeline.keyframe import extract_keyframes
-from utils.gemini_caller import DEFAULT_MODEL, get_token_usage, reset_token_usage
 
 _OUTPUT_ROOT = Path("output")
 _MAX_THRESHOLD_ITER = 10
@@ -18,6 +15,15 @@ _MAX_THRESHOLD_ITER = 10
 BACKEND_TRANSNETV2 = "transnetv2"
 BACKEND_SCENEDETECT = "scenedetect"
 DEFAULT_BACKEND = BACKEND_TRANSNETV2
+
+LLM_GEMINI = "gemini"
+LLM_OPENAI = "openai"
+DEFAULT_LLM_BACKEND = LLM_OPENAI
+
+_DEFAULT_LLM_MODEL: dict[str, str] = {
+    LLM_GEMINI: "models/gemini-2.5-flash-lite",
+    LLM_OPENAI: "gpt-4o-mini",
+}
 
 _THRESHOLD_RANGE: dict[str, tuple[float, float]] = {
     BACKEND_TRANSNETV2: (0.05, 0.95),
@@ -27,6 +33,11 @@ _DEFAULT_THRESHOLD: dict[str, float] = {
     BACKEND_TRANSNETV2: 0.3,
     BACKEND_SCENEDETECT: 27.0,
 }
+
+
+def default_llm_model(llm_backend: str) -> str:
+    """LLM 백엔드별 기본 모델명을 반환한다."""
+    return _DEFAULT_LLM_MODEL.get(llm_backend, _DEFAULT_LLM_MODEL[DEFAULT_LLM_BACKEND])
 
 
 def _call_detect(video_path: Path, threshold: float, backend: str) -> list[Cut]:
@@ -81,6 +92,38 @@ def _step_detect_cuts(
     return merge_to_max_cuts(_call_detect(video_path, threshold, backend), max_cuts)
 
 
+def _analyze_cuts(cuts: list[Cut], frames_dir: Path, llm_backend: str, llm_model: str) -> list[dict]:
+    if llm_backend == LLM_OPENAI:
+        from pipeline.cut_analysis_openai import analyze_cuts_openai
+        return analyze_cuts_openai(cuts, frames_dir, {}, model=llm_model)
+    from pipeline.cut_analysis_gemini import analyze_cuts_gemini
+    return analyze_cuts_gemini(cuts, frames_dir, {}, model=llm_model)
+
+
+def _map_cuts_to_scenes(cut_analysis: list[dict], scenario_txt: str, llm_backend: str, llm_model: str) -> list[dict]:
+    if llm_backend == LLM_OPENAI:
+        from mapping_pipeline.cut_mapper_openai import map_cuts_to_scenes_openai
+        return map_cuts_to_scenes_openai(cut_analysis, scenario_txt, model=llm_model)
+    from mapping_pipeline.cut_mapper import map_cuts_to_scenes
+    return map_cuts_to_scenes(cut_analysis, scenario_txt, model=llm_model)
+
+
+def _reset_tokens(llm_backend: str) -> None:
+    if llm_backend == LLM_OPENAI:
+        from utils.openai_caller import reset_token_usage
+    else:
+        from utils.gemini_caller import reset_token_usage
+    reset_token_usage()
+
+
+def _read_tokens(llm_backend: str) -> dict[str, int]:
+    if llm_backend == LLM_OPENAI:
+        from utils.openai_caller import get_token_usage
+    else:
+        from utils.gemini_caller import get_token_usage
+    return get_token_usage()
+
+
 def run_mapping_pipeline(
     video_path: Path,
     scenario_txt: str,
@@ -89,17 +132,24 @@ def run_mapping_pipeline(
     max_cuts: int = 10,
     threshold: float | None = None,
     backend: str = DEFAULT_BACKEND,
-    gemini_model: str = DEFAULT_MODEL,
+    llm_backend: str = DEFAULT_LLM_BACKEND,
+    llm_model: str | None = None,
     on_progress: Callable[[str], None] | None = None,
 ) -> dict:
-    """영상 + 시나리오 텍스트 → cut_analysis·cut_scene_mapping·tokens 딕셔너리를 반환한다."""
+    """영상 + 시나리오 텍스트 → cut_analysis·cut_scene_mapping·tokens 딕셔너리를 반환한다.
+
+    backend     — 컷 감지 백엔드 (transnetv2 / scenedetect)
+    llm_backend — cut_analysis · cut_mapper에 사용할 LLM 백엔드 (gemini / openai)
+    llm_model   — LLM 모델명. 미지정 시 백엔드별 기본값.
+    """
     if out_dir is None:
         out_dir = _OUTPUT_ROOT / video_path.stem
     out_dir.mkdir(parents=True, exist_ok=True)
 
     resolved_threshold = threshold if threshold is not None else _DEFAULT_THRESHOLD.get(backend, 0.3)
+    resolved_model = llm_model or default_llm_model(llm_backend)
 
-    reset_token_usage()
+    _reset_tokens(llm_backend)
     pipeline_start = time.time()
 
     def log(msg: str) -> None:
@@ -119,24 +169,26 @@ def run_mapping_pipeline(
     frames = extract_frames_at_fps(video_path, out_dir / "frames", fps=2.0)
     log(f"    {len(frames)} images -> frames/")
 
-    log(f"[4] Analyzing cuts... ({gemini_model}, cuts={len(cuts)})")
-    cut_analysis = analyze_cuts_gemini(cuts, out_dir / "frames", {}, model=gemini_model)
+    log(f"[4] Analyzing cuts... ({llm_backend}:{resolved_model}, cuts={len(cuts)})")
+    cut_analysis = _analyze_cuts(cuts, out_dir / "frames", llm_backend, resolved_model)
     _save_json(out_dir / "cut_analysis.json", cut_analysis)
     log(f"    Done - {len(cut_analysis)} cuts -> cut_analysis.json")
 
-    log("[5] Mapping cuts to scenes... (gemini)")
-    cut_scene_mapping = map_cuts_to_scenes(cut_analysis, scenario_txt, model=gemini_model)
-    tokens = get_token_usage()
+    log(f"[5] Mapping cuts to scenes... ({llm_backend}:{resolved_model})")
+    cut_scene_mapping = _map_cuts_to_scenes(cut_analysis, scenario_txt, llm_backend, resolved_model)
+    tokens = _read_tokens(llm_backend)
     pipeline_time = round(time.time() - pipeline_start, 2)
 
     mapping_output = {
         "scenes": cut_scene_mapping,
         "tokens": tokens,
         "pipeline_time_s": pipeline_time,
+        "llm_backend": llm_backend,
+        "llm_model": resolved_model,
     }
     _save_json(out_dir / "cut_scene_mapping.json", mapping_output)
     log(f"    Done - {len(cut_scene_mapping)} scenes -> cut_scene_mapping.json")
-    log(f"    Tokens: input={tokens['input']}, output={tokens['output']}, thinking={tokens['thinking']}")
+    log(f"    Tokens ({llm_backend}): input={tokens['input']}, output={tokens['output']}, thinking={tokens['thinking']}")
     log(f"    Pipeline total time: {pipeline_time}s")
 
     return {
@@ -144,6 +196,8 @@ def run_mapping_pipeline(
         "cut_scene_mapping": cut_scene_mapping,
         "tokens": tokens,
         "pipeline_time_s": pipeline_time,
+        "llm_backend": llm_backend,
+        "llm_model": resolved_model,
         "out_dir": str(out_dir),
     }
 

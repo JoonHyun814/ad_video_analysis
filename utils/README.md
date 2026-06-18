@@ -10,6 +10,7 @@
 | `json_utils.py` | LLM 응답에서 JSON 안전 파싱 |
 | `llm_caller.py` | Claude CLI / Codex CLI 호출 |
 | `gemini_caller.py` | Gemini API 호출 (텍스트 / 비전) |
+| `openai_caller.py` | OpenAI API 호출 (텍스트 / 비전) |
 | `llm_dispatch.py` | `backend` 인자로 위 셋을 일괄 디스패치 |
 
 ## `env_loader.py`
@@ -59,6 +60,22 @@ API 키는 `env/api.env` 의 `GEMINI_API_KEY` 또는 동명 환경변수에서 �
 
 ```python
 from utils.gemini_caller import call_gemini, call_gemini_with_images, DEFAULT_MODEL
+```
+
+## `openai_caller.py`
+
+API 키는 `env/api.env` 의 `OPENAI_API_KEY` 또는 동명 환경변수에서 읽는다.
+
+| 함수 | 설명 |
+|------|------|
+| `call_openai(prompt, model=DEFAULT_MODEL, timeout=300) -> dict` | OpenAI API 텍스트 호출. Rate limit 자동 재시도 |
+| `call_openai_with_images(prompt, image_paths, model=DEFAULT_MODEL, timeout=300) -> dict` | OpenAI Vision API 호출 (이미지 base64 인라인). JSON dict 반환 |
+| `get_token_usage() -> dict` | 누적 토큰 사용량 반환 (`input`/`output`/`thinking`) |
+| `reset_token_usage()` | 토큰 카운터 초기화 |
+| `DEFAULT_MODEL` | `"gpt-4o-mini"` |
+
+```python
+from utils.openai_caller import call_openai, call_openai_with_images, DEFAULT_MODEL
 ```
 
 ## `llm_dispatch.py`

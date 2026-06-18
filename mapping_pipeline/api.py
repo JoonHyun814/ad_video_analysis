@@ -9,8 +9,15 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from mapping_pipeline.runner import DEFAULT_BACKEND, _DEFAULT_THRESHOLD, run_mapping_pipeline
-from utils.gemini_caller import DEFAULT_MODEL
+from mapping_pipeline.runner import (
+    DEFAULT_BACKEND,
+    DEFAULT_LLM_BACKEND,
+    LLM_GEMINI,
+    LLM_OPENAI,
+    _DEFAULT_THRESHOLD,
+    default_llm_model,
+    run_mapping_pipeline,
+)
 
 app = FastAPI(
     title="Ad Video Cut-Scene Mapping API",
@@ -36,7 +43,8 @@ async def analyze(
     max_cuts: int = Form(15, description="Maximum number of cuts."),
     backend: str = Form(DEFAULT_BACKEND, description="Cut detection backend: transnetv2 or scenedetect."),
     threshold: float | None = Form(None, description="Initial cut detection threshold. Uses backend default when omitted."),
-    gemini_model: str = Form(DEFAULT_MODEL, description="Gemini model name."),
+    llm_backend: str = Form(DEFAULT_LLM_BACKEND, description=f"LLM backend: {LLM_GEMINI} or {LLM_OPENAI}."),
+    llm_model: str | None = Form(None, description="LLM model name. Uses backend default when omitted."),
 ) -> JSONResponse:
     """Return cut_analysis and cut_scene_mapping for a video + scenario.
 
@@ -60,7 +68,8 @@ async def analyze(
             max_cuts=max_cuts,
             threshold=threshold,
             backend=backend.strip(),
-            gemini_model=gemini_model.strip(),
+            llm_backend=llm_backend.strip(),
+            llm_model=llm_model.strip() if llm_model else None,
         )
     except HTTPException:
         raise

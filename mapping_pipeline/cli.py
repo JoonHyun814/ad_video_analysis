@@ -5,22 +5,28 @@ import json
 import time
 from pathlib import Path
 
-from pipeline.cut_analysis_gemini import analyze_cuts_gemini
 from pipeline.cuts import Cut, merge_to_max_cuts
 from pipeline.frames import extract_frames_at_fps
 from pipeline.keyframe import extract_keyframes
-from mapping_pipeline.cut_mapper import map_cuts_to_scenes
 from mapping_pipeline.runner import (
     BACKEND_TRANSNETV2,
     BACKEND_SCENEDETECT,
     DEFAULT_BACKEND,
+    DEFAULT_LLM_BACKEND,
+    LLM_GEMINI,
+    LLM_OPENAI,
     _DEFAULT_THRESHOLD,
     _call_detect,
+    _analyze_cuts,
+    _map_cuts_to_scenes,
+    _reset_tokens,
+    _read_tokens,
+    default_llm_model,
 )
-from utils.gemini_caller import DEFAULT_MODEL, get_token_usage, reset_token_usage
 
 _OUTPUT_ROOT = Path("output")
-_BACKENDS = (BACKEND_TRANSNETV2, BACKEND_SCENEDETECT)
+_CUT_BACKENDS = (BACKEND_TRANSNETV2, BACKEND_SCENEDETECT)
+_LLM_BACKENDS = (LLM_GEMINI, LLM_OPENAI)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -30,15 +36,18 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="시나리오 파일 경로 (.txt 또는 .json)")
     p.add_argument("--out_dir", type=Path, default=None,
                    help=f"결과 저장 루트 디렉토리 (기본: {_OUTPUT_ROOT}/<video_stem>)")
-    p.add_argument("--backend", choices=_BACKENDS, default=DEFAULT_BACKEND,
+    p.add_argument("--backend", choices=_CUT_BACKENDS, default=DEFAULT_BACKEND,
                    help=f"컷 감지 백엔드 (기본: {DEFAULT_BACKEND})")
+    p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default=DEFAULT_LLM_BACKEND,
+                   help=f"cut_analysis · cut_mapper에 사용할 LLM 백엔드 (기본: {DEFAULT_LLM_BACKEND})")
+    p.add_argument("--llm_model", type=str, default=None,
+                   help=f"LLM 모델명. 미지정 시 백엔드별 기본값 "
+                        f"(gemini={default_llm_model(LLM_GEMINI)}, openai={default_llm_model(LLM_OPENAI)})")
     p.add_argument("--max_cuts", type=int, default=10, help="최대 컷 수 (기본: 10)")
     p.add_argument("--threshold", type=float, default=None,
                    help="컷 감지 민감도 (기본: transnetv2=0.3 / scenedetect=27.0)")
-    p.add_argument("--gemini_model", type=str, default=DEFAULT_MODEL,
-                   help=f"Gemini 모델명 (기본: {DEFAULT_MODEL})")
     p.add_argument("--skip_preprocess", action="store_true",
-                   help="전처리(컷 감지·프레임·OCR) 건너뜀. out_dir의 기존 파일 재사용")
+                   help="전처리(컷 감지·프레임) 건너뜀. out_dir의 기존 파일 재사용")
     p.add_argument("--skip_cut_analysis", action="store_true",
                    help="cut_analysis 건너뜀. 기존 cut_analysis.json 재사용")
     return p
@@ -48,10 +57,13 @@ def main() -> None:
     args = _build_parser().parse_args()
     out = args.out_dir if args.out_dir else _OUTPUT_ROOT / args.video_path.stem
     out.mkdir(parents=True, exist_ok=True)
-    reset_token_usage()
-    pipeline_start = time.time()
 
+    llm_backend = args.llm_backend
+    llm_model = args.llm_model.strip() if args.llm_model else default_llm_model(llm_backend)
     threshold = args.threshold if args.threshold is not None else _DEFAULT_THRESHOLD[args.backend]
+
+    _reset_tokens(llm_backend)
+    pipeline_start = time.time()
 
     if args.skip_preprocess:
         print("[1-3] Skipping preprocessing - reusing existing files")
@@ -63,8 +75,8 @@ def main() -> None:
         print("[4] Skipping cut analysis - reusing existing cut_analysis.json")
         cut_results = _load_json(out / "cut_analysis.json", [])
     else:
-        print(f"[4] Analyzing cuts... (gemini, cuts={len(cuts)})")
-        cut_results = analyze_cuts_gemini(cuts, out / "frames", {}, model=args.gemini_model)
+        print(f"[4] Analyzing cuts... ({llm_backend}:{llm_model}, cuts={len(cuts)})")
+        cut_results = _analyze_cuts(cuts, out / "frames", llm_backend, llm_model)
         _save_json(out / "cut_analysis.json", cut_results)
         print(f"    Done -> {out / 'cut_analysis.json'}")
 
@@ -72,19 +84,23 @@ def main() -> None:
     scenario_txt = _load_scenario(args.scenario_path)
     print(f"    {len(scenario_txt)} chars")
 
-    print("[6] Mapping cuts to scenes... (gemini)")
-    scenes = map_cuts_to_scenes(cut_results, scenario_txt, model=args.gemini_model)
+    print(f"[6] Mapping cuts to scenes... ({llm_backend}:{llm_model})")
+    scenes = _map_cuts_to_scenes(cut_results, scenario_txt, llm_backend, llm_model)
 
+    tokens = _read_tokens(llm_backend)
+    pipeline_time = round(time.time() - pipeline_start, 2)
     output = {
         "scenes": scenes,
-        "tokens": get_token_usage(),
-        "pipeline_time_s": round(time.time() - pipeline_start, 2),
+        "tokens": tokens,
+        "pipeline_time_s": pipeline_time,
+        "llm_backend": llm_backend,
+        "llm_model": llm_model,
     }
     _save_json(out / "cut_scene_mapping.json", output)
     print(f"    Done -> {out / 'cut_scene_mapping.json'}")
-    tokens = output["tokens"]
+    print(f"    llm={llm_backend}:{llm_model}")
     print(f"    Tokens: input={tokens['input']}, output={tokens['output']}, thinking={tokens['thinking']}")
-    print(f"    Pipeline total time: {output['pipeline_time_s']}s")
+    print(f"    Pipeline total time: {pipeline_time}s")
 
 
 def _run_preprocess(args: argparse.Namespace, out: Path, threshold: float) -> list[Cut]:
