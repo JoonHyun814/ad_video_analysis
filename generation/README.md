@@ -15,6 +15,8 @@
 | `m2_positioning.py` | M2 — 포지셔닝 전략 |
 | `m3_concept_divergence.py` | M3 — 컨셉 발산 (5~8개) |
 | `m4_concept_kill.py` | M4 — 컨셉 비평·킬 (GATE A) |
+| `gates.py` | GATE A/B/C 판정 |
+| `vector_reference.py` | M2 포지셔닝 → 유사 광고 조회, 컨셉별 유사도 검사/강제 kill |
 | `m5_dr_script.py` | M5 — DR 스크립트 |
 | `m6_red_team.py` | M6 — 레드팀 프리모템 |
 | `m7_validation.py` | M7 — 합성 사전스크린 + 인간 게이트 |
@@ -55,6 +57,21 @@ python -m generation.cli --brand <브랜드> --product <제품> [모드] [옵션
 | `--codex_model` / `--qwen_model` / `--gemini_model` | — | 백엔드별 모델명 |
 | `--output_dir` | `output/generation` | 결과 저장 |
 
+| 벡터 DB 참조 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--m3_reference` | off | [M3] M2 포지셔닝과 유사한 기존 광고를 검색해 발산 컨텍스트로 주입 |
+| `--m3_reference_n` | `5` | [M3] 참고할 유사 광고 수 |
+| `--m4_similarity_kill` | off | [M4] 컨셉별 기존 광고 유사도 검사, threshold 이내면 강제 kill |
+| `--m4_similarity_threshold` | `0.30` | [M4] cosine distance 한계 — 작을수록 엄격, 코퍼스 보고 튜닝 (`db/chromadb_show.py`) |
+| `--m5_narrative_reference` | off | [M5] 선정 컨셉의 서사 필드로 기존 광고를 검색해 스크립트 참고로 주입 (브랜드·산업 제외) |
+| `--m5_narrative_reference_n` | `5` | [M5] 참고할 서사 유사 광고 수 |
+| `--vector_db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--vector_collection` | `video_category` | ChromaDB 컬렉션명 |
+
+> `--m3_reference` / `--m4_similarity_kill` / `--m5_narrative_reference` 모두 `evaluation/category_cli.py --load_vector` 로 적재된 ChromaDB 컬렉션을 사용한다. 컬렉션이 비어있거나 조회에 실패하면 참고/검사가 생략된다 (파이프라인은 계속 진행).
+>
+> **M3 vs M5 의 검색 의도 차이** — M3 는 *포지셔닝* 유사(브랜드·산업·USP 포함)로 "비슷한 광고와 다른 방향" 발산을 유도하고, M5 는 *서사* 유사(`narrative_structure` / `hook_strategy` / `creative_style` / `key_message` 만)로 "브랜드와 무관하게 서사를 어떻게 풀어갔는지" 만 학습 자료로 쓴다.
+
 ## 예시
 
 ```bash
@@ -66,6 +83,12 @@ python -m generation.cli --brand 설화수 --product 윤조에센스 --stage m3
 
 # 웹 검색 브리프만 생성
 python -m generation.cli --brand 설화수 --product 윤조에센스 --brief
+
+# 벡터 DB 참조 켠 풀 파이프라인 (M3 발산 참고 + M4 유사도 kill + M5 서사 참고)
+python -m generation.cli --brand 설화수 --product 윤조에센스 --pipeline \
+    --m3_reference --m3_reference_n 5 \
+    --m4_similarity_kill --m4_similarity_threshold 0.25 \
+    --m5_narrative_reference --m5_narrative_reference_n 5
 ```
 
 ## 출력 파일명

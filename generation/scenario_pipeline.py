@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+from generation.gates import check_gate_a, check_gate_b, check_gate_c
 from utils.io_checks import is_parse_failed, require_valid_json
 
 
@@ -53,24 +54,31 @@ def run_m2(brief: dict, m1: dict, args: argparse.Namespace) -> dict:
 
 def run_m3(brief: dict, m1: dict, m2: dict, args: argparse.Namespace) -> dict:
     from generation.m3_concept_divergence import run
+    from generation.vector_reference import maybe_reference_ads
+    refs = maybe_reference_ads(args, brief, m2)
     print("  [M3] 컨셉 발산 중 (5~8개)...")
-    result = run(brief, m1, m2, **llm_kwargs(args))
+    result = run(brief, m1, m2, reference_ads=refs, **llm_kwargs(args))
     save_json(stage_path(args.output_dir, args.brand, args.product, "m3"), result)
     return result
 
 
 def run_m4(m3: dict, args: argparse.Namespace) -> dict:
     from generation.m4_concept_kill import run
+    from generation.vector_reference import enforce_similarity_kill, maybe_similarity_info
+    sim_info, threshold = maybe_similarity_info(args, m3)
     print("  [M4] 컨셉 비평·킬 중...")
-    result = run(m3, **llm_kwargs(args))
+    result = run(m3, similarity_info=sim_info, similarity_threshold=threshold, **llm_kwargs(args))
+    result = enforce_similarity_kill(result, sim_info, threshold)
     save_json(stage_path(args.output_dir, args.brand, args.product, "m4"), result)
     return result
 
 
 def run_m5(brief: dict, m3: dict, m4: dict, args: argparse.Namespace) -> dict:
     from generation.m5_dr_script import run
+    from generation.vector_reference import maybe_narrative_references
+    refs = maybe_narrative_references(args, m3, m4)
     print("  [M5] DR 스크립트 생성 중...")
-    result = run(brief, m3, m4, **llm_kwargs(args))
+    result = run(brief, m3, m4, narrative_references=refs, **llm_kwargs(args))
     save_json(stage_path(args.output_dir, args.brand, args.product, "m5"), result)
     return result
 
@@ -89,40 +97,6 @@ def run_m7(m5: dict, m6: dict, brief: dict, args: argparse.Namespace) -> dict:
     result = run(m5, m6, brief, **llm_kwargs(args))
     save_json(stage_path(args.output_dir, args.brand, args.product, "m7"), result)
     return result
-
-
-# ── 게이트 판정 ───────────────────────────────────────────────────────────────
-
-def check_gate_a(m4: dict) -> bool:
-    """M4 verdict가 return_to_phase1이면 False를 반환해 파이프라인을 중단한다."""
-    if m4.get("verdict") == "return_to_phase1":
-        print(f"\n  [GATE A] 반송 — PHASE 1으로 돌아가야 합니다.", file=sys.stderr)
-        print(f"  이유: {m4.get('return_reason', '')}", file=sys.stderr)
-        return False
-    return True
-
-
-def check_gate_b(m6: dict) -> bool:
-    """M6 verdict가 proceed가 아니면 False를 반환해 파이프라인을 중단한다."""
-    verdict = m6.get("verdict", "proceed")
-    if verdict == "proceed":
-        return True
-    print(f"\n  [GATE B] 판정: {verdict}", file=sys.stderr)
-    criticals = m6.get("unresolved_criticals", [])
-    if criticals:
-        print(f"  미해결 Critical: {criticals}", file=sys.stderr)
-    print(f"  이유: {m6.get('verdict_rationale', '')}", file=sys.stderr)
-    return False
-
-
-def check_gate_c(m7: dict) -> bool:
-    """M7 결과가 No-Go이면 False를 반환해 파이프라인을 중단한다."""
-    gate = m7.get("stage2_human_gate", {})
-    if gate.get("result") == "No-Go":
-        print(f"\n  [GATE C] No-Go — redirect: {gate.get('redirect', '')}", file=sys.stderr)
-        print(f"  이유: {gate.get('redirect_reason', '')}", file=sys.stderr)
-        return False
-    return True
 
 
 # ── 브리프 생성 ───────────────────────────────────────────────────────────────

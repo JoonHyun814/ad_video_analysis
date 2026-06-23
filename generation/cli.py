@@ -34,6 +34,23 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--qwen_model", default=_QWEN_DEFAULT_MODEL, help="[qwen] 베이스 모델명/경로")
     p.add_argument("--gemini_model", default=_GEMINI_DEFAULT_MODEL, help=f"[gemini] 모델명 (기본: {_GEMINI_DEFAULT_MODEL})")
     p.add_argument("--output_dir", type=Path, default=Path("output/generation"), help="저장 디렉토리 (기본: output/generation)")
+    # 벡터 DB 참조 (M3 참고 / M4 유사도 kill)
+    p.add_argument("--m3_reference", action="store_true",
+                   help="[M3] M2 포지셔닝과 유사한 기존 광고를 검색해 발산 컨텍스트로 주입")
+    p.add_argument("--m3_reference_n", type=int, default=5,
+                   help="[M3] 참고할 유사 광고 수 (기본: 5)")
+    p.add_argument("--m4_similarity_kill", action="store_true",
+                   help="[M4] 컨셉별 기존 광고 유사도 검사, threshold 이내면 강제 kill")
+    p.add_argument("--m4_similarity_threshold", type=float, default=0.30,
+                   help="[M4] cosine distance threshold (기본: 0.30, 작을수록 엄격)")
+    p.add_argument("--m5_narrative_reference", action="store_true",
+                   help="[M5] 선정 컨셉의 서사 필드로 기존 광고를 검색해 스크립트 참고로 주입 (브랜드·산업 제외)")
+    p.add_argument("--m5_narrative_reference_n", type=int, default=5,
+                   help="[M5] 참고할 서사 유사 광고 수 (기본: 5)")
+    p.add_argument("--vector_db_path", type=Path, default=Path("output/vector_db"),
+                   help="ChromaDB 저장 경로 (기본: output/vector_db)")
+    p.add_argument("--vector_collection", default="video_category",
+                   help="ChromaDB 컬렉션명 (기본: video_category)")
     return p
 
 

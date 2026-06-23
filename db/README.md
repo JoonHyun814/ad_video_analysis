@@ -13,6 +13,7 @@ MySQL 조회·CSV 추출 + ChromaDB 벡터 검색·재임베딩 유틸.
 | `cli.py` | MySQL 커맨드라인 진입점 |
 | `chromadb_search.py` | 카테고리 벡터 유사도 검색 CLI |
 | `chromadb_show.py` | 컬렉션 내 전체 레코드 출력 |
+| `chromadb_missing.py` | `video_uploads` 와 ChromaDB id 비교 (DB - vector) |
 | `reembed.py` | 임베딩 모델 교체 후 컬렉션 재적재 |
 | `cluster.py` | 컬렉션 임베딩 K-Means 클러스터링 (K 자동 선택) |
 | `data_schema.md` | DB 테이블 스키마 |
@@ -118,6 +119,20 @@ python db/chromadb_search.py --query "20~30대 남성을 위한 스킨케어" --
 ```bash
 python db/chromadb_show.py
 ```
+
+## ChromaDB — `chromadb_missing.py`
+
+MySQL `video_uploads.id` 중 ChromaDB 컬렉션에 적재되지 않은 video_id 를 출력한다 (집합 차: DB − vector). 적재 누락분을 빠르게 찾을 때 사용한다.
+
+```bash
+python db/chromadb_missing.py [--db_path ...] [--collection ...] [--table video_uploads]
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--collection` | `video_category` | ChromaDB 컬렉션명 |
+| `--table` | `video_uploads` | 비교 기준 MySQL 테이블명 |
 
 ## ChromaDB — `reembed.py`
 
