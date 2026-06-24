@@ -8,8 +8,10 @@ from generation.gates import check_gate_a, check_gate_b, check_gate_c
 from utils.io_checks import is_parse_failed, require_valid_json
 
 
-def stage_path(output_dir: Path, brand: str, product: str, stage: str) -> Path:
-    return output_dir / f"{brand}_{product}_{stage}.json"
+def stage_path(output_dir: Path, brand: str, product: str, stage: str, attempt: int = 1) -> Path:
+    """attempt=1 은 기본 경로(`_m5.json`), 2 이상은 `_m5_<attempt>.json` 으로 분리 저장."""
+    suffix = "" if attempt <= 1 else f"_{attempt}"
+    return output_dir / f"{brand}_{product}_{stage}{suffix}.json"
 
 
 def load_json(path: Path, label: str) -> dict:
@@ -73,21 +75,25 @@ def run_m4(m3: dict, args: argparse.Namespace) -> dict:
     return result
 
 
-def run_m5(brief: dict, m3: dict, m4: dict, args: argparse.Namespace) -> dict:
+def run_m5(
+    brief: dict, m3: dict, m4: dict, args: argparse.Namespace,
+    *, m6_feedback: dict | None = None, attempt: int = 1,
+) -> dict:
     from generation.m5_dr_script import run
     from generation.vector_reference import maybe_narrative_references
     refs = maybe_narrative_references(args, m3, m4)
-    print("  [M5] DR 스크립트 생성 중...")
-    result = run(brief, m3, m4, narrative_references=refs, **llm_kwargs(args))
-    save_json(stage_path(args.output_dir, args.brand, args.product, "m5"), result)
+    label = "재작성" if m6_feedback else "생성"
+    print(f"  [M5] DR 스크립트 {label} 중 (attempt={attempt})...")
+    result = run(brief, m3, m4, narrative_references=refs, m6_feedback=m6_feedback, **llm_kwargs(args))
+    save_json(stage_path(args.output_dir, args.brand, args.product, "m5", attempt), result)
     return result
 
 
-def run_m6(brief: dict, m5: dict, args: argparse.Namespace) -> dict:
+def run_m6(brief: dict, m5: dict, args: argparse.Namespace, *, attempt: int = 1) -> dict:
     from generation.m6_red_team import run
-    print("  [M6] 레드팀 프리모템 중...")
+    print(f"  [M6] 레드팀 프리모템 중 (attempt={attempt})...")
     result = run(brief, m5, **llm_kwargs(args))
-    save_json(stage_path(args.output_dir, args.brand, args.product, "m6"), result)
+    save_json(stage_path(args.output_dir, args.brand, args.product, "m6", attempt), result)
     return result
 
 
@@ -142,6 +148,12 @@ def run_pipeline(args: argparse.Namespace, seed_brief: dict) -> None:
     _require_stage_ok(m5, "m5")
     m6 = run_m6(brief, m5, args)
     _require_stage_ok(m6, "m6")
+    from generation.m6_retry import auto_retry
+    m4, m5, m6 = auto_retry(
+        brief, m3, m4, m5, m6, args,
+        run_m5=run_m5, run_m6=run_m6,
+        save_m4=lambda data, n: save_json(stage_path(args.output_dir, args.brand, args.product, "m4", n), data),
+    )
     if not check_gate_b(m6):
         return
 

@@ -51,6 +51,11 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="ChromaDB 저장 경로 (기본: output/vector_db)")
     p.add_argument("--vector_collection", default="video_category",
                    help="ChromaDB 컬렉션명 (기본: video_category)")
+    # M6 게이트 반송 시 자동 재진입
+    p.add_argument("--m6_auto_retry_max", type=int, default=0,
+                   help="[M6] GATE B 반송 시 자동 재진입 최대 횟수 (기본: 0 = 비활성). "
+                        "verdict=return_to_m5 → M5 재작성(M6 failure_modes 주입), "
+                        "unresolved_criticals 존재 또는 return_to_gate_a → M4 selected 다음 컨셉으로 fallback.")
     return p
 
 

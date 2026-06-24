@@ -9,6 +9,8 @@
 | `evaluation.cli` | brief 생성 / parsed_analysis 생성 / 시나리오 평가 |
 | `evaluation.category_cli` | category_analysis JSON 생성 + ChromaDB 적재 |
 | `evaluation.convert` | parsed/brief JSON 을 외부 시스템 스키마로 변환 |
+| `evaluation.convert_v2` | parsed_analysis 를 그대로 `parsed` 키로 감싼 wrapped 스키마 변환 |
+| `evaluation.rename_to_original` | `<id>.json` 결과 파일을 DB `video_uploads.original_filename` 기준으로 재명명 복사 |
 
 핵심 모듈:
 
@@ -78,3 +80,23 @@ python -m evaluation.convert --video_dir <루트> --out_dir <저장경로> [--mo
 `<video_dir>/<id>/` 안의 분석 결과를 모아 `<out_dir>/<id>.json` 으로 저장한다.
 - `--mode parsed` (기본): `parsed_analysis.json` → `claude_preprocessed_v1` 스키마
 - `--mode brief`: `brief_analysis.json` → 그대로 저장
+
+## `evaluation.convert_v2` — wrapped 스키마 변환
+
+```bash
+python -m evaluation.convert_v2 --video_dir <루트> --out_dir <저장경로>
+```
+
+`parsed_analysis.json` 을 가공 없이 `parsed` 키로 감싸고, 상위에 VideoLabelingTool 호환
+메타(`video_id`, `original_filename`, `model_cuts`, `parse_success`, `human_label`, `match` 등)를
+부여한다. `model_cuts` 은 `parsed.cuts` 의 `cut_id/start_sec/end_sec` 에서 추린다.
+
+## `evaluation.rename_to_original` — DB original_filename 으로 재명명
+
+```bash
+python -m evaluation.rename_to_original --video_dir <입력> --out_dir <저장경로>
+```
+
+`<video_dir>/<id>.json` 파일들을 DB `video_uploads.original_filename` 기준으로 복사·재명명한다.
+확장자는 `.json` 으로 교체되며, Windows 금지문자(`<>:"/\\|?*`)는 `_` 로 살균된다. DB 는 IN 쿼리
+1회로 일괄 조회하며, 같은 이름 충돌 시 `__<video_id>` 접미사를 자동 부여한다.
