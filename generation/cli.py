@@ -9,6 +9,7 @@ _QWEN_DEFAULT_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
 _STAGES = ("m1", "m2", "m3", "m4", "m5", "m6", "m7")
 
 from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
+from utils.io_checks import is_parse_failed, require_valid_json
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -33,6 +34,28 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--qwen_model", default=_QWEN_DEFAULT_MODEL, help="[qwen] 베이스 모델명/경로")
     p.add_argument("--gemini_model", default=_GEMINI_DEFAULT_MODEL, help=f"[gemini] 모델명 (기본: {_GEMINI_DEFAULT_MODEL})")
     p.add_argument("--output_dir", type=Path, default=Path("output/generation"), help="저장 디렉토리 (기본: output/generation)")
+    # 벡터 DB 참조 (M3 참고 / M4 유사도 kill)
+    p.add_argument("--m3_reference", action="store_true",
+                   help="[M3] M2 포지셔닝과 유사한 기존 광고를 검색해 발산 컨텍스트로 주입")
+    p.add_argument("--m3_reference_n", type=int, default=5,
+                   help="[M3] 참고할 유사 광고 수 (기본: 5)")
+    p.add_argument("--m4_similarity_kill", action="store_true",
+                   help="[M4] 컨셉별 기존 광고 유사도 검사, threshold 이내면 강제 kill")
+    p.add_argument("--m4_similarity_threshold", type=float, default=0.30,
+                   help="[M4] cosine distance threshold (기본: 0.30, 작을수록 엄격)")
+    p.add_argument("--m5_narrative_reference", action="store_true",
+                   help="[M5] 선정 컨셉의 서사 필드로 기존 광고를 검색해 스크립트 참고로 주입 (브랜드·산업 제외)")
+    p.add_argument("--m5_narrative_reference_n", type=int, default=5,
+                   help="[M5] 참고할 서사 유사 광고 수 (기본: 5)")
+    p.add_argument("--vector_db_path", type=Path, default=Path("output/vector_db"),
+                   help="ChromaDB 저장 경로 (기본: output/vector_db)")
+    p.add_argument("--vector_collection", default="video_category",
+                   help="ChromaDB 컬렉션명 (기본: video_category)")
+    # M6 게이트 반송 시 자동 재진입
+    p.add_argument("--m6_auto_retry_max", type=int, default=0,
+                   help="[M6] GATE B 반송 시 자동 재진입 최대 횟수 (기본: 0 = 비활성). "
+                        "verdict=return_to_m5 → M5 재작성(M6 failure_modes 주입), "
+                        "unresolved_criticals 존재 또는 return_to_gate_a → M4 selected 다음 컨셉으로 fallback.")
     return p
 
 
@@ -47,13 +70,6 @@ def _build_seed_brief(args: argparse.Namespace) -> dict:
     if args.functions:
         brief["functions"] = args.functions
     return brief
-
-
-def _load_json(path: Path, label: str) -> dict:
-    if not path.exists():
-        print(f"[오류] {label} 파일 없음: {path}", file=sys.stderr)
-        sys.exit(1)
-    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _save_json(path: Path, data: dict) -> None:
@@ -122,8 +138,10 @@ def main() -> None:
         if args.brief:
             print("  웹 검색 중...")
             brief = _run_brief(args)
+            if is_parse_failed(brief):
+                raise SystemExit("[오류] 브리프 결과에 parse_failed 항목 있음. 재실행 필요.")
         else:
-            brief = _load_json(brief_path, "brief")
+            brief = require_valid_json(brief_path, "brief_analysis")
 
         if args.scenario:
             _run_scenario_legacy(args, brief)

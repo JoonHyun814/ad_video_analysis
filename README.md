@@ -98,3 +98,16 @@ python run_batch.py --video_ids 89,100-105 --module category --data_dir output/p
 python check_analysis.py --base_dir output/codex --mode scenario   # 기본
 python check_analysis.py --base_dir output/codex --mode brief
 ```
+
+## 입력 파일 검증 — `utils/io_checks.py`
+
+각 파이프라인 단계는 이전 단계의 산출 JSON 을 입력으로 받는다. 파일이 없거나, JSON 파싱이 깨졌거나, `parse_failed` 항목이 섞여 있으면 하류 단계가 조용히 깨진 데이터를 소비하므로 CLI 진입점에서 미리 막는다.
+
+**새 기능·CLI 진입점을 추가할 때는 다음 규칙을 지킨다.**
+
+- 필수 입력은 `utils.io_checks.require_valid_json(path, label)` 으로 로드한다. 미존재·JSON 파싱 실패·`parse_failed` 시 `SystemExit("[오류] {label} ...")` 로 즉시 중단된다.
+- 선택 입력은 `load_optional_valid(path, label, default)` 으로 로드한다. 없으면 `default`, 있으면 동일 검증이 적용된다.
+- 외부 파일 경로(예: `--video_path`)는 `require_exists(path, label)` 로 존재만 확인한다.
+- 직접 `Path.read_text(...)` + `json.loads(...)` 패턴을 새로 추가하지 않는다. 이미 검증된 파일을 다시 읽는 경우에도 헬퍼를 거치는 것이 일관적이다.
+
+자세한 함수 시그니처와 사용 예시는 [`utils/README.md`](utils/README.md) 참고.

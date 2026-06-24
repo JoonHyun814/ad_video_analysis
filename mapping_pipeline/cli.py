@@ -23,6 +23,8 @@ from mapping_pipeline.runner import (
     _read_tokens,
     default_llm_model,
 )
+from utils.gemini_caller import DEFAULT_MODEL, get_token_usage, reset_token_usage
+from utils.io_checks import require_exists, require_valid_json
 
 _OUTPUT_ROOT = Path("output")
 _CUT_BACKENDS = (BACKEND_TRANSNETV2, BACKEND_SCENEDETECT)
@@ -55,6 +57,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _build_parser().parse_args()
+    require_exists(args.video_path, "video_path")
+    require_exists(args.scenario_path, "scenario_path")
+
     out = args.out_dir if args.out_dir else _OUTPUT_ROOT / args.video_path.stem
     out.mkdir(parents=True, exist_ok=True)
 
@@ -73,7 +78,7 @@ def main() -> None:
 
     if args.skip_cut_analysis:
         print("[4] Skipping cut analysis - reusing existing cut_analysis.json")
-        cut_results = _load_json(out / "cut_analysis.json", [])
+        cut_results = require_valid_json(out / "cut_analysis.json", "cut_analysis")
     else:
         print(f"[4] Analyzing cuts... ({llm_backend}:{llm_model}, cuts={len(cuts)})")
         cut_results = _analyze_cuts(cuts, out / "frames", llm_backend, llm_model)

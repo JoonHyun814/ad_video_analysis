@@ -64,12 +64,74 @@ def _extract_concept(m3: dict, m4: dict) -> dict:
     return concepts[0] if concepts else {}
 
 
-def build_prompt(brief: dict, m3: dict, m4: dict) -> str:
-    """선정된 컨셉에서 M5 DR 스크립트 프롬프트를 만든다."""
+def _format_narrative_references(refs: list[dict]) -> str:
+    """ChromaDB query() 결과를 M5 프롬프트용 서사 참고 블록으로 직렬화."""
+    lines: list[str] = []
+    for i, ad in enumerate(refs, 1):
+        meta = ad.get("metadata") or {}
+        doc = (ad.get("document") or "").strip()
+        lines.append(
+            f"[서사 참고 {i}] video_id={meta.get('video_id')}, "
+            f"brand={meta.get('brand_name', '-')}, "
+            f"산업={meta.get('industry_category', '-')}/제품={meta.get('product_category', '-')}"
+        )
+        if doc:
+            lines.append(doc)
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _format_m6_feedback(m6_feedback: dict) -> str:
+    """M6 레드팀 결과(failure_modes/verdict_rationale)를 M5 재시도 가드레일 블록으로 직렬화."""
+    failure_modes = m6_feedback.get("failure_modes") or []
+    if not failure_modes:
+        return ""
+    lines = [
+        "[이전 M5 시도에 대한 M6 레드팀 피드백]",
+        "직전 스크립트는 아래 실패 모드들 때문에 M6 게이트에서 반송됐다.",
+        "이번 재작성에서는 각 실패가 해결되도록 l3_script·l5_compliance 에서 명시적으로 대응한다.",
+        "l0_diagnosis~l2_engine 골격은 유지하되, 씬·비트·자막·production_notes 레벨에서 수정한다.",
+        "",
+    ]
+    for fm in failure_modes:
+        sev = fm.get("severity", "?")
+        root = fm.get("root_module", "?")
+        scenario = (fm.get("scenario") or "").strip()
+        mitigation = (fm.get("mitigation") or "").strip()
+        lines.append(f"- [{sev} / {root}] {scenario}")
+        if mitigation:
+            lines.append(f"  → 권고: {mitigation}")
+    rationale = (m6_feedback.get("verdict_rationale") or "").strip()
+    if rationale:
+        lines.extend(["", f"M6 종합 판정 근거: {rationale}"])
+    lines.append("")
+    return "\n".join(lines)
+
+
+def build_prompt(
+    brief: dict, m3: dict, m4: dict,
+    narrative_references: list[dict] | None = None,
+    m6_feedback: dict | None = None,
+) -> str:
+    """선정된 컨셉(+선택적 서사 참고 광고, +선택적 M6 재시도 피드백)에서 M5 DR 스크립트 프롬프트를 만든다."""
     concept = _extract_concept(m3, m4)
     brief_text = json.dumps(brief, ensure_ascii=False, indent=2)
     concept_text = json.dumps(concept, ensure_ascii=False, indent=2)
     selected_ids = m4.get("selected", [])
+    ref_section = ""
+    if narrative_references:
+        ref_section = (
+            "\n[참고: 서사 구조가 유사한 기존 광고]\n"
+            "주의 — 카피·시각 자산을 모방하지 말고, '서사를 어떻게 풀어갔는지'"
+            "(씬 전개·후크→본론→CTA 흐름·텐션 빌딩 방식) 만 학습 자료로 사용해라.\n"
+            "브랜드·산업이 달라도 서사 패턴을 차용 가능하면 l2_engine·l3_script 설계에 반영한다.\n\n"
+            f"{_format_narrative_references(narrative_references)}\n"
+        )
+    feedback_section = ""
+    if m6_feedback:
+        feedback_block = _format_m6_feedback(m6_feedback)
+        if feedback_block:
+            feedback_section = f"\n{feedback_block}\n"
     return (
         "너는 DR(Direct Response) 광고 스크립트 전문가다.\n"
         "선정된 컨셉을 실제 방영 가능한 스크립트로 조립한다.\n\n"
@@ -85,7 +147,9 @@ def build_prompt(brief: dict, m3: dict, m4: dict) -> str:
         f"concept_id는 '{selected_ids[0] if selected_ids else 'C1'}'로 설정.\n\n"
         "첫 글자가 반드시 '{'여야 한다. 마크다운·설명문 없이 순수 JSON만 출력.\n\n"
         f"[브리프]\n{brief_text}\n\n"
-        f"[선정 컨셉]\n{concept_text}\n\n"
+        f"[선정 컨셉]\n{concept_text}\n"
+        f"{feedback_section}"
+        f"{ref_section}\n"
         f"[출력 스키마]\n{_SCHEMA}"
     )
 
@@ -95,9 +159,14 @@ def run(
     m3: dict,
     m4: dict,
     *,
+    narrative_references: list[dict] | None = None,
+    m6_feedback: dict | None = None,
     backend: str = "claude",
     gemini_model: str = "",
     codex_model: str | None = None,
 ) -> dict:
-    """DR 스크립트(M5)를 생성한다."""
-    return call_llm(build_prompt(brief, m3, m4), backend=backend, gemini_model=gemini_model, codex_model=codex_model, timeout=600)
+    """DR 스크립트(M5)를 생성한다. narrative_references·m6_feedback 가 있으면 함께 주입한다."""
+    return call_llm(
+        build_prompt(brief, m3, m4, narrative_references, m6_feedback),
+        backend=backend, gemini_model=gemini_model, codex_model=codex_model, timeout=600,
+    )

@@ -13,7 +13,9 @@ MySQL 조회·CSV 추출 + ChromaDB 벡터 검색·재임베딩 유틸.
 | `cli.py` | MySQL 커맨드라인 진입점 |
 | `chromadb_search.py` | 카테고리 벡터 유사도 검색 CLI |
 | `chromadb_show.py` | 컬렉션 내 전체 레코드 출력 |
+| `chromadb_missing.py` | `video_uploads` 와 ChromaDB id 비교 (DB - vector) |
 | `reembed.py` | 임베딩 모델 교체 후 컬렉션 재적재 |
+| `cluster.py` | 컬렉션 임베딩 K-Means 클러스터링 (K 자동 선택) |
 | `data_schema.md` | DB 테이블 스키마 |
 | `sample.json` | 예시 데이터 |
 
@@ -118,6 +120,20 @@ python db/chromadb_search.py --query "20~30대 남성을 위한 스킨케어" --
 python db/chromadb_show.py
 ```
 
+## ChromaDB — `chromadb_missing.py`
+
+MySQL `video_uploads.id` 중 ChromaDB 컬렉션에 적재되지 않은 video_id 를 출력한다 (집합 차: DB − vector). 적재 누락분을 빠르게 찾을 때 사용한다.
+
+```bash
+python db/chromadb_missing.py [--db_path ...] [--collection ...] [--table video_uploads]
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--collection` | `video_category` | ChromaDB 컬렉션명 |
+| `--table` | `video_uploads` | 비교 기준 MySQL 테이블명 |
+
 ## ChromaDB — `reembed.py`
 
 `evaluation/vector_store.py::EMBEDDING_MODEL` 을 변경한 뒤 1회 실행하면 기존 컬렉션을 삭제하고 새 모델로 전체 재적재한다.
@@ -133,3 +149,41 @@ python db/reembed.py [--data_root <category_analysis 루트>] [--db_path ...] [-
 | `--data_root` | `../output/additional_0609/claude` | `<root>/<video_id>/category_analysis.json` 스캔 |
 
 적재할 `category_analysis.json` 은 [`../evaluation/README.md`](../evaluation/README.md) 의 `category_cli --category_analysis` 로 먼저 생성한다.
+
+## ChromaDB — `cluster.py`
+
+컬렉션 내 임베딩을 K-Means 로 군집화한다. 광고 카탈로그가 자연스럽게 어떤 그룹으로 묶이는지 탐색할 때 사용한다.
+
+```bash
+python db/cluster.py [--k <정수|auto>] [--out <경로>] [옵션]
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--k` | `auto` | 클러스터 수. `auto` 는 silhouette score (cosine) 최대값으로 2..min(10, n//3) 범위에서 선택 |
+| `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--collection` | `video_category` | 컬렉션명 |
+| `--out` | `output/vector_db_clusters.json` | 요약 JSON 저장 경로 |
+| `--seed` | `42` | KMeans 재현용 시드 |
+
+### 출력
+
+콘솔에 클러스터별 우세 산업/제품·대표 멤버·전체 멤버 목록을 출력하고, 동일 내용을 JSON 으로 저장한다.
+
+```json
+{
+  "k": 7,
+  "n": 52,
+  "silhouette_cosine": 0.1038,
+  "clusters": [
+    {
+      "cluster_id": 5,
+      "size": 10,
+      "dominant_industries": [["food_beverage", 5], ["healthcare", 3], ["beauty", 1]],
+      "dominant_products": [["탈모케어 샴푸", 1], ...],
+      "representative": {"video_id": 351, "brand": "...", "document_head": "..."},
+      "members": [{"video_id": 349, "brand": "...", "industry": "beauty", "product_category": "..."}]
+    }
+  ]
+}
+```

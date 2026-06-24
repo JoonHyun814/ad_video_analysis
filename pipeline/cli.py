@@ -24,6 +24,7 @@ from pipeline.scene_analysis_codex import analyze_keyframes_codex
 from pipeline.stt import run_diarization
 from pipeline.video_loader import get_video_info
 from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
+from utils.io_checks import require_valid_json
 
 _OUTPUT_ROOT = Path("output")
 _CUT_BACKENDS = ("transnetv2", "scenedetect")
@@ -230,9 +231,7 @@ def _run_video(args: argparse.Namespace, video_id: int | None, video_path_overri
     scenario: dict = {}
 
     if args.skip_scene_analysis:
-        scene_json = out / "scene_analysis.json"
-        if scene_json.exists():
-            scene_results = json.loads(scene_json.read_text(encoding="utf-8"))
+        scene_results = require_valid_json(out / "scene_analysis.json", "scene_analysis")
         print("[8/10] Scene 분석 생략 (--skip_scene_analysis)")
     elif llm == "codex":
         print(f"[8/10] Scene 분석 중... (codex, 컷 수={len(cuts)})")
@@ -259,8 +258,7 @@ def _run_video(args: argparse.Namespace, video_id: int | None, video_path_overri
 
     if args.skip_cut_analysis:
         print("[9/10] Cut 분석 생략 (--skip_cut_analysis)")
-        cut_json = out / "cut_analysis.json"
-        cut_results = json.loads(cut_json.read_text(encoding="utf-8")) if cut_json.exists() else []
+        cut_results = require_valid_json(out / "cut_analysis.json", "cut_analysis")
     elif llm == "codex":
         print(f"[9/10] Cut 분석 중... (codex, 컷 수={len(cuts)})")
         cut_results = analyze_cuts_codex(cuts, out / "frames", ocr_results)
@@ -285,9 +283,7 @@ def _run_video(args: argparse.Namespace, video_id: int | None, video_path_overri
         print(f"      완료  →  {out / 'cut_analysis.json'}")
 
     if args.skip_scenario_analysis:
-        scenario_json = out / "scenario_analysis.json"
-        if scenario_json.exists():
-            scenario = json.loads(scenario_json.read_text(encoding="utf-8"))
+        scenario = require_valid_json(out / "scenario_analysis.json", "scenario_analysis")
         print("[10/10] 시나리오 분석 생략 (--skip_scenario_analysis)")
     elif llm == "codex":
         print("[10/10] 시나리오 분석 중... (codex)")
