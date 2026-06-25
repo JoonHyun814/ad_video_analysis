@@ -10,7 +10,7 @@ from utils.json_utils import parse_json
 
 DEFAULT_MODEL = "models/gemini-2.5-flash-lite"
 _TEMPERATURE = 0.0
-_MAX_OUTPUT_TOKENS = 16384
+_MAX_OUTPUT_TOKENS = 65536  # gemini-2.5 계열은 thinking 토큰이 이 한도를 공유하므로 모델 실제 한도까지 확보
 _RETRY_DELAYS = (30, 60, 120)
 _client: genai.Client | None = None
 _token_usage: dict[str, int] = {"input": 0, "output": 0, "thinking": 0}
