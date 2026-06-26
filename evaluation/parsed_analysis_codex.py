@@ -26,8 +26,7 @@ def analyze_parsed_codex(
     if model:
         cmd += ["-m", model]
     cmd.append(prompt)
-    print(cmd)
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600, shell=True)
     result = _parse_json(out_file.read_text(encoding="utf-8"))
     _inject_meta(result, cuts, model or "codex")
     return result
