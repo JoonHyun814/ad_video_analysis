@@ -86,6 +86,9 @@ python run_batch.py --video_ids 1,3,5 --module evaluation -- --scenario_evaluati
 # category: 디렉토리 스캔으로 89·100~105번 적재
 python run_batch.py --video_ids 89,100-105 --module category --data_dir output/product_plan/claude \
     -- --category_analysis --load_vector
+
+# concept: 컨셉 추출 + 설득력 1~5점 채점, 디렉토리 스캔으로 89~105번
+python run_batch.py --start_id 89 --module concept --data_dir output/product_plan/claude
 ```
 
 옵션: `--interval N` (영상 사이 대기 초), `--start_id N` (이후 모든 ID 자동 수집).

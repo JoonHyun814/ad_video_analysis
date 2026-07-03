@@ -8,6 +8,7 @@
 |------|------|
 | `evaluation.cli` | brief 생성 / parsed_analysis 생성 / 시나리오 평가 |
 | `evaluation.category_cli` | category_analysis JSON 생성 + ChromaDB 적재 |
+| `evaluation.concept_cli` | concept_evaluation JSON 생성 (컨셉 추출 + 설득력 채점) |
 | `evaluation.convert` | parsed/brief JSON 을 외부 시스템 스키마로 변환 |
 | `evaluation.convert_v2` | parsed_analysis 를 그대로 `parsed` 키로 감싼 wrapped 스키마 변환 |
 | `evaluation.rename_to_original` | `<id>.json` 결과 파일을 DB `video_uploads.original_filename` 기준으로 재명명 복사 |
@@ -20,6 +21,7 @@
 | `parsed_analysis{,_codex,_gemini,_qwen}.py` | 분석 결과 종합 |
 | `evaluator{,_codex,_gemini,_qwen}.py` | 시나리오 평가 (브리프 비교 포함/제외) |
 | `category_analysis{,_codex,_gemini}.py` | 카테고리 메타데이터 추출 |
+| `concept_evaluation{,_codex,_gemini,_qwen}.py` | 컨셉 추출(industry_category·product_category·target_persona·usp·positioning·strategy) + 설득력 1~5점 채점(interest·consistency·relevance·recurrence) |
 | `vector_store.py` | ChromaDB upsert/query 헬퍼 + 임베딩 모델 (`BAAI/bge-m3`) |
 | `schemas.py` | 평가/카테고리 JSON 스키마 정의 |
 | `scenario_checklist.md` | 시나리오 평가 체크리스트 |
@@ -70,6 +72,33 @@ python -m evaluation.category_cli --video_id 349 --category_analysis --load_vect
 ```
 
 > 임베딩 모델: `BAAI/bge-m3` (1024-dim, 한/영 cross-lingual). 변경 시 `evaluation/vector_store.py::EMBEDDING_MODEL` 수정 후 `python db/reembed.py` 로 재적재. 자세한 검색 사용법은 [`../db/README.md`](../db/README.md) 참고.
+
+## `evaluation.concept_cli` — 컨셉 추출 + 설득력 채점
+
+```bash
+python -m evaluation.concept_cli --video_id <ID> [옵션]
+```
+
+`<data_dir>/<video_id>/scenario_analysis.json` 을 읽어 광고 컨셉을 추출하고 설득력을 채점해
+`<data_dir>/<video_id>/concept_evaluation.json` 으로 저장한다.
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--data_dir` | `output/codex` | `<data_dir>/<video_id>/` 입력·출력 루트 |
+| `--llm_backend` | `claude` | `claude` \| `codex` \| `qwen` \| `gemini` |
+| `--codex_model` / `--qwen_model` / `--gemini_model` | — | 백엔드별 모델명 |
+
+```bash
+python -m evaluation.concept_cli --video_id 349
+```
+
+출력 스키마:
+
+- 추출 필드(채점 없음): `industry_category`, `product_category`, `target_persona`, `usp`, `positioning`,
+  `strategy`(`appeal_type` + `description` — 광고가 소비자를 설득·인상적으로 느끼게 하는 전략, 예: 유머러스·모성애·과시욕)
+- 채점 필드(1~5점 + `reasoning`, `scores` 하위): `interest`(흥미성), `consistency`(일관성),
+  `relevance`(관련성), `recurrence`(반복성)
+- `overall_score`: 채점 필드 4개의 평균
 
 ## `evaluation.convert` — 외부 스키마 변환
 

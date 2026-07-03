@@ -11,6 +11,10 @@
     python run_batch.py --video_ids 89,100-105 --module category -- --category_analysis --load_vector --llm_backend gemini
     python run_batch.py --start_id 89 --module category --data_dir output/product_plan/claude -- --category_analysis --load_vector
 
+    # concept — DB 불필요, 디렉토리 기반 (컨셉 추출 + 설득력 1~5점 채점)
+    python run_batch.py --video_ids 89,100-105 --module concept --data_dir output/product_plan/claude
+    python run_batch.py --start_id 89 --module concept --data_dir output/product_plan/claude -- --llm_backend gemini
+
     # 추가 옵션은 -- 뒤에 전달, 영상 간 대기는 --interval
     python run_batch.py --video_ids 1-20 --interval 60 -- --llm_backend codex
 """
@@ -25,10 +29,11 @@ _MODULES = {
     "pipeline": "pipeline.cli",
     "evaluation": "evaluation.cli",
     "category": "evaluation.category_cli",
+    "concept": "evaluation.concept_cli",
 }
 
 # DB 조회 없이 로컬 디렉토리 기반으로 동작하는 모듈
-_NO_DB_MODULES = {"category"}
+_NO_DB_MODULES = {"category", "concept"}
 
 _DEFAULT_CATEGORY_DIR = Path("output/product_plan/claude")
 
@@ -108,7 +113,7 @@ def main() -> None:
         own_argv, extra_args = argv, []
 
     parser = argparse.ArgumentParser(
-        description="pipeline / evaluation / category CLI 배치 실행",
+        description="pipeline / evaluation / category / concept CLI 배치 실행",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -120,7 +125,7 @@ def main() -> None:
     parser.add_argument("--module", choices=tuple(_MODULES.keys()), default="pipeline",
                         help="실행 모듈 (기본: pipeline)")
     parser.add_argument("--data_dir", type=Path, default=_DEFAULT_CATEGORY_DIR,
-                        help=f"[category] ID 스캔 기준 디렉토리 (기본: {_DEFAULT_CATEGORY_DIR})")
+                        help=f"[category/concept] ID 스캔 기준 디렉토리 (기본: {_DEFAULT_CATEGORY_DIR})")
     parser.add_argument("--interval", type=int, default=0,
                         help="영상 간 대기 시간(초). 기본: 0")
     args = parser.parse_args(own_argv)
