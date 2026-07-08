@@ -8,7 +8,7 @@
 |------|------|
 | `evaluation.cli` | brief 생성 / parsed_analysis 생성 / 시나리오 평가 |
 | `evaluation.category_cli` | category_analysis JSON 생성 + ChromaDB 적재 |
-| `evaluation.concept_cli` | concept_evaluation JSON 생성 (컨셉 추출 + 설득력 채점) |
+| `evaluation.concept_cli` | concept_evaluation JSON 생성 (컨셉 추출) |
 | `evaluation.convert` | parsed/brief JSON 을 외부 시스템 스키마로 변환 |
 | `evaluation.convert_v2` | parsed_analysis 를 그대로 `parsed` 키로 감싼 wrapped 스키마 변환 |
 | `evaluation.rename_to_original` | `<id>.json` 결과 파일을 DB `video_uploads.original_filename` 기준으로 재명명 복사 |
@@ -21,8 +21,9 @@
 | `parsed_analysis{,_codex,_gemini,_qwen}.py` | 분석 결과 종합 |
 | `evaluator{,_codex,_gemini,_qwen}.py` | 시나리오 평가 (브리프 비교 포함/제외) |
 | `category_analysis{,_codex,_gemini}.py` | 카테고리 메타데이터 추출 |
-| `concept_evaluation{,_codex,_gemini,_qwen}.py` | 컨셉 추출(industry_category·product_category·target_persona·usp·positioning·strategy) + 설득력 1~5점 채점(interest·consistency·relevance·recurrence) |
-| `vector_store.py` | ChromaDB upsert/query 헬퍼 + 임베딩 모델 (`BAAI/bge-m3`) |
+| `concept_evaluation{,_codex,_gemini,_qwen}.py` | 컨셉 추출 — industry_category·product_category(값만) + target_persona·usp·positioning·appeal_type·perceived_value·message_strategy·execution_style(category·description·production_detail) |
+| `vector_store.py` | `video_category` 컬렉션 upsert/query 헬퍼 + 임베딩 모델 (`BAAI/bge-m3`) |
+| `concept_vector_store.py` | `video_concept` 컬렉션(별도) upsert/query 헬퍼 — concept_evaluation 결과 전용 |
 | `schemas.py` | 평가/카테고리 JSON 스키마 정의 |
 | `scenario_checklist.md` | 시나리오 평가 체크리스트 |
 
@@ -73,32 +74,56 @@ python -m evaluation.category_cli --video_id 349 --category_analysis --load_vect
 
 > 임베딩 모델: `BAAI/bge-m3` (1024-dim, 한/영 cross-lingual). 변경 시 `evaluation/vector_store.py::EMBEDDING_MODEL` 수정 후 `python db/reembed.py` 로 재적재. 자세한 검색 사용법은 [`../db/README.md`](../db/README.md) 참고.
 
-## `evaluation.concept_cli` — 컨셉 추출 + 설득력 채점
+## `evaluation.concept_cli` — 컨셉 추출 + 벡터 DB 적재
 
 ```bash
-python -m evaluation.concept_cli --video_id <ID> [옵션]
+python -m evaluation.concept_cli --video_id <ID> [--concept_evaluation] [--load_vector] [옵션]
 ```
 
-`<data_dir>/<video_id>/scenario_analysis.json` 을 읽어 광고 컨셉을 추출하고 설득력을 채점해
-`<data_dir>/<video_id>/concept_evaluation.json` 으로 저장한다.
+`<data_dir>/<video_id>/scenario_analysis.json` 을 읽어 광고 컨셉을 추출해
+`<data_dir>/<video_id>/concept_evaluation.json` 으로 저장한다 (`--concept_evaluation`).
+`--load_vector` 는 그 결과를 `video_concept` 컬렉션(카테고리 컬렉션과 별도)에 upsert 한다.
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
 | `--data_dir` | `output/codex` | `<data_dir>/<video_id>/` 입력·출력 루트 |
+| `--concept_evaluation` | off | 시나리오에서 컨셉 추출 → `concept_evaluation.json` |
+| `--load_vector` | off | `concept_evaluation.json` 을 ChromaDB `video_concept` 컬렉션에 upsert |
+| `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--collection` | `video_concept` | 컬렉션명 |
 | `--llm_backend` | `claude` | `claude` \| `codex` \| `qwen` \| `gemini` |
 | `--codex_model` / `--qwen_model` / `--gemini_model` | — | 백엔드별 모델명 |
 
 ```bash
-python -m evaluation.concept_cli --video_id 349
+# 컨셉 추출 + 벡터 DB 적재 한 번에
+python -m evaluation.concept_cli --video_id 349 --concept_evaluation --load_vector
 ```
 
 출력 스키마:
 
-- 추출 필드(채점 없음): `industry_category`, `product_category`, `target_persona`, `usp`, `positioning`,
-  `strategy`(`appeal_type` + `description` — 광고가 소비자를 설득·인상적으로 느끼게 하는 전략, 예: 유머러스·모성애·과시욕)
-- 채점 필드(1~5점 + `reasoning`, `scores` 하위): `interest`(흥미성), `consistency`(일관성),
-  `relevance`(관련성), `recurrence`(반복성)
-- `overall_score`: 채점 필드 4개의 평균
+- 값만 출력하는 필드:
+  - `industry_category`: `beauty`·`food_beverage`·`retail_ecommerce`·`finance`·`healthcare`·`fashion`·
+    `tech_electronics`·`automotive`·`entertainment`·`travel`·`education`·`gaming`·`other` 중 1~2개 배열
+  - `product_category`: 제품 카테고리 명칭 (한국어 문자열 하나)
+- `{"category": [...], "description": "...", "production_detail": "..."}` 형태의 7개 필드
+  (`category`는 아래 enum 중 1~2개 배열, `description`은 한국어 줄글 설명, `production_detail`은
+  "이 usp를 반영하기 위해 3번째 컷에서 클로즈업을 사용했다"처럼 몇 번째 컷에서 어떤 연출·촬영기법을
+  썼는지 구체적으로 서술한 문장):
+  - `target_persona`: `category` = `demographic`·`psychographic`·`behavioral`·`other`
+  - `usp`: `category` = `functional_tangible`·`emotional_intangible`·`economic_price`·`other`
+  - `positioning`: `category` = `by_product_innovation`·`by_service_quality`·`by_cost_leadership`·`by_target_needs`·`other`
+  - `appeal_type`: `category` = `humor`·`parody_wordplay`·`maternal_love`·`vanity`·`fear`·`sex_appeal`·`comparison`·
+    `rational_info`·`emotional_storytelling`·`testimonial`·`scarcity_urgency`·`nostalgia`·`aspiration`·`other`
+    (description에 개사·패러디·언어유희 같은 텍스트 기반 장치를 구체적으로 명시하도록 지시함)
+  - `perceived_value`: `category` = `functional_quality`·`functional_price`·`emotional`·`social`·`other`
+  - `message_strategy`: `category` = `informational`·`transformational`·`other`
+  - `execution_style`: `category` = `slice_of_life`·`scientific_evidence`·`fantasy`·`fashion`·`other`
+
+`video_concept` 컬렉션은 `product_category`·`industry_category`와 위 7개 필드의 `category`·`description`·
+`production_detail`을 모두 임베딩 문서로 저장한다. 메타데이터(exact-match 필터용)에는 `product_category`,
+`industry_category`(대표값 1개), 7개 필드 각각의 `category` 배열 첫 번째(대표) 값을 저장한다.
+`generation.concept_pipeline` (CM3) 이 이 컬렉션을 참고 광고 소스로 사용한다 — 자세한 내용은
+[`../generation/README.md`](../generation/README.md) 참고.
 
 ## `evaluation.convert` — 외부 스키마 변환
 

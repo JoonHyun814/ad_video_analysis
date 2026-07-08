@@ -6,7 +6,7 @@ from pathlib import Path
 
 _LLM_BACKENDS = ("claude", "codex", "qwen", "gemini")
 _QWEN_DEFAULT_MODEL = "unsloth/Qwen2.5-VL-7B-Instruct"
-_STAGES = ("m1", "m2", "m3", "m4", "m5", "m6", "m7")
+_STAGES = ("m1", "m2", "m3", "m4", "m5", "m6", "m7", "cm1", "cm2", "cm3", "cm4")
 
 from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
 from utils.io_checks import is_parse_failed, require_valid_json
@@ -19,7 +19,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--brief", action="store_true", help="웹 검색으로 브리프 생성")
     p.add_argument("--scenario", action="store_true", help="브리프에서 시나리오 생성 (단일 단계, 레거시)")
     p.add_argument("--pipeline", action="store_true", help="M1→M7 전체 파이프라인 실행")
-    p.add_argument("--stage", choices=_STAGES, help="특정 모듈만 실행 (이전 출력 파일 필요)")
+    p.add_argument("--concept_pipeline", action="store_true",
+                   help="CM1→CM4 새 컨셉 파이프라인 실행 (video_concept 벡터 DB 참조, CM5·CM6 미구현)")
+    p.add_argument("--stage", choices=_STAGES, help="특정 모듈만 실행 (이전 출력 파일 필요, m1~m7 또는 cm1~cm4)")
     # brief 생성용 선택 입력
     p.add_argument("--usp", default="", help="USP (미입력 시 모델 생성)")
     p.add_argument("--target_age", default="", help="타겟 연령대 (미입력 시 모델 생성)")
@@ -51,6 +53,11 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="ChromaDB 저장 경로 (기본: output/vector_db)")
     p.add_argument("--vector_collection", default="video_category",
                    help="ChromaDB 컬렉션명 (기본: video_category)")
+    # 새 컨셉 파이프라인(CM1~CM4) 전용 벡터 DB 참조
+    p.add_argument("--concept_collection", default="video_concept",
+                   help="[CM3] concept_evaluation 벡터 DB 컬렉션명 (기본: video_concept)")
+    p.add_argument("--concept_reference_n", type=int, default=5,
+                   help="[CM3] 4개 관점(전략유사·타겟유사·소구다각화·연출다각화)마다 참고할 광고 수 (기본: 5)")
     # M6 게이트 반송 시 자동 재진입
     p.add_argument("--m6_auto_retry_max", type=int, default=0,
                    help="[M6] GATE B 반송 시 자동 재진입 최대 횟수 (기본: 0 = 비활성). "
@@ -121,8 +128,8 @@ def _run_scenario_legacy(args: argparse.Namespace, brief: dict) -> None:
 def main() -> None:
     args = _build_parser().parse_args()
 
-    if not any([args.brief, args.scenario, args.pipeline, args.stage]):
-        print("[오류] --brief / --scenario / --pipeline / --stage 중 하나 이상 지정 필요", file=sys.stderr)
+    if not any([args.brief, args.scenario, args.pipeline, args.concept_pipeline, args.stage]):
+        print("[오류] --brief / --scenario / --pipeline / --concept_pipeline / --stage 중 하나 이상 지정 필요", file=sys.stderr)
         sys.exit(1)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -134,6 +141,9 @@ def main() -> None:
         # 파이프라인은 seed brief로 M1-M4를 실행하고, GATE A 통과 후 내부에서 웹 검색 브리프를 생성한다.
         from generation.scenario_pipeline import run_pipeline
         run_pipeline(args, _build_seed_brief(args))
+    elif args.concept_pipeline:
+        from generation.concept_pipeline import run_concept_pipeline
+        run_concept_pipeline(args, _build_seed_brief(args))
     else:
         if args.brief:
             print("  웹 검색 중...")
@@ -145,6 +155,9 @@ def main() -> None:
 
         if args.scenario:
             _run_scenario_legacy(args, brief)
+        elif args.stage and args.stage.startswith("cm"):
+            from generation.concept_pipeline import run_concept_single_stage
+            run_concept_single_stage(args, brief)
         elif args.stage:
             from generation.scenario_pipeline import run_single_stage
             run_single_stage(args, brief)
