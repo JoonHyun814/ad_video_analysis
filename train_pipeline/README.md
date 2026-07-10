@@ -40,13 +40,20 @@ python -m train_pipeline.cli --config configs/sample --out_dir runs/exp1
 
 ```
 out_dir/
-├── scene.jsonl       # keyframe 한 장당 1개 샘플
-├── cut.jsonl         # 컷 내 프레임 시퀀스 단위 샘플 (최대 30장/컷)
-├── scenario.jsonl    # 컷 데이터 종합 → 전체 시나리오 샘플
-└── images/<video_id>/...  # 학습 이미지 사본
+├── scene_analysis.jsonl     # keyframe 한 장당 1개 샘플
+├── cut_analysis.jsonl       # 컷 내 프레임 시퀀스 단위 샘플 (최대 30장/컷)
+├── scenario_analysis.jsonl  # 컷 데이터 종합 → 전체 시나리오 샘플
+├── images/<video_id>/...    # 학습 이미지 사본
+├── holdout_video_ids.json   # --holdout_ratio > 0 일 때만 생성되는 홀드아웃 매니페스트
+└── eval/                    # --holdout_ratio > 0 일 때만 생성 — 홀드아웃 video_id로만 빌드한 동일 구조
+    ├── scene_analysis.jsonl
+    ├── cut_analysis.jsonl
+    ├── scenario_analysis.jsonl
+    └── images/<video_id>/...
 ```
 
 각 JSONL 행은 Qwen2.5-VL `messages` 형식 (`{"messages": [{"role": ..., "content": [{"type": "image", ...}, {"type": "text", "text": ...}]}]}`).
+`eval/` 하위 파일들을 학습 설정 YAML의 `dataset.<step>_eval` 경로로 지정하면 `trainer.py`가 자동으로 eval loss를 측정한다 (설정 안 하면 조용히 스킵 — 에러 아님).
 
 ## 학습 설정
 
@@ -56,8 +63,9 @@ out_dir/
 
 `dataset_builder.build_all()`은 기본적으로 data_dir 내 모든 video_id 를 학습에 쓴다 — 파인튜닝
 전후 품질을 비교할 대조군이 없다는 뜻이다. `--holdout_ratio` 로 일부 video_id 를 미리 떼어
-`holdout_video_ids.json` 에 기록해두면, 학습 후 그 video_id 들만 base 모델/LoRA 모델 양쪽으로
-다시 분석을 돌려 구조 품질을 비교할 수 있다.
+`holdout_video_ids.json` 에 기록해두면, ①학습 중에는 `eval/` 하위 동일 video_id로 eval loss를
+측정하고, ②학습 후에는 그 video_id 들만 base 모델/LoRA 모델 양쪽으로 다시 분석을 돌려 구조
+품질을 비교할 수 있다.
 
 ```bash
 # 1) 홀드아웃 video_id 들을 base 모델로 분석 (기존 output/qwen3.6-cc 등, 이미 있으면 생략)
@@ -69,7 +77,7 @@ python -m pipeline.cli --llm_backend qwen --qwen_model unsloth/Qwen3.6-35B-A3B \
 # 3) 구조 품질 비교 (컷 수 일치·필드 완전성·시나리오 완결성)
 python -m train_pipeline.compare_outputs \
     --before_dir output/qwen3.6-cc --after_dir output/qwen3.6-cc-lora \
-    --holdout_manifest data/holdout_video_ids.json \
+    --holdout_manifest train_pipeline/data/total_20260710/holdout_video_ids.json \
     --report_out reports/compare_20260710.json
 ```
 
@@ -92,7 +100,7 @@ docker build -t ad-video-train -f train_pipeline/Dockerfile .
 # 2) 컨테이너 실행 — 코드·데이터셋·출력·HF 캐시 마운트, GPU 전달
 docker run --rm -it --gpus all \
     -v "$(pwd)":/workspace/ad_video_analysis \
-    -v /path/to/data_20260710:/data/data_20260710 \
+    -v /path/to/total_20260710:/data/total_20260710 \
     -v /path/to/outputs:/data/outputs \
     -v /path/to/hf_cache:/data/.cache/huggingface \
     -w /workspace/ad_video_analysis \

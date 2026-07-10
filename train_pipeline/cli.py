@@ -88,6 +88,12 @@ def main() -> None:
             sys.exit(1)
         total = sum(counts.values())
         print(f"\n총 {total}개 샘플 빌드 완료")
+
+        if exclude_ids:
+            eval_dir = args.out_dir / "eval"
+            eval_counts = build_all(args.data_dir, eval_dir, include_only_ids=exclude_ids)
+            eval_total = sum(eval_counts.values())
+            print(f"홀드아웃 eval셋 {eval_total}개 샘플 빌드 완료 → {eval_dir} (trainer.py 의 *_eval 경로로 지정)")
     else:
         from train_pipeline.trainer import load_config, train
         cfg = load_config(args.config)

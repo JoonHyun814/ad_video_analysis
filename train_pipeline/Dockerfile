@@ -12,7 +12,7 @@
 # 실행 (80gb-3-6-VL-35B-A3B.yaml 기준 — /data 아래 데이터셋·출력 마운트):
 #   docker run --rm -it --gpus all \
 #       -v "$(pwd)":/workspace/ad_video_analysis \
-#       -v /path/to/data_20260710:/data/data_20260710 \
+#       -v /path/to/total_20260710:/data/total_20260710 \
 #       -v /path/to/outputs:/data/outputs \
 #       -v /path/to/hf_cache:/data/.cache/huggingface \
 #       -w /workspace/ad_video_analysis \

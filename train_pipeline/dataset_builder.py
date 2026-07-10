@@ -227,22 +227,38 @@ def _scenario_samples(video_dir: Path, cuts: list[_Cut], cut_analysis: list[dict
 
 # ── Main entry ─────────────────────────────────────────────────────────────────
 
-def build_all(data_dirs: list[Path], out_dir: Path, exclude_ids: set[str] | None = None) -> dict[str, int]:
+def build_all(
+    data_dirs: list[Path],
+    out_dir: Path,
+    exclude_ids: set[str] | None = None,
+    include_only_ids: set[str] | None = None,
+) -> dict[str, int]:
     """data_dirs 내 <video_id>/ 폴더를 순회해 4종 JSONL 데이터셋을 빌드한다.
 
-    exclude_ids 에 담긴 video_id는 홀드아웃 평가용으로 남겨두고 빌드에서 제외한다
-    (train_pipeline.holdout 참고).
+    exclude_ids 에 담긴 video_id는 빌드에서 제외한다 (학습셋 빌드 시 홀드아웃을 뺄 때 사용).
+    include_only_ids 를 주면 그 video_id들만 빌드한다 (홀드아웃 전용 eval셋 빌드 시 사용) —
+    지정하면 exclude_ids 는 무시한다. 파일 출력 포맷은 완전히 동일해서 trainer.py 가
+    train/eval 양쪽에 같은 전처리를 적용할 수 있다.
     """
     buckets: dict[str, list[dict]] = {k: [] for k in ("scene_analysis", "cut_analysis", "scenario_analysis")}
     exclude_ids = exclude_ids or set()
 
-    video_dirs = sorted(
-        p
-        for data_dir in data_dirs
-        for p in data_dir.iterdir()
-        if p.is_dir() and p.name.isdigit() and p.name not in exclude_ids
-    )
-    print(f"영상 폴더 {len(video_dirs)}개 발견 ({len(data_dirs)}개 경로 탐색, 홀드아웃 {len(exclude_ids)}개 제외)")
+    if include_only_ids is not None:
+        video_dirs = sorted(
+            p
+            for data_dir in data_dirs
+            for p in data_dir.iterdir()
+            if p.is_dir() and p.name in include_only_ids
+        )
+        print(f"영상 폴더 {len(video_dirs)}개 발견 ({len(data_dirs)}개 경로 탐색, 홀드아웃 {len(include_only_ids)}개만 포함)")
+    else:
+        video_dirs = sorted(
+            p
+            for data_dir in data_dirs
+            for p in data_dir.iterdir()
+            if p.is_dir() and p.name.isdigit() and p.name not in exclude_ids
+        )
+        print(f"영상 폴더 {len(video_dirs)}개 발견 ({len(data_dirs)}개 경로 탐색, 홀드아웃 {len(exclude_ids)}개 제외)")
 
     for vdir in video_dirs:
         cuts_raw = _load(vdir / "cuts.json")
