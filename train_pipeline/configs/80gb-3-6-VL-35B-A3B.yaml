@@ -1,0 +1,62 @@
+# Qwen3.6-35B-A3B (MoE, 35B total / 3B active) LoRA 학습 설정.
+# qwen3.6-cc 산출물의 베이스 모델과 동일 계열 — 60~80GB급 GPU 환경 기준.
+#
+# 주의 (실행 전 확인):
+# 1. Qwen3.6 계열 MoE 모델은 bitsandbytes 4bit 양자화 시 오차가 커 QLoRA 비권장.
+#    bf16 LoRA 사용 — 가중치만 약 70GB(35B×bf16 2byte) 필요.
+#    → 80GB GPU: 여유 있게 적합 / 60GB GPU: 여유분 부족, 아래 "60GB 대체 옵션" 참고.
+# 2. dataset 경로는 GPU 학습 서버 기준 절대경로다. 이 프로젝트에서 로컬로 빌드한
+#    train_pipeline/data/total_20260710/ (scene/cut/scenario jsonl + images/) 를
+#    통째로 GPU 서버의 /data/data_20260710/ 로 복사(rsync) 한 뒤 학습을 실행한다.
+#    (jsonl 안의 이미지 경로가 jsonl 파일과 같은 부모 디렉토리 기준 상대경로이므로
+#     jsonl과 images/ 를 반드시 같은 폴더에 유지해야 한다.)
+
+model:
+  name: "unsloth/Qwen3.6-35B-A3B"
+  max_seq_length: 8192   # 기존 3-VL-8B 설정과 동일 근거: scenario max ~3400 tok / cut p90(8장) ~8000 tok 커버
+  load_in_4bit: false    # MoE QLoRA 비권장 → bf16 LoRA
+  cache_dir: /data/.cache/huggingface
+
+lora:
+  r: 64                  # unsloth 권장: MoE 레이어(gate/up/down) 전체 타겟 시 r=64에서 1.8x 가속
+  lora_alpha: 128         # 2×r 비율 유지 (기존 설정 컨벤션과 동일)
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj           # MoE expert 서브레이어에도 접미사 매칭으로 적용됨
+    - up_proj
+    - down_proj
+  use_gradient_checkpointing: "unsloth"
+  random_state: 3407
+
+dataset:
+  scene_analysis: "/data/data_20260710/scene_analysis.jsonl"
+  cut_analysis: "/data/data_20260710/cut_analysis.jsonl"
+  scenario_analysis: "/data/data_20260710/scenario_analysis.jsonl"
+
+training:
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 8     # effective batch = 8. 35B 가중치가 VRAM 대부분을 점유하므로 배치는 1 유지, accumulation으로 보정
+  num_train_epochs: 3                # 샘플 수(2026-07-10 기준): scene 4438 / cut 4556 / scenario 502
+                                      # step 수 ≈ scene 1664 / cut 1708 / scenario 188 (effective batch 8 기준)
+  learning_rate: 2.0e-4
+  warmup_steps: 100                  # 데이터셋 규모 증가(9,496 샘플)에 맞춰 기존 50 → 100으로 상향
+  output_dir: "/data/outputs/20260710"
+  fp16: false
+  bf16: true
+  logging_steps: 10
+  save_steps: 100                    # step 수가 커져 기존 50 → 100으로 완화 (체크포인트 I/O 절감)
+  report_to: "none"
+
+output:
+  save_merged: true
+  save_method: "lora"        # 어댑터만 저장 — qwen_client.py --lora_path 로 그대로 로드 가능
+  save_dir: "/data/outputs/20260710/models/qwen3_6_vl_ad"
+
+# ── 60GB GPU 대체 옵션 (VRAM 부족 시) ──────────────────────────────────────────
+# 위 bf16 LoRA가 60GB에서 OOM 나면 아래 중 택1로 조정:
+#   a) model.load_in_4bit: true 로 전환 (단, MoE 양자화 오차 증가 — 품질 저하 감수 필요)
+#   b) model.max_seq_length 를 4096으로 축소 (cut_analysis 일부 긴 시퀀스는 잘릴 수 있음)
+#   c) training.gradient_accumulation_steps 를 늘리고 activation checkpointing 유지(이미 "unsloth" 적용 중)
