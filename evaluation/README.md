@@ -9,6 +9,7 @@
 | `evaluation.cli` | brief 생성 / parsed_analysis 생성 / 시나리오 평가 |
 | `evaluation.category_cli` | category_analysis JSON 생성 + ChromaDB 적재 |
 | `evaluation.concept_cli` | concept_evaluation JSON 생성 (컨셉 추출) |
+| `evaluation.strategy_cli` | scenario_analysis 에서 M1·M2·M3 전략 스키마 역추출 → `strategy_analysis.json` |
 | `evaluation.convert` | parsed/brief JSON 을 외부 시스템 스키마로 변환 |
 | `evaluation.convert_v2` | parsed_analysis 를 그대로 `parsed` 키로 감싼 wrapped 스키마 변환 |
 | `evaluation.rename_to_original` | `<id>.json` 결과 파일을 DB `video_uploads.original_filename` 기준으로 재명명 복사 |
@@ -24,8 +25,11 @@
 | `concept_evaluation{,_codex,_gemini,_qwen}.py` | 컨셉 추출 — industry_category·product_category(값만) + target_persona·usp·positioning·appeal_type·perceived_value·message_strategy·execution_style(category·description·production_detail) |
 | `vector_store.py` | `video_category` 컬렉션 upsert/query 헬퍼 + 임베딩 모델 (`BAAI/bge-m3`) |
 | `concept_vector_store.py` | `video_concept` 컬렉션(별도) upsert/query 헬퍼 — concept_evaluation 결과 전용 |
+| `strategy_extraction.py` | scenario_analysis 에서 M1(인사이트)·M2(포지셔닝)·M3(컨셉) 스키마 역추출 (순차 LLM 호출) |
+| `strategy_schemas.py` | `docs/m1·m2·m3.txt` 영상 생성 프롬프트의 v5 출력 스키마·역할 가이드 정의 |
 | `schemas.py` | 평가/카테고리 JSON 스키마 정의 |
 | `scenario_checklist.md` | 시나리오 평가 체크리스트 |
+| `docs/m1.txt`·`docs/m2.txt`·`docs/m3.txt` | 영상 생성용 M1~M3 원본 프롬프트 (역추출 스키마의 출처) |
 
 ## `evaluation.cli` — 평가 파이프라인
 
@@ -124,6 +128,36 @@ python -m evaluation.concept_cli --video_id 349 --concept_evaluation --load_vect
 `industry_category`(대표값 1개), 7개 필드 각각의 `category` 배열 첫 번째(대표) 값을 저장한다.
 `generation.concept_pipeline` (CM3) 이 이 컬렉션을 참고 광고 소스로 사용한다 — 자세한 내용은
 [`../generation/README.md`](../generation/README.md) 참고.
+
+## `evaluation.strategy_cli` — M1·M2·M3 전략 스키마 역추출
+
+```bash
+python -m evaluation.strategy_cli --video_id <ID> [옵션]
+```
+
+`<data_dir>/<video_id>/scenario_analysis.json` 을 읽어, `docs/m1·m2·m3.txt` (영상 생성용 프롬프트)의
+v5 출력 스키마와 동일한 구조로 광고 전략을 역추론하고 `<data_dir>/<video_id>/strategy_analysis.json`
+하나의 파일에 `{"m1": {...}, "m2": {...}, "m3": {...}}` 형태로 저장한다.
+
+- `m1`: 소비자 인사이트 — corejob·humantruth·culturalcodes·marketscopes·target·forces·triggers·
+  opportunitytop3·assumptiontop3·verbatim
+- `m2`: 포지셔닝 — messagecandidates·positioningstatement·valueproposition·ownedceps·topcompetitor·
+  category·cepcoverage·demandspace·uniqueattributes
+- `m3`: 컨셉 발산 — seeds·fixedwhy·concepts (첫 항목 = 광고에 실제 구현된 주 컨셉)
+
+M1 → M2 → M3 순으로 순차 호출하며(뒤 모듈은 앞 모듈 결과를 핸드오프로 받음), 앞 모듈이 실패하면
+뒤 모듈은 `{"error": "skipped: ..."}` 로 기록된다.
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--data_dir` | `output/codex` | `<data_dir>/<video_id>/scenario_analysis.json` 입력 루트 |
+| `--llm_backend` | `claude` | `claude` \| `codex` \| `gemini` |
+| `--codex_model` / `--gemini_model` | — | 백엔드별 모델명 |
+| `--timeout` | `600` | 모듈별 LLM 호출 타임아웃(초) |
+
+```bash
+python -m evaluation.strategy_cli --video_id 349 --data_dir output/product_plan/claude
+```
 
 ## `evaluation.convert` — 외부 스키마 변환
 
