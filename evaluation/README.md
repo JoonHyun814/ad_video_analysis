@@ -143,7 +143,10 @@ v5 출력 스키마와 동일한 구조로 광고 전략을 역추론하고 `<da
   opportunitytop3·assumptiontop3·verbatim
 - `m2`: 포지셔닝 — messagecandidates·positioningstatement·valueproposition·ownedceps·topcompetitor·
   category·cepcoverage·demandspace·uniqueattributes
-- `m3`: 컨셉 발산 — seeds·fixedwhy·concepts (첫 항목 = 광고에 실제 구현된 주 컨셉)
+- `m3`: 컨셉 — seeds·fixedwhy·concepts (광고에 실제 구현된 컨셉 정확히 1개, 발산 아님)
+
+세 모듈 모두 창작이 아니라 **관찰 기반 역추출**이다: 시나리오에 실제 등장한 장면·카피·연출에 접지해
+채우고, 관찰 불가한 추정은 [가설] 태그, 근거 없는 항목은 빈 값으로 남기도록 프롬프트에서 강제한다.
 
 M1 → M2 → M3 순으로 순차 호출하며(뒤 모듈은 앞 모듈 결과를 핸드오프로 받음), 앞 모듈이 실패하면
 뒤 모듈은 `{"error": "skipped: ..."}` 로 기록된다.
