@@ -19,7 +19,7 @@
 - `{"category": [...], "description": "...", "production_detail": "..."}` 형태 7개 필드:
   `target_persona` / `usp` / `positioning` / `appeal_type` / `perceived_value` /
   `message_strategy` / `execution_style`
-- category enum 상세는 `concept_evaluation.py` 및 [`../creative_element_schema.md`](../creative_element_schema.md) 참고
+- category enum 상세는 `concept_evaluation.py` 및 [`../creative/creative_element_schema.md`](../creative/creative_element_schema.md) 참고
 
 ## facet 컬렉션 (`facet_vector_store.py`)
 

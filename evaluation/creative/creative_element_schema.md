@@ -10,6 +10,29 @@ vectorDB 스키마·enum 사전. `scenario_analysis.json` → LLM 추출 → Chr
    DB에는 중립적인 요소만 저장하고 판정은 검색 시점 집계로 계산한다.
 2. **영상 단위 + 요소 단위 2계층 저장.** 요소 1개 = 레코드 1개여야 "무엇이 비슷한지"가 쿼리로 나온다.
 3. **enum 정규화 + 원문 병기.** 자유 문자열 카테고리는 exact 필터를 깨뜨린다 (예: "스킨케어 (세럼)" 변형).
+4. **(v2) element_type 은 전 산업 공통, subtype 은 공용 + 산업 팩.** 스키마를 산업별로 통째로
+   분리하면 산업 관통 클리셰(sfx_cut_sync·double_coding 등) 교차 비교가 불가능해진다.
+   판정이 세그먼트(=산업 필터) 내부 빈도이므로 subtype 사전만 산업별로 확장해도 집계는 성립한다.
+
+## v2 개정 요약 (2026-07-22) — 산업 팩 구조
+
+ent 3편(419·420·421) + tech 7편(42·57·78·119·205·361·498) 검증 결과, type 골격은 산업을 관통하지만
+(재사용률 ~70%) 일부 type 의 뷰티 전제와 profile enum 붕괴(비뷰티 전부 `other`)가 확인되어 개정.
+
+| 변경 | v1 | v2 |
+|------|----|----|
+| type 개명 | `texture_shot` (제형 전제) | `sensory_demo_shot` — 뷰티=제형, tech=성능·작동 시연, ent=콘텐츠 클립 |
+| type 개명 | `model_direction` (표정 아크 전제) | `casting_direction` — 스포크스퍼슨·동작 시연·앙상블·`none`(인물 미등장) 수용 |
+| type 신설 | — | `cta_device` (multi, none 허용) — 검색 유도·커머스 UI·가격 오퍼·출시 고지 |
+| subtype 구조 | 단일 사전 | `subtypes_common.py`(공용) + `subtypes_packs.py`(beauty/tech_electronics/entertainment 팩) 병합 |
+| profile | product_category_norm 뷰티 단일 enum | `industry_category` 필수 승격(세그먼트 1차 키) + 산업별 product_category_norm/product_subtype enum |
+| 개명 | `device` (미용기기) | `beauty_device` — 가전과 이름 충돌 방지 |
+| casting | 전 필드 공통 | `skin_look`/`hair` 는 beauty 전용(비뷰티 추출·집계 생략), MAIN_MODEL `ensemble`/`hands_only`/`none`, WARDROBE `formal_suit`/`costume` 추가 |
+| 마이그레이션 | — | `LEGACY_TYPE_MAP`/`LEGACY_SUBTYPE_MAP`(clinical_spec_number→spec_number, cg_particle→process_cg)/`LEGACY_CATEGORY_MAP` 을 적재 시 자동 적용 — v1 분석 파일 재추출 불필요 |
+
+판정 기준(60%/30%/고립)과 컬렉션 2개 구조는 변경 없음. 아래 enum 사전은 v1(뷰티 기준) 원본이며,
+**현행 enum 의 원천은 코드**(`element_schema.py`·`subtypes_common.py`·`subtypes_packs.py`)다.
+아래 사전에서 개명된 이름은 위 매핑표로 읽는다.
 
 ## 파이프라인 개요
 

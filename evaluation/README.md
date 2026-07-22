@@ -11,6 +11,7 @@
 | `scenario_eval/` | 시나리오 평가 (브리프 비교 포함/제외) | [scenario_eval/README.md](scenario_eval/README.md) |
 | `category/` | 카테고리 메타데이터 추출 + `video_category` 벡터 적재 | [category/README.md](category/README.md) |
 | `concept/` | 컨셉 추출 + `video_concept`/facet 벡터 적재 | [concept/README.md](concept/README.md) |
+| `creative/` | 크리에이티브 요소 추출 + 클리셰 리포트 | [creative/README.md](creative/README.md) |
 | `strategy/` | M1·M2·M3 전략 스키마 역추출 | [strategy/README.md](strategy/README.md) |
 | `convert/` | 외부 시스템 스키마 변환·재명명 | [convert/README.md](convert/README.md) |
 
@@ -21,7 +22,6 @@
 | `cli.py` | 통합 CLI 진입점 (`--mode` 로 하위 파이프라인 디스패치) |
 | `schemas.py` | 브리프/평가 공용 JSON 스키마 정의 |
 | `scenario_checklist.md` | 시나리오 평가 체크리스트 |
-| `creative_element_schema.md` | 클리셰 분석용 크리에이티브 요소 vectorDB 스키마·enum 사전 (설계 문서) |
 | `docs/m1.txt`·`docs/m2.txt`·`docs/m3.txt` | 영상 생성용 M1~M3 원본 프롬프트 (strategy 역추출 스키마의 출처) |
 
 ## 통합 CLI — `python -m evaluation.cli --mode <mode>`
@@ -40,6 +40,7 @@ python -m evaluation.cli --mode <mode> -h   # 모드별 옵션 확인
 | `scenario_eval` | 시나리오 평가 (brief 존재 시 비교 포함) | `evaluation.json` |
 | `category` | 카테고리 분석 + `video_category` 컬렉션 적재 | `category_analysis.json` |
 | `concept` | 컨셉 추출 + `video_concept`/facet 컬렉션 적재 | `concept_evaluation.json` |
+| `creative` | 크리에이티브 요소 추출 + 세그먼트 클리셰 리포트 | `creative_element_analysis.json` |
 | `strategy` | M1·M2·M3 전략 스키마 역추출 | `strategy_analysis.json` |
 | `convert` | parsed/brief → 외부 스키마 일괄 변환 | `<out_dir>/<id>.json` |
 | `convert_v2` | parsed → wrapped 스키마 변환 | `<out_dir>/<id>.json` |
