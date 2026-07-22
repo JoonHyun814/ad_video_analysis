@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import chromadb
 
-from evaluation.vector_store import (
+from evaluation.category.vector_store import (
     EMBEDDING_MODEL,
     _COLLECTION,
     get_embedding_function,

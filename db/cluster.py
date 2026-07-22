@@ -18,7 +18,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
-from evaluation.vector_store import _COLLECTION, _FIELD_LABELS, get_embedding_function
+from evaluation.category.vector_store import _COLLECTION, _FIELD_LABELS, get_embedding_function
 
 _DEFAULT_DB = Path(__file__).parent.parent / "output" / "vector_db"
 _DEFAULT_OUT_DIR = Path(__file__).parent.parent / "output"

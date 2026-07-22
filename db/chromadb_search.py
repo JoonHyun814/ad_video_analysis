@@ -90,7 +90,7 @@ def _print_results(results: list[dict], as_json: bool) -> None:
 
 def main() -> None:
     import chromadb
-    from evaluation.vector_store import build_query_text, build_where, _get_or_create
+    from evaluation.category.vector_store import build_query_text, build_where, _get_or_create
 
     args = _build_parser().parse_args()
 

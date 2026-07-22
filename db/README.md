@@ -15,6 +15,7 @@ MySQL 조회·CSV 추출 + ChromaDB 벡터 검색·재임베딩 유틸.
 | `chromadb_show.py` | 컬렉션 내 전체 레코드 출력 |
 | `chromadb_missing.py` | `video_uploads` 와 ChromaDB id 비교 (DB - vector) |
 | `reembed.py` | 임베딩 모델 교체 후 컬렉션 재적재 |
+| `load_facets.py` | concept_evaluation.json → facet 컬렉션 3개(`ad_target`/`ad_usp`/`ad_creative`) 일괄 적재 |
 | `cluster.py` | 컬렉션 임베딩 K-Means 클러스터링 (K 자동 선택) |
 | `data_schema.md` | DB 테이블 스키마 |
 | `sample.json` | 예시 데이터 |
@@ -136,7 +137,7 @@ python db/chromadb_missing.py [--db_path ...] [--collection ...] [--table video_
 
 ## ChromaDB — `reembed.py`
 
-`evaluation/vector_store.py::EMBEDDING_MODEL` 을 변경한 뒤 1회 실행하면 기존 컬렉션을 삭제하고 새 모델로 전체 재적재한다.
+`evaluation/category/vector_store.py::EMBEDDING_MODEL` 을 변경한 뒤 1회 실행하면 기존 컬렉션을 삭제하고 새 모델로 전체 재적재한다.
 
 ```bash
 python db/reembed.py [--data_root <category_analysis 루트>] [--db_path ...] [--collection ...]
@@ -148,7 +149,23 @@ python db/reembed.py [--data_root <category_analysis 루트>] [--db_path ...] [-
 | `--collection` | `video_category` | 컬렉션명 |
 | `--data_root` | `../output/additional_0609/claude` | `<root>/<video_id>/category_analysis.json` 스캔 |
 
-적재할 `category_analysis.json` 은 [`../evaluation/README.md`](../evaluation/README.md) 의 `category_cli --category_analysis` 로 먼저 생성한다.
+적재할 `category_analysis.json` 은 `python -m evaluation.cli --mode category --category_analysis` 로 먼저 생성한다 ([`../evaluation/category/README.md`](../evaluation/category/README.md) 참고).
+
+## ChromaDB — `load_facets.py`
+
+`<data_root>/<video_id>/concept_evaluation.json` 을 스캔해 facet 컬렉션 3개
+(`ad_target`/`ad_usp`/`ad_creative`)에 일괄 적재한다. G1~G6 생성 파이프라인
+([`../generation/README.md`](../generation/README.md)) 실행 전 1회 필요하다.
+
+```bash
+python db/load_facets.py [--data_root <concept_evaluation 루트>] [--db_path ...] [--rebuild]
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--data_root` | `output/total` | `<root>/<video_id>/concept_evaluation.json` 스캔 |
+| `--rebuild` | off | 기존 facet 컬렉션 3개 삭제 후 재적재 |
 
 ## ChromaDB — `cluster.py`
 
