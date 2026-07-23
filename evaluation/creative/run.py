@@ -16,6 +16,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--data_dir", type=Path, default=Path("output/total"),
                    help="데이터 루트 (기본: output/total). 경로: <data_dir>/<video_id>/")
     p.add_argument("--extract", action="store_true", help=f"시나리오에서 요소 추출 → {_ANALYSIS_FILE}")
+    p.add_argument("--industry_secondary", default=None,
+                   help="[extract] 부산업 강제 지정 (예: entertainment). 배치 전체에 동일 적용. "
+                        "미지정 시 category_analysis.json 의 industry_category 가 리스트면 2번째 값을 자동 사용")
     p.add_argument("--load_vector", action="store_true",
                    help=f"{_ANALYSIS_FILE} 을 profile/element 컬렉션에 upsert")
     p.add_argument("--report", action="store_true", help="세그먼트 클리셰 리포트 생성")
@@ -40,16 +43,24 @@ def _video_ids(args: argparse.Namespace) -> list[str]:
     return [v.strip() for v in str(args.video_id).split(",") if v.strip()]
 
 
-def _industry_for(video_dir: Path) -> str:
-    """category_analysis.json 의 industry_category 로 subtype 팩을 선택한다 (없으면 other)."""
+def _industry_for(video_dir: Path) -> tuple[str, str | None]:
+    """category_analysis.json 의 industry_category 로 주/부 산업을 판별한다 (없으면 other/None).
+
+    다트비트처럼 리스트로 복수 산업이 기재된 경우 2번째 값을 부산업 후보로 쓴다
+    (CLI --industry_secondary 가 있으면 그쪽이 우선한다).
+    """
     from evaluation.creative.element_schema import INDUSTRY_CATEGORIES
     path = video_dir / "category_analysis.json"
     if not path.exists():
-        return "other"
+        return "other", None
     value = json.loads(path.read_text(encoding="utf-8")).get("industry_category")
+    secondary = None
     if isinstance(value, list):
+        secondary = value[1] if len(value) > 1 else None
         value = value[0] if value else None
-    return value if value in INDUSTRY_CATEGORIES else "other"
+    primary = value if value in INDUSTRY_CATEGORIES else "other"
+    secondary = secondary if secondary in INDUSTRY_CATEGORIES else None
+    return primary, secondary
 
 
 def _run_extract(args: argparse.Namespace) -> None:
@@ -57,9 +68,11 @@ def _run_extract(args: argparse.Namespace) -> None:
     for vid in _video_ids(args):
         video_dir = args.data_dir / vid
         scenario = require_valid_json(video_dir / "scenario_analysis.json", "scenario_analysis")
-        industry = _industry_for(video_dir)
-        print(f"  요소 추출 중 [claude] video_id={vid} (industry={industry})...")
-        result = extract_elements(scenario, industry)
+        industry, auto_secondary = _industry_for(video_dir)
+        secondary = args.industry_secondary or auto_secondary
+        label = f"{industry}+{secondary}" if secondary else industry
+        print(f"  요소 추출 중 [claude] video_id={vid} (industry={label})...")
+        result = extract_elements(scenario, industry, secondary)
         if "error" in result:
             print(f"  [경고] 추출 실패 (video_id={vid}): {result.get('error')}", file=sys.stderr)
         else:

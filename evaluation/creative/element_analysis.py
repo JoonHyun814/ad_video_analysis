@@ -18,10 +18,10 @@ def _cardinality(etype: str) -> str:
     return "해당하는 만큼 복수 (없으면 생략)"
 
 
-def _enum_guide(industry: str) -> str:
-    """산업 팩이 병합된 element_type 별 subtype enum 가이드를 만든다."""
+def _enum_guide(industry: str, secondary: str | None = None) -> str:
+    """주/부 산업 팩이 병합된 element_type 별 subtype enum 가이드를 만든다."""
     lines: list[str] = []
-    for etype, subtypes in es.subtypes_for(industry).items():
+    for etype, subtypes in es.subtypes_for(industry, secondary).items():
         lines.append(f"[{etype}] — {_cardinality(etype)}")
         lines += [f"  {name}: {desc}" for name, desc in subtypes.items()]
     return "\n".join(lines)
@@ -41,21 +41,24 @@ def _casting_schema(industry: str) -> dict:
     return schema
 
 
-def _output_schema(industry: str) -> str:
+def _output_schema(industry: str, secondary: str | None = None) -> str:
+    profile: dict = {
+        "industry_category": industry,
+        "product_category_norm": "|".join(es.PRODUCT_CATEGORY_NORM[industry]),
+        "product_subtype": "|".join(es.PRODUCT_SUBTYPE[industry]),
+        "product_category_raw": "제품·소재 카테고리 한국어 원문 (예: 스킨케어 (세럼))",
+        "target_gender": "|".join(es.TARGET_GENDER),
+        "usp_category": "|".join(es.USP_CATEGORY) + " — 핵심 차별화 유형 1개",
+        "usp_summary": "핵심 USP 1문장 (무엇으로 차별화하는지 구체 서술)",
+        "positioning_category": "|".join(es.POSITIONING_CATEGORY) + " — 포지셔닝 전략 1개",
+        "price_tier": "|".join(es.PRICE_TIER)
+                      + " — 가격대 포지션 (럭셔리 연출·가격/할인 소구 등 근거, 불명확하면 unknown)",
+        "summary": "세그먼트 검색용 요약 3~4문장 (제품·타겟·핵심 메시지·톤앤무드)",
+    }
+    if secondary:
+        profile["industry_secondary"] = secondary
     return json.dumps({
-        "profile": {
-            "industry_category": industry,
-            "product_category_norm": "|".join(es.PRODUCT_CATEGORY_NORM[industry]),
-            "product_subtype": "|".join(es.PRODUCT_SUBTYPE[industry]),
-            "product_category_raw": "제품·소재 카테고리 한국어 원문 (예: 스킨케어 (세럼))",
-            "target_gender": "|".join(es.TARGET_GENDER),
-            "usp_category": "|".join(es.USP_CATEGORY) + " — 핵심 차별화 유형 1개",
-            "usp_summary": "핵심 USP 1문장 (무엇으로 차별화하는지 구체 서술)",
-            "positioning_category": "|".join(es.POSITIONING_CATEGORY) + " — 포지셔닝 전략 1개",
-            "price_tier": "|".join(es.PRICE_TIER)
-                          + " — 가격대 포지션 (럭셔리 연출·가격/할인 소구 등 근거, 불명확하면 unknown)",
-            "summary": "세그먼트 검색용 요약 3~4문장 (제품·타겟·핵심 메시지·톤앤무드)",
-        },
+        "profile": profile,
         "casting": _casting_schema(industry),
         "elements": [{
             "element_type": "|".join(es.ELEMENT_TYPES),
@@ -108,17 +111,18 @@ def _condense_scenario(scenario: dict) -> str:
     return json.dumps(condensed, ensure_ascii=False, indent=2)
 
 
-def build_element_prompt(scenario: dict, industry: str) -> str:
-    """산업 팩이 반영된 크리에이티브 요소 추출 프롬프트를 생성한다."""
+def build_element_prompt(scenario: dict, industry: str, secondary: str | None = None) -> str:
+    """주/부 산업 팩이 반영된 크리에이티브 요소 추출 프롬프트를 생성한다."""
+    industry_desc = f"{industry}+{secondary} 복합 산업" if secondary else f"{industry} 산업"
     return (
-        f"너는 광고 크리에이티브 분석 전문가다. 아래 [시나리오]({industry} 산업 광고)에서\n"
+        f"너는 광고 크리에이티브 분석 전문가다. 아래 [시나리오]({industry_desc} 광고)에서\n"
         "클리셰 분석용 크리에이티브 요소를 [subtype 사전]의 enum 으로 분류해\n"
         "[출력 스키마] JSON 으로 추출하라.\n\n"
         + _RULES
         + _FOOTER
-        + f"[subtype 사전]\n{_enum_guide(industry)}\n\n"
+        + f"[subtype 사전]\n{_enum_guide(industry, secondary)}\n\n"
         + f"[시나리오]\n{_condense_scenario(scenario)}\n\n"
-        + f"[출력 스키마 — 값으로 대체하여 채워라]\n{_output_schema(industry)}"
+        + f"[출력 스키마 — 값으로 대체하여 채워라]\n{_output_schema(industry, secondary)}"
     )
 
 
@@ -131,14 +135,16 @@ def compute_duration(scenario: dict) -> float | None:
     return float(nums[-1]) if nums else None
 
 
-def extract_elements(scenario: dict, industry: str = "other") -> dict:
+def extract_elements(scenario: dict, industry: str = "other", industry_secondary: str | None = None) -> dict:
     """시나리오에서 요소를 추출하고 industry/duration 을 코드로 보강한다."""
-    result = call_claude(build_element_prompt(scenario, industry), timeout=300)
+    result = call_claude(build_element_prompt(scenario, industry, industry_secondary), timeout=300)
     if "error" in result:
         return result
     duration = compute_duration(scenario)
     profile = result.setdefault("profile", {})
     profile["industry_category"] = industry
+    if industry_secondary:
+        profile["industry_secondary"] = industry_secondary
     if duration is not None:
         profile["duration_sec"] = duration
         profile["duration_bucket"] = es.duration_bucket(duration)

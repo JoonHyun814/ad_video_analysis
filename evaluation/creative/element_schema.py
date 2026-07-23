@@ -71,11 +71,17 @@ LEGACY_SUBTYPE_MAP = {"clinical_spec_number": "spec_number", "cg_particle": "pro
 LEGACY_CATEGORY_MAP = {"device": "beauty_device"}
 
 
-def subtypes_for(industry: str) -> dict[str, dict[str, str]]:
-    """공용 subtype 사전에 산업 팩을 병합한 enum 가이드를 만든다."""
-    pack = INDUSTRY_PACKS.get(industry, {})
+def subtypes_for(industry: str, secondary: str | None = None) -> dict[str, dict[str, str]]:
+    """공용 subtype 사전에 주/부 산업 팩을 병합한 enum 가이드를 만든다.
+
+    다트비트(스마트 홈다트)처럼 tech_electronics(하드웨어)+entertainment(게임·대전)
+    양쪽 문법이 섞인 광고를 위해, secondary 를 주면 두 산업 팩을 함께 제시한다.
+    """
+    packs = [INDUSTRY_PACKS.get(industry, {})]
+    if secondary and secondary != industry:
+        packs.append(INDUSTRY_PACKS.get(secondary, {}))
     return {
-        etype: {**COMMON_SUBTYPES[etype], **pack.get(etype, {})}
+        etype: {**COMMON_SUBTYPES[etype], **{k: v for pack in packs for k, v in pack.get(etype, {}).items()}}
         for etype in ELEMENT_TYPES
     }
 

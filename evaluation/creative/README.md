@@ -13,6 +13,11 @@
 - **(v2) element_type 10종은 전 산업 공통, subtype 은 공용 사전 + 산업 팩 병합** —
   추출 시 `category_analysis.json` 의 industry_category 로 팩(beauty/tech_electronics/entertainment)을
   선택한다. 산업 관통 클리셰는 type/공용 subtype 레벨에서 교차 비교된다.
+- **부산업(`industry_secondary`) 지원** — 다트비트(스마트 홈다트)처럼 tech_electronics(하드웨어)+
+  entertainment(대전·토너먼트) 양쪽 문법이 섞인 광고는 두 산업 팩이 함께 프롬프트에 제시되고,
+  `--industry` 리포트 필터가 주산업·부산업 어느 쪽으로도 매칭한다 (`$or` 쿼리).
+  `product_category_norm` 은 주산업 enum 값 하나로 유지된다 — 콤마 결합하지 않는다
+  (ChromaDB 메타데이터는 `$eq` exact match 전제라, 다중값을 콤마 문자열로 넣으면 필터가 깨진다).
 
 ## 파일 구성
 
@@ -52,6 +57,7 @@ python -m evaluation.cli --mode creative [--extract] [--load_vector] [--report] 
 | `--video_id` | — | 대상 영상 ID. 쉼표 구분 복수 허용 (`343,348,325`) |
 | `--data_dir` | `output/total` | `<data_dir>/<video_id>/scenario_analysis.json` 입력 (industry 는 같은 폴더의 `category_analysis.json` 에서 판별) |
 | `--extract` | off | 요소 추출 → `creative_element_analysis.json` |
+| `--industry_secondary` | — | [extract] 부산업 강제 지정 (예: `entertainment`). 배치 전체 동일 적용. 미지정 시 `category_analysis.json` 의 `industry_category` 가 리스트면 2번째 값을 자동 사용 |
 | `--load_vector` | off | 추출 결과를 컬렉션 2개에 upsert (v1 파일 자동 변환) |
 | `--report` | off | 세그먼트 클리셰 리포트 출력 |
 | `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |

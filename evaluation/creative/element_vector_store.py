@@ -15,7 +15,7 @@ PROFILE_COLLECTION = "video_creative_profile"
 ELEMENT_COLLECTION = "ad_creative_element"
 
 # 요소 레코드에 복제되는 세그먼트 필터 키
-_SEGMENT_KEYS = ("industry_category", "product_category_norm", "product_subtype",
+_SEGMENT_KEYS = ("industry_category", "industry_secondary", "product_category_norm", "product_subtype",
                  "target_gender", "duration_bucket",
                  "usp_category", "positioning_category", "price_tier")
 _CASTING_KEYS = ("main_model", "age_band", "skin_look", "hair", "wardrobe", "expression_restraint")
@@ -129,11 +129,21 @@ def build_segment_where(
     positioning_category: str | None = None,
     price_tier: str | None = None,
 ) -> dict | None:
-    """세그먼트 필터를 ChromaDB where 문법으로 변환한다."""
-    conditions = [
+    """세그먼트 필터를 ChromaDB where 문법으로 변환한다.
+
+    industry_category 는 주산업(industry_category)·부산업(industry_secondary) 중
+    어느 쪽으로 걸려도 매칭한다 (다트비트처럼 tech_electronics+entertainment 복합
+    산업 광고가 두 세그먼트 리포트 모두에 잡히도록).
+    """
+    conditions = []
+    if industry_category:
+        conditions.append({"$or": [
+            {"industry_category": {"$eq": industry_category}},
+            {"industry_secondary": {"$eq": industry_category}},
+        ]})
+    conditions += [
         {key: {"$eq": val}}
         for key, val in (
-            ("industry_category", industry_category),
             ("product_category_norm", product_category_norm),
             ("product_subtype", product_subtype),
             ("target_gender", target_gender),

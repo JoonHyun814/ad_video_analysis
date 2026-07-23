@@ -28,6 +28,7 @@ ent 3편(419·420·421) + tech 7편(42·57·78·119·205·361·498) 검증 결�
 | profile | product_category_norm 뷰티 단일 enum | `industry_category` 필수 승격(세그먼트 1차 키) + 산업별 product_category_norm/product_subtype enum |
 | 개명 | `device` (미용기기) | `beauty_device` — 가전과 이름 충돌 방지 |
 | casting | 전 필드 공통 | `skin_look`/`hair` 는 beauty 전용(비뷰티 추출·집계 생략), MAIN_MODEL `ensemble`/`hands_only`/`none`, WARDROBE `formal_suit`/`costume` 추가 |
+| profile | industry 단일값 | `industry_secondary`(부산업, optional) 추가 — 두 산업 팩을 함께 병합해 추출하고, 리포트는 주/부 산업 어느 쪽 필터에도 매칭(`$or`). `product_category_norm` 은 주산업 enum 1개로 유지(콤마 결합 안 함) |
 | 마이그레이션 | — | `LEGACY_TYPE_MAP`/`LEGACY_SUBTYPE_MAP`(clinical_spec_number→spec_number, cg_particle→process_cg)/`LEGACY_CATEGORY_MAP` 을 적재 시 자동 적용 — v1 분석 파일 재추출 불필요 |
 
 판정 기준(60%/30%/고립)과 컬렉션 2개 구조는 변경 없음. 아래 enum 사전은 v1(뷰티 기준) 원본이며,
@@ -67,6 +68,7 @@ casting 이 profile 메타데이터로 평탄화되며 `summary` 는 임베딩 �
 {
   "profile": {
     "industry_category": "beauty",             // beauty|tech_electronics|entertainment|other (v1 파일엔 없음 — 적재 시 역추정)
+    "industry_secondary": null,                // optional. 복합 산업 광고(예: 다트비트=tech+entertainment)만 값 존재
     "product_category_norm": "mask",           // 산업별 enum (element_schema.py::PRODUCT_CATEGORY_NORM)
     "product_subtype": "mask_pack",            // 산업별 enum (element_schema.py::PRODUCT_SUBTYPE)
     "product_category_raw": "스킨케어 (앰플 마스크팩)",  // 원문 보존
