@@ -63,7 +63,8 @@ def _aggregate_casting(profiles: list[dict]) -> dict:
     n = len(profiles)
     dist: dict[str, dict] = {}
     for key in ("main_model", "age_band", "skin_look", "hair", "wardrobe",
-                "expression_restraint", "narrative_pattern"):
+                "expression_restraint", "narrative_pattern",
+                "usp_category", "positioning_category", "price_tier"):
         counter: dict[str, int] = defaultdict(int)
         for p in profiles:
             val = p["metadata"].get(key)
@@ -92,7 +93,7 @@ def format_report(report: dict, segment_desc: str) -> str:
             f"{freq:>7}  {r['video_ids']}"
         )
     lines.append("")
-    lines.append("--- 캐스팅/서사 분포 (profile) ---")
+    lines.append("--- 프로필 분포 (캐스팅·서사·차별성) ---")
     for key, values in report["casting"].items():
         top = ", ".join(f"{v}({d['count']})" for v, d in values.items())
         lines.append(f"  {key:<22}: {top}")

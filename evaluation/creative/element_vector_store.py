@@ -16,7 +16,8 @@ ELEMENT_COLLECTION = "ad_creative_element"
 
 # 요소 레코드에 복제되는 세그먼트 필터 키
 _SEGMENT_KEYS = ("industry_category", "product_category_norm", "product_subtype",
-                 "target_gender", "duration_bucket")
+                 "target_gender", "duration_bucket",
+                 "usp_category", "positioning_category", "price_tier")
 _CASTING_KEYS = ("main_model", "age_band", "skin_look", "hair", "wardrobe", "expression_restraint")
 
 
@@ -62,7 +63,8 @@ def _profile_metadata(video_id: int, analysis: dict) -> dict:
 
 def _profile_document(analysis: dict) -> str:
     profile = analysis.get("profile") or {}
-    parts = [profile.get("product_category_raw", ""), profile.get("summary", "")]
+    parts = [profile.get("product_category_raw", ""), profile.get("summary", ""),
+             profile.get("usp_summary", "")]
     return "\n".join(p for p in parts if p)
 
 
@@ -123,6 +125,9 @@ def build_segment_where(
     product_subtype: str | None = None,
     target_gender: str | None = None,
     duration_bucket: str | None = None,
+    usp_category: str | None = None,
+    positioning_category: str | None = None,
+    price_tier: str | None = None,
 ) -> dict | None:
     """세그먼트 필터를 ChromaDB where 문법으로 변환한다."""
     conditions = [
@@ -133,6 +138,9 @@ def build_segment_where(
             ("product_subtype", product_subtype),
             ("target_gender", target_gender),
             ("duration_bucket", duration_bucket),
+            ("usp_category", usp_category),
+            ("positioning_category", positioning_category),
+            ("price_tier", price_tier),
         )
         if val
     ]

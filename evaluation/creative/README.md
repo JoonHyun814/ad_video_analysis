@@ -38,6 +38,8 @@
 
 v1 분석 파일(`texture_shot`/`model_direction`/`clinical_spec_number` 등)은 적재 시
 `LEGACY_*_MAP` 으로 자동 변환되므로 재추출 없이 `--load_vector` 만 다시 실행하면 된다.
+usp/positioning 미기재 파일은 같은 폴더의 `concept_evaluation.json` 대표값으로 백필된다
+(`price_tier` 는 재추출 시에만 채워짐).
 
 ## 실행
 
@@ -56,6 +58,7 @@ python -m evaluation.cli --mode creative [--extract] [--load_vector] [--report] 
 | `--industry` | — | [report] `industry_category` 필터 (예: `beauty`, `tech_electronics`) |
 | `--product_category` | — | [report] `product_category_norm` 필터 (예: `skincare`) |
 | `--product_subtype` / `--target_gender` / `--duration_bucket` | — | [report] 추가 세그먼트 필터 |
+| `--usp` / `--positioning` / `--price_tier` | — | [report] 제품 차별성 필터 (usp_category / positioning_category / price_tier) |
 | `--out` | — | [report] 리포트 JSON 저장 경로 |
 
 ```bash

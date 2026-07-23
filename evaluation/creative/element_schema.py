@@ -36,6 +36,12 @@ PRODUCT_SUBTYPE: dict[str, tuple[str, ...]] = {
 TARGET_GENDER = ("female", "male", "unisex")
 DURATION_BUCKETS = ("15s", "30s", "60s", "other")
 
+# 제품 차별성 축 — usp/positioning 은 concept_evaluation 과 동일 어휘 (교차 조회 호환)
+USP_CATEGORY = ("functional_tangible", "emotional_intangible", "economic_price", "other")
+POSITIONING_CATEGORY = ("by_product_innovation", "by_service_quality",
+                        "by_cost_leadership", "by_target_needs", "other")
+PRICE_TIER = ("luxury", "premium", "mid_range", "value", "unknown")
+
 # ── casting (casting_direction 요소의 속성 enum) ───────────────────────────────
 
 MAIN_MODEL = ("solo_female", "solo_male", "couple", "group", "ensemble", "hands_only", "none")

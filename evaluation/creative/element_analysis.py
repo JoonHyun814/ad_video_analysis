@@ -49,6 +49,11 @@ def _output_schema(industry: str) -> str:
             "product_subtype": "|".join(es.PRODUCT_SUBTYPE[industry]),
             "product_category_raw": "제품·소재 카테고리 한국어 원문 (예: 스킨케어 (세럼))",
             "target_gender": "|".join(es.TARGET_GENDER),
+            "usp_category": "|".join(es.USP_CATEGORY) + " — 핵심 차별화 유형 1개",
+            "usp_summary": "핵심 USP 1문장 (무엇으로 차별화하는지 구체 서술)",
+            "positioning_category": "|".join(es.POSITIONING_CATEGORY) + " — 포지셔닝 전략 1개",
+            "price_tier": "|".join(es.PRICE_TIER)
+                          + " — 가격대 포지션 (럭셔리 연출·가격/할인 소구 등 근거, 불명확하면 unknown)",
             "summary": "세그먼트 검색용 요약 3~4문장 (제품·타겟·핵심 메시지·톤앤무드)",
         },
         "casting": _casting_schema(industry),

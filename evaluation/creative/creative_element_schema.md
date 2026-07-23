@@ -57,32 +57,66 @@ vectorDB 적재 (컬렉션 2개)
 
 ## 컬렉션 1 — `video_creative_profile` (세그먼트 검색용)
 
-메타데이터 (exact/range 필터, 전부 정규화 값):
+추출 파일(`creative_element_analysis.json`)과 DB 레코드는 구조가 다르다.
+추출 파일은 `profile`/`casting` 블록이 분리되어 있고, 적재 시(`element_vector_store.py`)
+casting 이 profile 메타데이터로 평탄화되며 `summary` 는 임베딩 문서로 이동한다.
+
+**① 추출 파일 구조** (LLM 산출물, `<data_dir>/<video_id>/creative_element_analysis.json`):
 
 ```jsonc
 {
-  "video_id": 348,
-  "brand_name": "설화수",                    // raw
-  "industry_category": "beauty",             // 기존 13종 enum
-  "product_category_norm": "skincare",       // skincare|makeup|haircare|bodycare|innerbeauty|device|cleansing|mask|other
-  "product_subtype": "essence_serum",        // essence_serum|cream|ampoule|lotion|toner|eye_care|sun_care|...
-  "product_category_raw": "스킨케어 (세럼)",  // 원문 보존
-  "duration_sec": 15.0,
-  "duration_bucket": "15s",                  // 15s|30s|60s|other (14.5s 등 근사값 흡수)
-  "placement": "ctv_15s",
-  "campaign_objective": "awareness",
-  "target_age_min": 20, "target_age_max": 29,
-  "target_gender": "female",                 // female|male|unisex
-  "narrative_structure": "hook_body_close",
-  "appeal_type_primary": "aspiration",       // concept_evaluation 대표값
-  "execution_style_primary": "fantasy",
-  "message_strategy_primary": "transformational",
-  "creative_dedup_key": "sulwhasoo_yunjo_2026a"  // 동일 소재 지면 변형 중복 제거용
+  "profile": {
+    "industry_category": "beauty",             // beauty|tech_electronics|entertainment|other (v1 파일엔 없음 — 적재 시 역추정)
+    "product_category_norm": "mask",           // 산업별 enum (element_schema.py::PRODUCT_CATEGORY_NORM)
+    "product_subtype": "mask_pack",            // 산업별 enum (element_schema.py::PRODUCT_SUBTYPE)
+    "product_category_raw": "스킨케어 (앰플 마스크팩)",  // 원문 보존
+    "target_gender": "female",                 // female|male|unisex
+    "usp_category": "functional_tangible",     // concept_evaluation 과 동일 어휘 (USP_CATEGORY)
+    "usp_summary": "핵심 USP 1문장",            // → DB 임베딩 문서
+    "positioning_category": "by_product_innovation",  // POSITIONING_CATEGORY
+    "price_tier": "premium",                   // luxury|premium|mid_range|value|unknown (가성비~럭셔리 축)
+    "summary": "세그먼트 검색용 요약 3~4문장",   // → DB 임베딩 문서
+    "duration_sec": 15.0,                      // 코드 계산 주입 (compute_duration)
+    "duration_bucket": "15s"                   // 15s|30s|60s|other (±2s 흡수)
+  },
+  "casting": {                                 // beauty 외 산업은 skin_look/hair 없음
+    "main_model": "solo_female", "age_band": "20s",
+    "skin_look": "pale", "hair": "wet", "wardrobe": "other",
+    "expression_restraint": true, "secondary_roles": "조연 서술"
+  },
+  "elements": [ /* 컬렉션 2 참조 */ ],
+  "_meta": { "video_id": "20", "llm_backend": "claude" }
 }
 ```
 
-임베딩 문서: 제품 카테고리 원문 / 타겟 페르소나 / 핵심 메시지·USP·포지셔닝 / 훅 전략 /
-톤앤무드 요약 / 대표 카피 1~2개.
+**② DB 레코드 메타데이터** (적재 시 조립, exact 필터용):
+
+```jsonc
+{
+  "video_id": 20,
+  // 세그먼트 필터 키 — profile 블록에서 복사
+  "industry_category": "beauty", "product_category_norm": "mask", "product_subtype": "mask_pack",
+  "product_category_raw": "스킨케어 (앰플 마스크팩)", "target_gender": "female",
+  "duration_sec": 15.0, "duration_bucket": "15s",
+  "usp_category": "functional_tangible", "positioning_category": "by_product_innovation",
+  "price_tier": "premium",
+  // 캐스팅 속성 — casting 블록에서 평탄화
+  "main_model": "solo_female", "age_band": "20s", "skin_look": "pale",
+  "hair": "wet", "wardrobe": "other", "expression_restraint": true,
+  // elements 의 narrative_pattern 요소에서 주입
+  "narrative_pattern": "emotional_journey"
+}
+```
+
+임베딩 문서: `product_category_raw` + `summary` + `usp_summary` 결합.
+
+usp/positioning 미기재 구버전 파일은 적재 시 같은 폴더의 `concept_evaluation.json` 대표값으로
+백필된다 (`run.py::_enrich_from_concept`). `price_tier` 는 백필 불가 — 재추출 시에만 채워진다.
+
+**③ 제안했으나 미구현인 필드 (향후 확장)**: `brand_name`·`placement`·`campaign_objective`·
+`target_age_min/max` 는 `video_category` 컬렉션에 이미 있어 video_id 조인으로 대체
+(profile 은 scenario_analysis 단독 입력 원칙). `appeal_type_primary` 등 나머지 concept_evaluation
+대표값 복제와 `creative_dedup_key`(동일 소재 지면 변형 중복 제거)는 필요 시 적재 로직에 추가한다.
 
 ## 컬렉션 2 — `ad_creative_element` (클리셰 집계용)
 
@@ -92,10 +126,10 @@ vectorDB 적재 (컬렉션 2개)
 {
   // ─ 식별/필터 (메타데이터) ─
   "video_id": 480,
-  "element_type": "texture_shot",       // 아래 9종 enum
-  "element_subtype": "cream_swirl",     // type별 enum
-  "cut_refs": [6],                      // 근거 컷 번호
-  // + profile 컬렉션의 필터 키 복제 (product_category_norm, duration_bucket, placement ...)
+  "element_type": "sensory_demo_shot",  // 10종 enum (v2)
+  "element_subtype": "cream_swirl",     // 공용+산업 팩 병합 enum
+  "cut_refs": "6",                      // 근거 컷 번호 (쉼표 결합 문자열로 저장)
+  // + profile 의 세그먼트 필터 키 복제 (industry_category, product_category_norm, duration_bucket ...)
 
   // ─ 임베딩 문서 (군집화·유사도용) ─
   "description": "금색 용기 내부 크림이 소용돌이치며 솟아오르는 매크로 샷",

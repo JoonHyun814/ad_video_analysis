@@ -22,15 +22,18 @@ def call_claude(prompt: str, timeout: int = 300) -> dict:
         out_path = Path(f.name)
     result_text = ""
     for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
-        with open(out_path, "w", encoding="utf-8") as out_f:
-            subprocess.run(cmd, stdout=out_f, stderr=subprocess.DEVNULL, timeout=timeout)
-        raw = out_path.read_text(encoding="utf-8")
-        result_text, retry_needed = _unwrap_envelope(raw)
+        try:
+            with open(out_path, "w", encoding="utf-8") as out_f:
+                subprocess.run(cmd, stdout=out_f, stderr=subprocess.DEVNULL, timeout=timeout)
+            raw = out_path.read_text(encoding="utf-8")
+            result_text, retry_needed = _unwrap_envelope(raw)
+        except subprocess.TimeoutExpired:
+            result_text, retry_needed = f'{{"error": "timeout after {timeout}s"}}', True
         if not retry_needed:
             return parse_json(result_text)
         if delay is None:
             break
-        print(f"      Claude 응답 비정상 종료, {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
+        print(f"      Claude 응답 비정상 종료(또는 타임아웃), {delay}초 후 재시도 ({attempt}/{len(_RETRY_DELAYS)})...")
         time.sleep(delay)
     return parse_json(result_text)
 

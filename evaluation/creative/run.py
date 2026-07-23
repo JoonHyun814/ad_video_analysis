@@ -26,6 +26,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--product_subtype", default=None, help="[report] product_subtype 필터")
     p.add_argument("--target_gender", default=None, help="[report] target_gender 필터")
     p.add_argument("--duration_bucket", default=None, help="[report] duration_bucket 필터 (예: 15s)")
+    p.add_argument("--usp", default=None, help="[report] usp_category 필터 (예: functional_tangible)")
+    p.add_argument("--positioning", default=None, help="[report] positioning_category 필터")
+    p.add_argument("--price_tier", default=None, help="[report] price_tier 필터 (예: luxury)")
     p.add_argument("--out", type=Path, default=None, help="[report] 리포트 JSON 저장 경로")
     return p
 
@@ -67,6 +70,26 @@ def _run_extract(args: argparse.Namespace) -> None:
         print(f"  저장: {out_path}")
 
 
+def _enrich_from_concept(analysis: dict, video_dir: Path) -> None:
+    """usp/positioning 미기재 구버전 파일에 concept_evaluation 대표값을 보강한다."""
+    profile = analysis.setdefault("profile", {})
+    path = video_dir / "concept_evaluation.json"
+    if profile.get("usp_category") or not path.exists():
+        return
+    concept = json.loads(path.read_text(encoding="utf-8"))
+    for src, cat_key, sum_key in (("usp", "usp_category", "usp_summary"),
+                                  ("positioning", "positioning_category", None)):
+        block = concept.get(src) or {}
+        if isinstance(block, str):  # 구버전 concept 스키마: 평문 서술만 존재 (category 없음)
+            if sum_key:
+                profile.setdefault(sum_key, block[:200])
+            continue
+        if cats := block.get("category"):
+            profile[cat_key] = cats[0]
+        if sum_key and block.get("description"):
+            profile[sum_key] = block["description"][:200]
+
+
 def _run_load_vector(args: argparse.Namespace) -> None:
     from evaluation.creative.element_vector_store import upsert_analysis
     for vid in _video_ids(args):
@@ -74,6 +97,7 @@ def _run_load_vector(args: argparse.Namespace) -> None:
         if "error" in analysis:
             print(f"[오류] {_ANALYSIS_FILE} 에 에러 있음 (video_id={vid})", file=sys.stderr)
             sys.exit(1)
+        _enrich_from_concept(analysis, args.data_dir / vid)
         upsert_analysis(video_id=int(vid), analysis=analysis, db_path=args.db_path)
 
 
@@ -88,6 +112,9 @@ def _run_report(args: argparse.Namespace) -> None:
         product_subtype=args.product_subtype,
         target_gender=args.target_gender,
         duration_bucket=args.duration_bucket,
+        usp_category=args.usp,
+        positioning_category=args.positioning,
+        price_tier=args.price_tier,
     )
     profiles = fetch_profiles(where=where, db_path=args.db_path)
     if not profiles:
@@ -103,6 +130,9 @@ def _run_report(args: argparse.Namespace) -> None:
             ("product_subtype", args.product_subtype),
             ("target_gender", args.target_gender),
             ("duration_bucket", args.duration_bucket),
+            ("usp_category", args.usp),
+            ("positioning_category", args.positioning),
+            ("price_tier", args.price_tier),
         ) if v
     ) or "전체"
     report["segment"] = segment_desc
