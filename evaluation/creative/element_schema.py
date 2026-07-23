@@ -9,7 +9,8 @@ from evaluation.creative.subtypes_packs import INDUSTRY_PACKS
 
 # ── profile (세그먼트 검색용 정규화 enum) ──────────────────────────────────────
 
-INDUSTRY_CATEGORIES = ("beauty", "tech_electronics", "entertainment", "other")
+INDUSTRY_CATEGORIES = ("beauty", "tech_electronics", "entertainment",
+                       "fashion_apparel", "health_medical", "food_beverage", "other")
 
 PRODUCT_CATEGORY_NORM: dict[str, tuple[str, ...]] = {
     "beauty": ("skincare", "makeup", "haircare", "bodycare", "innerbeauty",
@@ -18,6 +19,12 @@ PRODUCT_CATEGORY_NORM: dict[str, tuple[str, ...]] = {
                          "av_display", "fitness_equipment", "home_entertainment_device", "other"),
     "entertainment": ("movie", "ott_service", "broadcast_content", "performance",
                       "music_content", "other"),
+    "fashion_apparel": ("sportswear", "outerwear", "innerwear", "footwear",
+                        "casualwear", "bag_accessory", "other"),
+    "health_medical": ("otc_quasi_drug", "health_supplement", "medical_device_procedure",
+                       "home_medical_device", "other"),
+    "food_beverage": ("instant_noodle", "qsr_burger_chicken", "bakery_dessert", "beverage_soft",
+                      "alcohol_beer_soju", "health_functional_food", "dairy_processed_food", "other"),
     "other": ("other",),
 }
 
@@ -30,6 +37,12 @@ PRODUCT_SUBTYPE: dict[str, tuple[str, ...]] = {
                          "leisure_device", "other"),
     "entertainment": ("theatrical_release", "ott_subscription", "series_content",
                       "live_performance", "exhibition", "music_release", "other"),
+    "fashion_apparel": ("training_wear", "down_jacket", "hiking_wear", "absorbent_underwear",
+                        "sneakers", "handbag", "other"),
+    "health_medical": ("adhesive_bandage", "health_functional_food", "aesthetic_procedure",
+                       "home_medical_device", "other"),
+    "food_beverage": ("ramen", "burger", "fried_chicken", "cake_dessert", "carbonated_drink",
+                      "beer", "soju", "health_drink", "processed_meat", "other"),
     "other": ("other",),
 }
 
@@ -62,7 +75,8 @@ MULTI_TYPES = ("sensory_demo_shot", "trust_device", "product_shot",
 ELEMENT_TYPES = SINGLE_TYPES + MULTI_TYPES
 
 # 해당 요소가 전혀 없으면 'none' 레코드 1개를 기록하는 type (의도적 생략을 집계)
-NONE_TYPES = ("sensory_demo_shot", "trust_device", "cta_device")
+# product_shot 은 무형 서비스 광고(플랫폼 서비스 등) 대응을 위해 포함한다.
+NONE_TYPES = ("sensory_demo_shot", "trust_device", "cta_device", "product_shot")
 
 # ── v1 → v2 마이그레이션 매핑 (기존 적재 레코드·분석 파일 흡수) ────────────────
 
@@ -89,7 +103,8 @@ def subtypes_for(industry: str, secondary: str | None = None) -> dict[str, dict[
 def infer_industry(product_category_norm: str | None) -> str:
     """industry 미기재 구버전 데이터에서 product_category_norm 으로 산업을 역추정한다."""
     norm = LEGACY_CATEGORY_MAP.get(product_category_norm or "", product_category_norm)
-    for industry in ("beauty", "tech_electronics", "entertainment"):
+    for industry in ("beauty", "tech_electronics", "entertainment",
+                     "fashion_apparel", "health_medical", "food_beverage"):
         if norm in PRODUCT_CATEGORY_NORM[industry] and norm != "other":
             return industry
     return "other"

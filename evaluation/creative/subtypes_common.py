@@ -73,6 +73,7 @@ COMMON_SUBTYPES: dict[str, dict[str, str]] = {
         "unboxing_reveal": "박스 개봉·언박싱으로 제품 공개",
         "scale_hyperbole": "거대 제품·미니어처 인물 등 스케일 과장 합성",
         "product_card_graphic": "실물 대신 제품 이미지 합성 카드로 제시",
+        "none": "제품 실물 샷이 전무 (무형 서비스 등, 의도적 생략)",
         "other": "위에 속하지 않는 제품 연출",
     },
     "color_light_code": {
@@ -112,6 +113,7 @@ COMMON_SUBTYPES: dict[str, dict[str, str]] = {
         "commerce_ui_overlay": "쇼핑몰·앱스토어 등 커머스 UI 합성",
         "price_promo_offer": "가격·할인·기간 한정 오퍼 고지",
         "release_info_cta": "개봉일·출시일·구독 개시 고지",
+        "social_challenge_cta": "SNS 챌린지·해시태그 참여 유도",
         "none": "행동 유도 장치 없음",
         "other": "위에 속하지 않는 행동 유도 장치",
     },

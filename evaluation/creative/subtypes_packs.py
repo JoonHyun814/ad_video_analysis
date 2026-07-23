@@ -24,6 +24,7 @@ INDUSTRY_PACKS: dict[str, dict[str, dict[str, str]]] = {
             "droplet_on_skin": "촉촉한 피부 위 물방울·에센스 클로즈업",
             "application_closeup": "도포·펌프 등 실사용 동작 초근접",
             "skin_graphic_overlay": "얼굴 위 성분 작용·피부 조직 그래픽 합성",
+            "concept_time_metaphor_cg": "시간·순환 등 추상 개념을 상징하는 오브제·CG (제품 작동 원리와 무관)",
         },
         "trust_device": {
             "ingredient_claim": "독자 성분명·원료 스토리 강조",
@@ -80,6 +81,38 @@ INDUSTRY_PACKS: dict[str, dict[str, dict[str, str]]] = {
         },
         "copy_device": {
             "release_date_copy": "개봉·공개 시점 반복 고지 카피",
+        },
+    },
+    "food_beverage": {
+        "sensory_demo_shot": {
+            "steam_rise_macro": "음식·국물에서 피어오르는 김 클로즈업",
+            "bite_cross_section": "한 입 베어문 단면 클로즈업 (재료 층·패티 단면 노출)",
+            "topping_drizzle_pour": "소스·시럽·토핑이 흐르거나 코팅되는 매크로",
+            "tasting_bite_closeup": "입으로 베어물기·삼키는 순간 클로즈업 (표정보다 제품-입 상호작용이 프레이밍 주체)",
+            "noodle_lift_macro": "젓가락으로 면을 들어올려 늘어뜨리는 매크로 (김 동반)",
+        },
+        "casting_direction": {
+            "toast_cheers_gesture": "잔·캔·병을 들어 올려 부딪히거나 함께 건배하는 제스처",
+        },
+        "cta_device": {
+            "direct_order_cta": "UI 오버레이 없이 전화번호·주문 유도 문구로 즉시 주문을 유도",
+        },
+    },
+    "fashion_apparel": {
+        "product_shot": {
+            "wearing_styling_shot": "모델이 제품을 착용한 채 걷거나 포즈를 취하며 실루엣·핏을 보여주는 룩북형 샷",
+        },
+    },
+    "health_medical": {
+        "casting_direction": {
+            "body_part_only": "얼굴 없이 무릎·손·발목 등 신체 부위만 등장하는 연출",
+        },
+        "trust_device": {
+            "regulatory_review_notice": "의료기기 광고 사전심의필 번호 등 법정 심의 고지",
+            "non_medical_device_disclaimer": "'의료기기 아님' 등 비의료기기 면책 고지 문구",
+        },
+        "cta_device": {
+            "booking_reservation_cta": "체험·상담 예약 유도 (매장 방문·예약 문구)",
         },
     },
     "other": {},

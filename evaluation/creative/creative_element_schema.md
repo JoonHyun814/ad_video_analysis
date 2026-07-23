@@ -31,6 +31,51 @@ ent 3편(419·420·421) + tech 7편(42·57·78·119·205·361·498) 검증 결�
 | profile | industry 단일값 | `industry_secondary`(부산업, optional) 추가 — 두 산업 팩을 함께 병합해 추출하고, 리포트는 주/부 산업 어느 쪽 필터에도 매칭(`$or`). `product_category_norm` 은 주산업 enum 1개로 유지(콤마 결합 안 함) |
 | 마이그레이션 | — | `LEGACY_TYPE_MAP`/`LEGACY_SUBTYPE_MAP`(clinical_spec_number→spec_number, cg_particle→process_cg)/`LEGACY_CATEGORY_MAP` 을 적재 시 자동 적용 — v1 분석 파일 재추출 불필요 |
 
+## v2.1 개정 요약 (2026-07-23) — 산업 팩 확장
+
+15초 세그먼트 유사도 검색으로 뽑힌 22편(뷰티 8·패션의류 4·식음료 4·헬스케어/플랫폼 6)의
+scenario_analysis 를 스키마 적합성 검토한 결과 반영.
+
+| 변경 | 내용 |
+|------|------|
+| 산업 팩 신설 | `fashion_apparel` — `product_shot.wearing_styling_shot`(착용 상태 룩북형 워킹·포즈 샷). 근거: 아디다스·EIDER 2편·디펜드 스타일 4편 전부에서 반복, 기존 `model_holding`/`in_context_placement` 로는 "착용"을 못 담음 |
+| 산업 팩 신설 | `health_medical` — `casting_direction.body_part_only`(얼굴 없이 신체 부위만 등장), `trust_device.regulatory_review_notice`/`non_medical_device_disclaimer`(의료기기 광고심의필·비의료기기 면책 고지 — 기존 `certification_note` 하나로 뭉뚱그려지던 법적 성격이 다른 고지문 분리), `cta_device.booking_reservation_cta`(체험·상담 예약 유도) |
+| beauty 팩 확장 | `sensory_demo_shot.concept_time_metaphor_cg` — 시간·순환 등 추상 개념 메타포 CG (제품 작동 원리와 무관, 기존 `process_cg` 정의로는 못 담음). 설화수 자음생/윤조 계열에서 반복 |
+| `NONE_TYPES` 확장 | `product_shot` 추가 (기존 sensory_demo_shot/trust_device/cta_device 3종 → 4종). 생활 플랫폼 서비스처럼 물리 제품이 없는 무형 서비스 광고의 "의도적 생략"을 기록하기 위함 |
+## v2.2 개정 요약 (2026-07-23) — food_beverage 팩 신설
+
+v2.1에서 보류했던 `food_beverage` 를 라면 3편·QSR(버거·치킨) 6편·맥주/소주 3편·베이커리 2편·건기식음료 3편
+(총 17편) 추가 검증 후 신설. **표본 2편 이상 확인된 항목만 반영**(fashion_apparel/health_medical 과 동일 기준).
+
+| element_type | subtype | 근거 |
+|---|---|---|
+| sensory_demo_shot | `steam_rise_macro` (김 클로즈업) | 라면 3편 + 맥주군 예비조사 1편, 총 4편 |
+| sensory_demo_shot | `bite_cross_section` (베어문 단면) | 버거 2편 |
+| sensory_demo_shot | `topping_drizzle_pour` (소스·시럽 흐름) | 치킨 2편 + 아이스크림 예비조사 1편 |
+| sensory_demo_shot | `tasting_bite_closeup` (베어물기·삼킴 클로즈업) | 베이커리 2편 |
+| sensory_demo_shot | `noodle_lift_macro` (면 들어올리기) | 라면 2편 |
+| casting_direction | `toast_cheers_gesture` (건배 제스처) | 맥주 2편 |
+| cta_device | `direct_order_cta` (전화번호·문구 즉시 주문 유도) | 치킨 2편 |
+
+**표본 부족으로 보류한 후보** (1편 근거만 확인, 향후 표본 확충 시 재검토):
+`shell_crack_reveal`(셸 파열 공개), `foam_carbonation_pour`(거품·탄산 붓기 — 맥주 3편 표본에서 오히려 미확증),
+`ingredient_drop_splash`/`broth_full_drink_demo`/`plated_dish_hero_shot`(라면), `liquid_pour_macro`/`carbonation_burst`(음료),
+`ingredient_process_claim`/`food_label_disclaimer`(trust_device), `nostalgia_flashback_open`(라면 오프닝).
+`ingredient_layer_reveal` 은 `bite_cross_section` 에 흡수.
+
+버거군과 치킨군은 sensory_demo_shot 하위 문법이 뚜렷이 갈렸으나(단면 시식 증명형 vs 소스 코팅형),
+element_type 골격은 공유하므로 별도 서브 산업 팩까지는 신설하지 않았다.
+
+`cta_device.social_challenge_cta`(SNS 챌린지·해시태그 참여 유도, QSR 1편 근거)는 특정 산업에 국한될
+근거가 없어 산업 팩이 아니라 `subtypes_common.py` 공용 사전으로 바로 승격했다.
+
+**건기식/기능성 음료의 industry 태깅**: 정관장·뉴케어·고려은단처럼 `product_category_norm=health_functional_food`
+인 `food_beverage` 광고가 의료기기 심의번호·비의료기기 면책 등 `health_medical` 특유의 trust_device 소구를
+쓰는 경우, `industry_category=food_beverage` + `industry_secondary=health_medical` 로 추출하면
+두 팩의 subtype 이 함께 병합되어 `--industry_secondary health_medical` 로 개별 지정할 수 있다
+(다트비트식 복합 산업 처리와 동일 메커니즘, `run.py::_run_extract` 참고). 이번 3편(52·264·471)은
+health_medical 특유의 규제 고지가 나타나지 않아 secondary 없이 처리했다.
+
 판정 기준(60%/30%/고립)과 컬렉션 2개 구조는 변경 없음. 아래 enum 사전은 v1(뷰티 기준) 원본이며,
 **현행 enum 의 원천은 코드**(`element_schema.py`·`subtypes_common.py`·`subtypes_packs.py`)다.
 아래 사전에서 개명된 이름은 위 매핑표로 읽는다.

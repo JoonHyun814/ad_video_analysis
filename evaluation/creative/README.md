@@ -11,8 +11,10 @@
 - **클리셰 여부는 적재 시점에 판정하지 않는다** — DB 에는 중립적 요소만 저장하고,
   판정은 리포트 시점에 세그먼트 상대 빈도로 계산한다 (코퍼스가 바뀌면 판정도 바뀐다).
 - **(v2) element_type 10종은 전 산업 공통, subtype 은 공용 사전 + 산업 팩 병합** —
-  추출 시 `category_analysis.json` 의 industry_category 로 팩(beauty/tech_electronics/entertainment)을
-  선택한다. 산업 관통 클리셰는 type/공용 subtype 레벨에서 교차 비교된다.
+  추출 시 `category_analysis.json` 의 industry_category 로 팩(beauty/tech_electronics/entertainment/
+  fashion_apparel/health_medical/food_beverage)을 선택한다. 산업 관통 클리셰는 type/공용 subtype 레벨에서 교차 비교된다.
+- **`product_shot` 도 `NONE_TYPES` 에 포함** — 무형 서비스(플랫폼 서비스 등) 광고는 제품 실물 샷이
+  없을 수 있어 `none` 레코드로 의도적 생략을 기록한다.
 - **부산업(`industry_secondary`) 지원** — 다트비트(스마트 홈다트)처럼 tech_electronics(하드웨어)+
   entertainment(대전·토너먼트) 양쪽 문법이 섞인 광고는 두 산업 팩이 함께 프롬프트에 제시되고,
   `--industry` 리포트 필터가 주산업·부산업 어느 쪽으로도 매칭한다 (`$or` 쿼리).
@@ -26,7 +28,7 @@
 | `run.py` | CLI 실행기 (`python -m evaluation.cli --mode creative`) |
 | `element_schema.py` | element_type 10종·profile/casting enum·산업별 카테고리 enum·legacy 매핑 |
 | `subtypes_common.py` | 전 산업 공용 subtype 사전 |
-| `subtypes_packs.py` | 산업별 subtype 확장 팩 (beauty / tech_electronics / entertainment) |
+| `subtypes_packs.py` | 산업별 subtype 확장 팩 (beauty / tech_electronics / entertainment / fashion_apparel / health_medical / food_beverage) |
 | `element_analysis.py` | LLM 추출 (claude) — 시나리오+산업 팩 → `creative_element_analysis.json` |
 | `element_vector_store.py` | 컬렉션 2개 upsert/조회 + v1 파일 legacy 정규화 |
 | `cliche_aggregate.py` | 세그먼트 빈도 집계 + 판정 (strong_cliche/convention/minor/cliche_breaker) |
