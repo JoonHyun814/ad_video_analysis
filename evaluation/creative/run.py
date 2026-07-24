@@ -43,6 +43,14 @@ def _video_ids(args: argparse.Namespace) -> list[str]:
     return [v.strip() for v in str(args.video_id).split(",") if v.strip()]
 
 
+# category_analysis.json(video_category 컬렉션)의 industry_category 어휘는 creative 의
+# INDUSTRY_CATEGORIES 와 이름이 다른 경우가 있어 별칭을 흡수한다 (예: fashion→fashion_apparel).
+_CATEGORY_INDUSTRY_ALIAS = {
+    "fashion": "fashion_apparel",
+    "healthcare": "health_medical",
+}
+
+
 def _industry_for(video_dir: Path) -> tuple[str, str | None]:
     """category_analysis.json 의 industry_category 로 주/부 산업을 판별한다 (없으면 other/None).
 
@@ -58,6 +66,8 @@ def _industry_for(video_dir: Path) -> tuple[str, str | None]:
     if isinstance(value, list):
         secondary = value[1] if len(value) > 1 else None
         value = value[0] if value else None
+    value = _CATEGORY_INDUSTRY_ALIAS.get(value, value)
+    secondary = _CATEGORY_INDUSTRY_ALIAS.get(secondary, secondary)
     primary = value if value in INDUSTRY_CATEGORIES else "other"
     secondary = secondary if secondary in INDUSTRY_CATEGORIES else None
     return primary, secondary

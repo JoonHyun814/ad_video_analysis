@@ -138,7 +138,7 @@ def compute_duration(scenario: dict) -> float | None:
 
 def extract_elements(scenario: dict, industry: str = "other", industry_secondary: str | None = None) -> dict:
     """시나리오에서 요소를 추출하고 industry/duration 을 코드로 보강한다."""
-    result = call_claude(build_element_prompt(scenario, industry, industry_secondary), timeout=300)
+    result = call_claude(build_element_prompt(scenario, industry, industry_secondary), timeout=600)
     if "error" in result:
         return result
     duration = compute_duration(scenario)

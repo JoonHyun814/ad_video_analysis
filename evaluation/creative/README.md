@@ -57,7 +57,7 @@ python -m evaluation.cli --mode creative [--extract] [--load_vector] [--report] 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
 | `--video_id` | — | 대상 영상 ID. 쉼표 구분 복수 허용 (`343,348,325`) |
-| `--data_dir` | `output/total` | `<data_dir>/<video_id>/scenario_analysis.json` 입력 (industry 는 같은 폴더의 `category_analysis.json` 에서 판별) |
+| `--data_dir` | `output/total` | `<data_dir>/<video_id>/scenario_analysis.json` 입력 (industry 는 같은 폴더의 `category_analysis.json` 에서 판별. `fashion`→`fashion_apparel`, `healthcare`→`health_medical` 등 어휘 차이는 `run.py::_CATEGORY_INDUSTRY_ALIAS` 로 흡수) |
 | `--extract` | off | 요소 추출 → `creative_element_analysis.json` |
 | `--industry_secondary` | — | [extract] 부산업 강제 지정 (예: `entertainment`). 배치 전체 동일 적용. 미지정 시 `category_analysis.json` 의 `industry_category` 가 리스트면 2번째 값을 자동 사용 |
 | `--load_vector` | off | 추출 결과를 컬렉션 2개에 upsert (v1 파일 자동 변환) |
