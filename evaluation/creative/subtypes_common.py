@@ -15,6 +15,7 @@ COMMON_SUBTYPES: dict[str, dict[str, str]] = {
         "action_dynamic": "빠른 움직임·스펙터클로 시작",
         "logo_motion": "로고·브랜드 락업 모션 그래픽으로 시작",
         "text_card_open": "카피 텍스트 카드 순차 등장으로 시작",
+        "mood_mystery_open": "제품·문제 제시 없이 역광 실루엣·어둠·렌즈플레어 등 분위기만으로 시작",
         "other": "위에 속하지 않는 오프닝",
     },
     "casting_direction": {
@@ -57,6 +58,8 @@ COMMON_SUBTYPES: dict[str, dict[str, str]] = {
         "capability_showcase": "처리·지원 가능 대상 나열 시연",
         "testimonial": "실사용 후기·별점·리뷰 인용",
         "award_badge": "수상·랭킹 뱃지 그래픽",
+        "ascending_number_reveal": "신뢰 수치가 낮은 값에서 높은 값으로 카운트업 애니메이션되며 상승 (수치 내용과 별개로 연출 기법 자체)",
+        "regulatory_disclosure_notice": "건기식 광고심의필·신고번호 등 산업 전반 법정 광고고지 (의료기기 한정 아님)",
         "none": "신뢰 장치 전무 (무드·세계관만으로 설득)",
         "other": "위에 속하지 않는 신뢰 장치",
     },

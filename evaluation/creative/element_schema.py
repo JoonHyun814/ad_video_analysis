@@ -9,8 +9,8 @@ from evaluation.creative.subtypes_packs import INDUSTRY_PACKS
 
 # ── profile (세그먼트 검색용 정규화 enum) ──────────────────────────────────────
 
-INDUSTRY_CATEGORIES = ("beauty", "tech_electronics", "entertainment",
-                       "fashion_apparel", "health_medical", "food_beverage", "other")
+INDUSTRY_CATEGORIES = ("beauty", "tech_electronics", "entertainment", "fashion_apparel",
+                       "health_medical", "food_beverage", "household_care", "other")
 
 PRODUCT_CATEGORY_NORM: dict[str, tuple[str, ...]] = {
     "beauty": ("skincare", "makeup", "haircare", "bodycare", "innerbeauty",
@@ -25,6 +25,7 @@ PRODUCT_CATEGORY_NORM: dict[str, tuple[str, ...]] = {
                        "home_medical_device", "other"),
     "food_beverage": ("instant_noodle", "qsr_burger_chicken", "bakery_dessert", "beverage_soft",
                       "alcohol_beer_soju", "health_functional_food", "dairy_processed_food", "other"),
+    "household_care": ("laundry_care", "cleaning_sanitizing", "air_care", "other"),
     "other": ("other",),
 }
 
@@ -43,6 +44,7 @@ PRODUCT_SUBTYPE: dict[str, tuple[str, ...]] = {
                        "home_medical_device", "other"),
     "food_beverage": ("ramen", "burger", "fried_chicken", "cake_dessert", "carbonated_drink",
                       "beer", "soju", "health_drink", "processed_meat", "other"),
+    "household_care": ("fabric_softener", "sanitizing_wipes", "laundry_detergent_booster", "other"),
     "other": ("other",),
 }
 
@@ -103,8 +105,8 @@ def subtypes_for(industry: str, secondary: str | None = None) -> dict[str, dict[
 def infer_industry(product_category_norm: str | None) -> str:
     """industry 미기재 구버전 데이터에서 product_category_norm 으로 산업을 역추정한다."""
     norm = LEGACY_CATEGORY_MAP.get(product_category_norm or "", product_category_norm)
-    for industry in ("beauty", "tech_electronics", "entertainment",
-                     "fashion_apparel", "health_medical", "food_beverage"):
+    for industry in ("beauty", "tech_electronics", "entertainment", "fashion_apparel",
+                     "health_medical", "food_beverage", "household_care"):
         if norm in PRODUCT_CATEGORY_NORM[industry] and norm != "other":
             return industry
     return "other"

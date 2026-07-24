@@ -76,6 +76,33 @@ element_type 골격은 공유하므로 별도 서브 산업 팩까지는 신설�
 (다트비트식 복합 산업 처리와 동일 메커니즘, `run.py::_run_extract` 참고). 이번 3편(52·264·471)은
 health_medical 특유의 규제 고지가 나타나지 않아 secondary 없이 처리했다.
 
+## v2.3 개정 요약 (2026-07-24) — household_care 팩 신설 + 공용/health_medical 확장
+
+세스코(방역·위생 서비스) 유사도 검색으로 뽑힌 26편(헬스케어 다수·뷰티·생활용품 4편)의 scenario_analysis
+검토 결과 반영. **표본 2편 이상 확인된 항목만 반영**(기존 산업 팩과 동일 기준).
+
+| element_type | subtype | 위치 | 근거 |
+|---|---|---|---|
+| sensory_demo_shot | `scent_diffusion_fx` (후각 대체 CG: 꽃잎·빛입자·후광) | household_care(신설) | Clorox 센티바, Downy(실내건조/화이트머스크) |
+| sensory_demo_shot | `germ_dirt_removal_demo` (세균·오염 캐릭터화 격파·소멸 시연) | household_care(신설) | Clorox 센티바, 피지 모락셀라 |
+| opening_hook | `mood_mystery_open` (제품·문제 제시 없이 분위기만으로 시작) | subtypes_common(공용) | cêpoLAB 세포랩, 세라젬 밸런스 |
+| opening_hook | `copy_driven_declaration_open` (선언적 카피 문장만으로 시작) | health_medical | O2ON, 디펜드 스타일. *근거 다소 약함(텍스트모핑 vs 보이스오버로 집행 방식 상이) — 향후 표본 확충 시 재검토* |
+| trust_device | `ascending_number_reveal` (신뢰 수치 카운트업 애니메이션) | subtypes_common(공용) | Clorox 센티바, 센트룸, 듀오락 골드 |
+| trust_device | `regulatory_disclosure_notice` (건기식 등 산업 전반 법정 광고고지, 의료기기 한정 아님) | subtypes_common(공용) | 익수공진단, GC녹십자 비맥스 (보조: Downy, 코웨이, Clorox) |
+| copy_device | `progressive_caption_buildup` (자막이 순차 누적되며 문장 완성) | health_medical | 익수공진단, 세라젬 밸런스, GC녹십자 비맥스 |
+| copy_device | `dual_claim_framing` (서로 다른 두 효능을 하나의 통합 가치로 결합) | health_medical | Will(한국야쿠르트), 엘레나, 센트룸 |
+
+**신규 산업 `household_care`**: category_analysis.json 상 이 클러스터는 `retail_ecommerce`/`other` 로
+흩어져 있는데, 두 값 모두 household_care 외 다른 산업에도 쓰이는 catch-all 이라 `run.py::_CATEGORY_INDUSTRY_ALIAS`
+에 자동 별칭을 추가하지 않았다. 추출 시 `--industry_secondary household_care` 로 수동 지정한다.
+
+**표본 부족으로 보류한 후보** (1편 근거만 확인, 향후 표본 확충 시 재검토):
+제품 소진 타임랩스(치킨), 전신 래핑 리본 FX(엘레나), RCT 임상시험 설계 상세공개(듀오락 골드),
+ESG 누적임팩트 수치(코웨이), 비예약형 전문가 리다이렉트(GC녹십자), QR코드 오버레이(드시모네 4500),
+실사+카툰필터 합성 리액션(GC녹십자), 흑백+스팟컬러 그레이딩(링티), 푸른 번개 이펙트 라이팅(GC녹십자),
+공중 도킹/조립 리빌(뷰라셀), 주술/고어체 카피(세포랩), 서브브랜드 단계적 업그레이드 릴레이 구조(GC녹십자),
+워드모프 타이틀(O2ON).
+
 판정 기준(60%/30%/고립)과 컬렉션 2개 구조는 변경 없음. 아래 enum 사전은 v1(뷰티 기준) 원본이며,
 **현행 enum 의 원천은 코드**(`element_schema.py`·`subtypes_common.py`·`subtypes_packs.py`)다.
 아래 사전에서 개명된 이름은 위 매핑표로 읽는다.

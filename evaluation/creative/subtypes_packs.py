@@ -104,6 +104,9 @@ INDUSTRY_PACKS: dict[str, dict[str, dict[str, str]]] = {
         },
     },
     "health_medical": {
+        "opening_hook": {
+            "copy_driven_declaration_open": "제품·문제 제시 없이 선언적 카피 문장(1인칭 정체성 선언 등)만으로 시작",
+        },
         "casting_direction": {
             "body_part_only": "얼굴 없이 무릎·손·발목 등 신체 부위만 등장하는 연출",
         },
@@ -111,8 +114,18 @@ INDUSTRY_PACKS: dict[str, dict[str, dict[str, str]]] = {
             "regulatory_review_notice": "의료기기 광고 사전심의필 번호 등 법정 심의 고지",
             "non_medical_device_disclaimer": "'의료기기 아님' 등 비의료기기 면책 고지 문구",
         },
+        "copy_device": {
+            "progressive_caption_buildup": "내레이션에 맞춰 자막이 한 글자·단어씩 순차 누적되며 문장이 완성되는 연출",
+            "dual_claim_framing": "서로 다른 두 효능·부위를 하나의 통합 가치로 결합 제시하는 카피 프레이밍",
+        },
         "cta_device": {
             "booking_reservation_cta": "체험·상담 예약 유도 (매장 방문·예약 문구)",
+        },
+    },
+    "household_care": {
+        "sensory_demo_shot": {
+            "scent_diffusion_fx": "후각 전달 불가를 꽃잎·빛입자·후광 등 CG로 대체 시각화",
+            "germ_dirt_removal_demo": "세균·오염이 캐릭터화되어 격파·소멸되거나 그래픽이 실시간으로 지워지며 제거 과정을 증명하는 시연",
         },
     },
     "other": {},
