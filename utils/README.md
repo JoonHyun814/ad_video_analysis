@@ -54,7 +54,7 @@ stt = load_optional_valid(video_dir / "stt.json", "stt", default=[])
 
 | 함수 | 설명 |
 |------|------|
-| `call_claude(prompt, timeout=300) -> dict` | Claude CLI 호출. stdout 파일 출력(PIPE 버퍼 방지) + 529 과부하 자동 재시도 |
+| `call_claude(prompt, timeout=300, allowed_tools=None) -> dict` | Claude CLI 호출. stdout 파일 출력(PIPE 버퍼 방지) + 529 과부하 자동 재시도. `allowed_tools=["WebSearch"]` 처럼 지정하지 않으면 헤드리스 `-p` 모드는 WebSearch 등 권한 필요 툴을 기본 거부한다 |
 | `call_codex(prompt, model=None, timeout=300) -> dict` | Codex CLI 호출. `-o` 파일 출력 방식 |
 
 ```python

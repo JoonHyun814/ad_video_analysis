@@ -112,6 +112,16 @@ def infer_industry(product_category_norm: str | None) -> str:
     return "other"
 
 
+def describe_subtype(element_type: str, subtype: str) -> str:
+    """subtype 의 짧은 정의를 공용 사전 + 전 산업 팩에서 찾는다 (리포트 서술용)."""
+    if desc := COMMON_SUBTYPES.get(element_type, {}).get(subtype):
+        return desc
+    for pack in INDUSTRY_PACKS.values():
+        if desc := pack.get(element_type, {}).get(subtype):
+            return desc
+    return subtype
+
+
 def duration_bucket(duration_sec: float) -> str:
     """근사 길이(±2초)를 표준 버킷으로 정규화한다 (14.5s 등 흡수)."""
     for base, name in ((15, "15s"), (30, "30s"), (60, "60s")):

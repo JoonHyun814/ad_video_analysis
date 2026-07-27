@@ -10,14 +10,19 @@ from utils.json_utils import parse_json
 _RETRY_DELAYS = (30, 60, 120)
 
 
-def call_claude(prompt: str, timeout: int = 300) -> dict:
+def call_claude(prompt: str, timeout: int = 300, allowed_tools: list[str] | None = None) -> dict:
     """Claude CLI로 프롬프트를 실행하고 JSON 결과를 반환한다.
 
     --output-format json 의 envelope(subtype)으로 과부하·중단을 판별해 자동 재시도한다.
     텍스트에 "529"/"Overloaded" 가 있는지만 보는 방식은 모델이 도중에 끊겨도
     감지하지 못해 잘린 JSON이 그대로 parse_failed 로 빠지는 문제가 있었다.
+
+    allowed_tools: 예) ["WebSearch"] — 헤드리스 -p 모드는 기본적으로 WebSearch 등
+    권한이 필요한 툴을 자동 거부(permission_denials)한다. 실제 웹 검색이 필요하면 지정한다.
     """
     cmd = ["claude", "-p", prompt, "--output-format", "json"]
+    if allowed_tools:
+        cmd += ["--allowedTools", *allowed_tools]
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False, mode="w", encoding="utf-8") as f:
         out_path = Path(f.name)
     result_text = ""
