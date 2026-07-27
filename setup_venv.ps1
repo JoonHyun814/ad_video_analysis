@@ -60,6 +60,7 @@ Write-Host "패키지를 설치합니다..."
 & $pip install opencv-python "scenedetect[opencv]" easyocr
 & $pip install chromadb sentence-transformers tf-keras
 & $pip install duckduckgo-search
+& $pip install beautifulsoup4 curl_cffi anthropic
 if ($LASTEXITCODE -ne 0) {
     Write-Error "패키지 설치 실패"
     exit 1

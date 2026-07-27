@@ -2,6 +2,12 @@
 
 클리셰 인지(cliché-aware) 광고 생성 파이프라인 G1~G6.
 
+> **v5_m0_m3/**: 이 파이프라인과 별개로, `shortform-pipeline-master_test` 프로젝트의
+> DR-CTV v5 MODULE 0~9(소재 인제스트→인사이트→포지셔닝→컨셉 발산→비평·킬→스크립트→
+> 레드팀→검증→콘티, M8 은 원본에도 결번)를 이식한 독립 서브패키지가 `generation/v5_m0_m3/`
+> 에 있다. G1~G6 와 서로 참조하지 않으며, M0~M3 와 M4~M9 를 각각 따로 실행할 수 있다.
+> 자세한 내용은 [`v5_m0_m3/README.md`](v5_m0_m3/README.md) 참고.
+
 광고주가 장르/타겟/USP 를 지정하면, facet 벡터 DB(`ad_target`/`ad_usp`/`ad_creative`)에서
 같은 세그먼트의 기존 광고 분포를 분석해 **클리셰를 따를지(follow)/피할지(avoid)/비틀지(subvert)** 를
 결정하고, 그 결정을 준수하는 컨셉·시나리오를 생성한다.
