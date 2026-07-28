@@ -10,7 +10,8 @@ from utils.json_utils import parse_json
 _RETRY_DELAYS = (30, 60, 120)
 
 
-def call_claude(prompt: str, timeout: int = 300, allowed_tools: list[str] | None = None) -> dict:
+def call_claude(prompt: str, timeout: int = 300, allowed_tools: list[str] | None = None,
+                mcp_config: str | None = None) -> dict:
     """Claude CLI로 프롬프트를 실행하고 JSON 결과를 반환한다.
 
     --output-format json 의 envelope(subtype)으로 과부하·중단을 판별해 자동 재시도한다.
@@ -19,8 +20,14 @@ def call_claude(prompt: str, timeout: int = 300, allowed_tools: list[str] | None
 
     allowed_tools: 예) ["WebSearch"] — 헤드리스 -p 모드는 기본적으로 WebSearch 등
     권한이 필요한 툴을 자동 거부(permission_denials)한다. 실제 웹 검색이 필요하면 지정한다.
+    mcp_config: MCP 서버 설정 파일 경로(예: 프로젝트 루트의 `.mcp.json`). 헤드리스 -p 모드는
+    프로젝트 `.mcp.json` 을 암묵적으로 신뢰하지 않을 수 있어, MCP 도구를 쓰려면 이 인자로
+    명시적으로 지정해야 한다. allowed_tools 에 그 서버의 도구명(`mcp__<server>__<tool>`)도
+    함께 넣어야 실제로 호출을 허용한다.
     """
     cmd = ["claude", "-p", prompt, "--output-format", "json"]
+    if mcp_config:
+        cmd += ["--mcp-config", mcp_config]
     if allowed_tools:
         cmd += ["--allowedTools", *allowed_tools]
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False, mode="w", encoding="utf-8") as f:

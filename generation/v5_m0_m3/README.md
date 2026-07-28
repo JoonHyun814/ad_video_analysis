@@ -82,7 +82,7 @@ GATE B/C 는 이 요청 범위 밖이라 기존 방침 그대로다:
 
 | 파일 | 역할 |
 |------|------|
-| `cli.py` | M0~M3 진입점 (`--url` `--llm_backend`) |
+| `cli.py` | M0~M3 진입점 (`--url` `--llm_backend` `--retrieval`, 켜면 `<slug>_retrieval.jsonl` 사용 기록도 저장) |
 | `cli_m4_m9.py` | M4~M9 진입점 (`--input <m0_m3.json>` `--style` `--llm_backend`) |
 | `pipeline.py` | `run_m0_m3()` / `run_m4_m9()` 오케스트레이션 |
 | `module0_ingest.py` | MODULE 0 — 소재 인제스트(코드) |
@@ -98,7 +98,7 @@ GATE B/C 는 이 요청 범위 밖이라 기존 방침 그대로다:
 | `md_parser.py` | `prompts/common.md`·`module{1,2,3,4,5,6,7,9}.md` 로더 |
 | `modules_runner.py` | MODULE 1~9 LLM 러너(핸드오프 조립·게이트 판정·M9 타임코드 보정·재시도) |
 | `video_style.py` | M9 촬영 포맷 프리셋(cinematic/ugc/demo/asmr 등) |
-| `llm_adapter.py` | LLM 텍스트 백엔드 스위치(claude -p CLI / Anthropic API) + OpenAI Vision 어댑터 |
+| `llm_adapter.py` | LLM 텍스트 백엔드 스위치(claude -p CLI / Anthropic API) + OpenAI Vision 어댑터 + `--retrieval` 도구 연결(`evaluation/creative` 참조 광고 검색, MCP 또는 Anthropic tool_use) |
 | `schemas.py` | `ProductInfoCard` 등 pydantic 모델 |
 | `brand_research_prompts.py` | 브랜드 리서치 system/user 프롬프트 |
 | `prompts/` | `common.md`·`module1~7,9.md` (원본 그대로, M8 없음) |
@@ -109,7 +109,7 @@ GATE B/C 는 이 요청 범위 밖이라 기존 방침 그대로다:
 ```bash
 # 1) M0~M3
 python -m generation.v5_m0_m3.cli --url <제품 상세페이지 URL> [--producttitle "제품명"] \
-    [--llm_backend cli|api] [--output_dir output/v5_m0_m3]
+    [--llm_backend cli|api] [--retrieval] [--output_dir output/v5_m0_m3]
 
 # 2) M4~M9 (1의 결과를 입력으로)
 python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.json \
@@ -126,8 +126,36 @@ python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.jso
     다른 CLI 헬퍼 기본값(300초)의 **2배(600초)** 로 늘렸다(`llm_adapter._CLI_TIMEOUT_MULTIPLIER`).
   - `api`: Anthropic Messages API 직접 호출(`env/api.env` 의 `ANTHROPIC_API_KEY` 필요, 모델은
     `llm_adapter._API_DEFAULT_MODEL` 고정 — 원본의 tier 별 자동 모델 라우팅은 이식하지 않았다).
+    응답 상한은 `llm_adapter._API_MAX_TOKENS`(12000) — M3 는 컨셉 5~8개 × 필드 10개+(`referencedvideoid`/
+    `referencedelement` 포함)라 검색 도구까지 쓰면 응답이 길어져, 이보다 낮으면 마지막 컨셉이
+    `max_tokens` 로 잘릴 수 있다(실측 확인됨).
+- `--retrieval`(cli.py 전용, M0~M3 만): M1~M3 시스템 프롬프트에 `evaluation/creative` 크리에이티브
+  벡터 DB(기존 광고 81편·요소 1592건)를 검색하는 도구(`search_reference_ads`/`list_segment_columns`,
+  `creative-retrieval` MCP 서버)를 붙인다. 어떤 세그먼트 컬럼/값으로 몇 건(top_k)을 검색할지는
+  LLM 이 그때그때 판단한다(강제 호출 아님). 두 `--llm_backend` 모두 지원하지만 전송 방식이
+  다르다 — `cli`: `claude -p --mcp-config .mcp.json`, `api`: Anthropic 네이티브 tool_use 루프
+  (`llm_adapter._chat_json_api_with_tools`). 첫 호출은 임베딩 모델(bge-m3) 콜드스타트로 15~20초
+  안팎 걸리지만 이후 호출은 초 단위로 빠르다(`reference_retrieval.py` 가 프로세스당
+  `chromadb.PersistentClient` 를 캐싱 — 예전엔 검색 1건마다 재오픈해서 `claude -p` 경유 호출이
+  30분 넘게 멈추는 버그가 있었고, 매칭 영상별로 N번 나눠 하던 크리에이티브 요소 조회도 단일
+  `$in` 쿼리로 합쳤다). 자세한 도구 스펙은
+  [`../../evaluation/creative/README.md`](../../evaluation/creative/README.md) 참고.
+  M3 는 M1/M2 와 달리 "참고만 하고 베끼지 마라"에 그치지 않고, 검색 도구를 호출했다면 발산한
+  컨셉 중 최소 1개에는 검색 결과 `notable_elements`(opening_hook/casting_direction/
+  narrative_pattern/sensory_demo_shot) 중 구체적 연출 기법 하나를 변형해 반영하라는 안내를
+  추가로 받는다(`modules_runner._run_module_core` 의 `n == 3` 분기). 반영 여부는 M3 출력
+  `concepts[].referencedvideoid`/`referencedelement` 로 추적 가능하다 — 실제로 반영했으면
+  참조한 `video_id`와 (원본 기법 → 변형) 1줄, 반영하지 않았으면 둘 다 빈 값이다(지어내는 것
+  금지). 검증 결과: 강제 재검색 테스트에서 이 필드가 가리킨 `video_id`의 실제 DB 내용을
+  대조해보면 인용이 정확했다(할루시네이션 아님).
 - 결과: `<output_dir>/<slug>_m0_m3.json`(`{"module0","m1","m2","m3"}`), `<slug>_m4_m9.json`
   (`{"m3"(검증마커 반영)","m4"~"m9","gates":{"a","b","c"}}`).
+- `--retrieval` 사용 시 `<output_dir>/<slug>_retrieval.jsonl` 에 검색 도구 사용 기록이 남는다
+  (도구가 한 번도 호출되지 않았으면 파일 자체가 생기지 않는다 — "검색 안 씀"의 정상적인 표시).
+  한 줄 = 호출 1건: `{"timestamp","stage"(예: "M1"·"M2"·"M3"·"M0:material_analysis"),"tool",`
+  `"arguments","result_count","video_ids","segment_filter","error"}`. `--llm_backend cli`/`api`
+  모두 같은 형식으로 기록된다(둘 다 `evaluation.creative.reference_retrieval._log_call` 을 거침 —
+  cli 는 MCP 서브프로세스가, api 는 같은 프로세스가 직접 씀).
 - M0 가 제품을 특정하지 못하거나, GATE A reject/GATE B block 이거나, 어느 모듈이 재시도 후에도
   빈 응답이면 `error` 키가 채워지고 그 이후 단계는 실행되지 않는다.
 
@@ -142,7 +170,18 @@ python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.jso
    `--llm_backend api` 사용 시: `env/api.env` 에 `ANTHROPIC_API_KEY` 입력(이미 포함됨).
 3. `env/v5_category_db.env` — 소스 RDS `category` 테이블 접속 정보(이미 포함됨, **읽기 전용
    SELECT만** 실행한다). 이 프로젝트 자체 DB(`env/db.env`, `ad_video_label`)와는 무관하다.
-4. 신규 패키지: `beautifulsoup4`, `curl_cffi`, `anthropic` (`setup_venv.ps1`/`Dockerfile` 에 추가됨).
+4. `--retrieval` 사용 시: `output/vector_db` 에 `evaluation.creative` 벡터 DB가 이미 적재되어
+   있어야 한다(`python -m evaluation.cli --mode creative --load_vector ...`). 저장소 루트의
+   `.mcp.json` 이 `creative-retrieval` MCP 서버를 등록한다(커밋됨, 공유).
+   **`--llm_backend cli` 와 함께 쓸 때만** 추가로 승인이 필요하다 — 이 저장소는 `.gitignore` 로
+   `.claude/`(개인 로컬 상태)를 전부 제외하므로, `claude -p` 헤드리스 호출이 "Pending approval"
+   에 막히지 않으려면 각자 로컬에 `.claude/settings.json` 을 만들어 아래 내용을 넣거나
+   (`{"enabledMcpjsonServers": ["creative-retrieval"]}`), 그 프로젝트 디렉터리에서 `claude` 를
+   한 번 대화형으로 실행해 서버를 승인해야 한다(1회만). **`--llm_backend api` 는 이 승인 절차가
+   전혀 필요 없다** — Claude Code 의 MCP 신뢰 체계를 타지 않는 Anthropic 네이티브 tool_use 라서
+   설치 직후 바로 동작한다. 승인 절차를 신경 쓰고 싶지 않으면 `--retrieval` 은 `--llm_backend api`
+   조합을 권장한다.
+5. 신규 패키지: `beautifulsoup4`, `curl_cffi`, `anthropic`, `mcp[cli]` (`setup_venv.ps1`/`Dockerfile` 에 추가됨).
 
 ## 알려진 제약
 
@@ -161,3 +200,6 @@ python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.jso
 - M9 는 원본처럼 씬 타임코드·마이크로샷 보정, 엔딩 팩샷 예약(13~15초), 사용 완결 컷/컷 대비
   계약 위반 시 1회 재생성을 코드로 수행한다(하드 실패 없음 — 재시도 후에도 위반이면 경고만
   남기고 통과).
+- `--retrieval` 은 M4~M9(`cli_m4_m9.py`)에는 없다 — 사용자 요청 범위가 M0~M3 라 그쪽에만
+  연결했다. 도구를 쓸지·안 쓸지, 몇 건을 볼지는 매 LLM 호출마다 모델이 새로 판단한다(이전
+  호출에서 검색한 결과를 "기억"해 재사용하지 않음 — M1/M2/M3 가 각자 필요하면 각자 검색한다).

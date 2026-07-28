@@ -2,7 +2,7 @@
 
 사용법:
     python -m generation.v5_m0_m3.cli --url <제품 상세페이지 URL> [--producttitle ...] \\
-        [--llm_backend cli|api] [--output_dir ...]
+        [--llm_backend cli|api] [--retrieval] [--output_dir ...]
 """
 from __future__ import annotations
 
@@ -27,6 +27,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--llm_backend", default="cli", choices=("cli", "api"),
                    help="텍스트 LLM 호출 방식 — cli: claude -p CLI(기본, API 키 불필요) | "
                         "api: Anthropic API 직접 호출(env/api.env ANTHROPIC_API_KEY 필요)")
+    p.add_argument("--retrieval", action="store_true",
+                   help="M1~M3 에서 evaluation/creative 크리에이티브 벡터 DB의 기존 광고를 "
+                        "검색하는 도구(creative-retrieval MCP)를 LLM 에 제공한다 — 어떤 "
+                        "세그먼트로 몇 건을 검색할지는 LLM 이 판단한다(강제 아님)")
     p.add_argument("--output_dir", type=Path, default=Path("output/v5_m0_m3"), help="결과 저장 경로")
     return p
 
@@ -34,14 +38,23 @@ def _build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = _build_parser().parse_args()
     llm_adapter.set_backend(args.llm_backend)
+    llm_adapter.set_retrieval(args.retrieval)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     label = _slug(args.producttitle or args.url)
+
+    retrieval_log_path = None
+    if args.retrieval:
+        retrieval_log_path = args.output_dir / f"{label}_retrieval.jsonl"
+        llm_adapter.set_retrieval_log(retrieval_log_path)
 
     result = asyncio.run(run_m0_m3(args.url, producttitle=args.producttitle, label=label))
 
     out_path = args.output_dir / f"{label}_m0_m3.json"
     out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"  저장: {out_path}")
+    if retrieval_log_path:
+        print(f"  검색 도구 사용 기록: {retrieval_log_path}"
+              f"{' (사용 없음)' if not retrieval_log_path.exists() else ''}")
 
     if result.get("error"):
         raise SystemExit(f"[오류] {result['error']}")

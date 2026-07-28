@@ -89,7 +89,8 @@ async def extract_with_llm(card: ProductInfoCard) -> USPResult:
 
     try:
         data = await asyncio.to_thread(
-            llm_adapter.chat_json, system_prompt, json.dumps(payload, ensure_ascii=False))
+            llm_adapter.chat_json, system_prompt, json.dumps(payload, ensure_ascii=False),
+            stage="M0:usp_extractor")
     except Exception as e:
         logger.warning(f"LLM USP extract failed, fallback to adheadline: {e}")
         return USPResult(

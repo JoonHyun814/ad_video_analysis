@@ -39,7 +39,7 @@ async def analyze_material(system: str, user_content) -> dict:
             str(block.get("text", "")) for block in user_content
             if isinstance(block, dict) and block.get("type") == "text"
         )
-    return await asyncio.to_thread(llm_adapter.chat_json, system, user_text)
+    return await asyncio.to_thread(llm_adapter.chat_json, system, user_text, stage="M0:material_analysis")
 
 
 # 하드코딩 fallback — 원본 DB `material_analysis_system` 프롬프트의 기본값(원본 그대로).

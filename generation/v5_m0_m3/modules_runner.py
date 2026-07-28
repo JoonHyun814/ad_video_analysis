@@ -14,6 +14,10 @@
   - messages 배열(대화 히스토리) 대신 system+user 두 문자열만 다룬다 — "빈 골격 응답 1회
     재생성"/"M9 계약 위반 1회 재생성" 재시도는 assistant 턴을 남기는 대신 user 텍스트에
     재시도 지시를 이어붙인다.
+
+[신규] --retrieval 옵션(llm_adapter.set_retrieval)이 켜져 있으면 M1~M3 시스템 프롬프트에
+evaluation/creative 크리에이티브 벡터 DB 검색 도구(search_reference_ads/list_segment_columns)
+안내를 덧붙인다 — 실제 도구 연결은 llm_adapter.py 가 백엔드별로 담당한다.
 """
 from __future__ import annotations
 
@@ -48,7 +52,8 @@ _OVERRIDE_BASE: dict[int, str] = {
        '"topcompetitor":"(현상유지 여부 포함)","category":"리더추격|재정의|새카테고리","cepcoverage":"시장 경계 내 상황 커버리지 방침",'
        '"demandspace":"수요맥락","uniqueattributes":["차별속성"]}',
     3: '{"seeds":["전략렌즈 씨앗"],"fixedwhy":"M2 valueproposition 에서 옮긴 공통 why 1줄",'
-       '"concepts":[{"name":"","lens":"","claimtag":"C0|C1|C2","compliancenote":"효능·비방 사전경고 1줄(카드 확인할 점)","bigidea":"","provingwhy":"고정 why 증명 1문장(결과 표현)","job":"","differentiation":"","risk":""}]}',
+       '"concepts":[{"name":"","lens":"","claimtag":"C0|C1|C2","compliancenote":"효능·비방 사전경고 1줄(카드 확인할 점)","bigidea":"","provingwhy":"고정 why 증명 1문장(결과 표현)","job":"","differentiation":"","risk":"",'
+       '"referencedvideoid":"검색 결과에서 실제로 기법을 차용했다면 그 video_id(정수), 아니면 null","referencedelement":"차용한 구체적 연출 기법과 이 컨셉에서 어떻게 변형했는지 1줄(원본 기법 → 변형). 차용 없으면 빈 문자열"}]}',
     4: '{"verdict":"go|reject","scores":[{"concept":"","comment":"[판단·근거]"}],'
        '"killed":[{"concept":"","reason":"킬 사유"}],'
        '"shortlist":[{"concept":"","onesentence":"","assumptions":[],"traps":[],"recommended":true}],'
@@ -772,6 +777,37 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
                 "설계하고, 자체검증의 페이싱 항목도 이 기준으로 대체하라. "
                 "shots 를 쓰는 경우 size·angle 필드 기입 의무는 그대로 유지된다.")
 
+    # [--retrieval] 크리에이티브 벡터 DB 참조 광고 검색 도구 안내 — 도구 자체는 백엔드가 붙인다
+    # (cli: claude -p --mcp-config, api: llm_adapter 의 Anthropic tool_use 루프). 여기서는
+    # M1~M3(전략·컨셉 모듈)에만 "쓸 수 있다"는 판단 기준을 짧게 얹는다 — 언제·왜 쓸지는
+    # LLM 이 판단(강제 아님, 근거 없는 프롬프트 노출을 피하려 최소한으로만 안내).
+    if n in (1, 2, 3) and llm_adapter.get_retrieval():
+        system += (
+            "\n\n---\n\n[참조 광고 검색 도구 사용 가능]\n"
+            "search_reference_ads / list_segment_columns 도구가 제공되면, 이 제품과 유사한 "
+            "산업·타깃·USP·포지셔닝의 기존 광고가 어떤 인사이트·소구·서사를 썼는지 참고할 때 "
+            "사용해도 된다. 몇 건을 검색할지(top_k)와 어떤 세그먼트 컬럼/값으로 좁힐지는 "
+            "네가 이 제품 맥락에 맞게 직접 판단하라."
+        )
+        if n == 3:
+            system += (
+                "\n검색 도구를 호출했다면, 그대로 베끼는 게 아니라 발산한 컨셉 중 "
+                "**최소 1개에는 검색 결과 notable_elements(opening_hook/casting_direction/"
+                "narrative_pattern/sensory_demo_shot) 중 구체적 연출 기법 하나를 이 제품 "
+                "맥락에 맞게 변형해 실제로 반영**하라 — '참고한 느낌'만 주지 말고, 어떤 "
+                "video_id의 어떤 기법을 어떻게 바꿔 썼는지 알 수 있어야 한다. 그렇게 반영한 "
+                "컨셉의 referencedvideoid/referencedelement 필드에 그 video_id와 "
+                "(원본 기법 → 이 컨셉에서의 변형)을 1줄로 적어라. 검색은 했지만 특정 기법을 "
+                "구체적으로 반영한 컨셉이 없다면 두 필드를 비워 두라(반영한 척 지어내지 말 "
+                "것). 검색 도구를 아예 호출하지 않았다면 모든 컨셉의 두 필드를 비워 둔다."
+            )
+        else:
+            system += (
+                " 검색 결과는 참고 자료일 뿐이다 — 그대로 베끼지 말고, 시장에 이미 있는 "
+                "인사이트와 겹치지 않는지 점검하는 용도로 활용하라."
+            )
+        system += " 반드시 호출할 필요는 없다."
+
     try:
         cps = []
         for c in (module0.get("customprompts") or []):
@@ -794,7 +830,7 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
 
     for attempt in (1, 2):
         try:
-            out = llm_adapter.chat_json(system, user)
+            out = llm_adapter.chat_json(system, user, stage=f"M{n}")
             if isinstance(out, dict):
                 out = _backfill_legacy(n, out)
             if isinstance(out, dict) and n == 5:
