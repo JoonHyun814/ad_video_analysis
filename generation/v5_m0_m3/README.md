@@ -31,7 +31,7 @@ python -m generation.v5_m0_m3.cli_m4_m9  --input <slug>_m0_m3.json  →  <slug>_
 | M3 | 앵커링 방지 컨셉 발산(빅아이디어 5~8개) | `concepts[]` | — |
 | M4 | 독립 비평가가 약한 컨셉 킬 + 최종 1개 선정 | `verdict`·`killed[]`·`shortlist` | **GATE A**: shortlist 비면 reject(기록만, M5 는 계속 진행 — 아래 참고) |
 | M5 | Schwartz 인지단계 + ABCD + Hook/Body/CTA 스크립트 | `script[]`·`hook`·`engine`·`cta` | — |
-| M6 | 레드팀 프리모템(과거형 부검) | `failuremodes[]`·`killswitch` | **GATE B**: unresolvedcritical 있으면 block |
+| M6 | 레드팀 프리모템(과거형 부검) | `failuremodes[]`·`killswitch` | **GATE B**: unresolvedcritical 있으면 block(기록만, M7 은 계속 진행 — 아래 참고) |
 | M7 | 합성 오디언스 저비용 검증 | `personas`·`verdict` | **GATE C**: verdict 기록만(아래 참고) |
 | M9 | 3막 구조 스토리보드 콘티(씬·마이크로샷·타임코드) | `scenes[]`·`shots[]`·`usagecutscene` | — |
 
@@ -46,20 +46,26 @@ M10(비주얼 디렉터)·M11(통합 스토리보드)·M12(영상 생성)는 이
 - `studio_orchestrator.py`(`run_full`, "풀런"): 반송 루프가 끝난 뒤 **ga 값을 검사하는 코드
   자체가 없다** — reject 여도 그냥 M5 로 진행해버린다(의도된 설계라기보단 가드 누락으로 보임).
 
-이 파이프라인은 **사용자 요청에 따라 `run_full` 쪽(reject 여도 통과)을 재현**했다 — GATE A
-reject 는 `gates.a = "reject"` 로 기록만 하고 M5 로 계속 진행한다(`pipeline.py` `run_m4_m9()`
-안의 주석 참고). 이때 M5 는 원본과 동일하게 `((h.get(4,{}) or {}).get("selected") or [{}])[0]`
-로 `selectedconcept` 를 뽑는데, `selected` 가 정말 비어 있으면 빈 dict `{}` 가 그대로 M5 입력이
-되어 "선정된 컨셉 없이" 스크립트가 만들어질 수 있다(원본과 동일한 결과 — 버그를 고치지 않고
-그대로 이식했다).
+GATE B는 원본 두 경로 모두 같은 패턴이다 — bounce 루프(`MAX_B_BOUNCES`)가 끝난 뒤 **어느
+경로도 `gb == "block"` 을 검사해 멈추는 코드가 없다**(`studio_orchestrator.py` L229-255,
+`orchestrator.py` L198-227). `start_run` 은 `warnings.append(...)` 로 경고만 남기고, `run_full`
+은 그마저도 없이 바로 M7 로 넘어간다. 다만 `start_run` 은 이후 GATE C 앞에서 항상
+`status=awaitingreview` 로 정지해 인간이 `resume_run()` 을 호출해야 M9~M11 이 진행되는 반면,
+`run_full` 은 그런 정지 지점 자체가 없어 M6 가 완화 불가 결함을 지적해도 인간 확인 없이
+`done` 까지 한 번에 실행된다.
 
-GATE B/C 는 이 요청 범위 밖이라 기존 방침 그대로다:
+이 파이프라인은 **사용자 요청에 따라 `run_full` 쪽(GATE A reject·GATE B block 모두 검사 없이
+통과)을 재현**했다 — 둘 다 `gates.a`/`gates.b` 값으로 기록만 하고 다음 단계로 계속 진행한다
+(`pipeline.py` `run_m4_m9()` 안의 주석 참고). GATE A reject 시 M5 는 원본과 동일하게
+`((h.get(4,{}) or {}).get("selected") or [{}])[0]` 로 `selectedconcept` 를 뽑는데, `selected` 가
+정말 비어 있으면 빈 dict `{}` 가 그대로 M5 입력이 되어 "선정된 컨셉 없이" 스크립트가 만들어질
+수 있다(원본과 동일한 결과 — 버그를 고치지 않고 그대로 이식했다). GATE B block 이 나와도
+M6~M9 는 그대로 실행되고, `m6.unresolvedcritical` 을 사후에 직접 확인해 필요하면 사용자가
+수동으로 재시도해야 한다 — 원본의 owner 모듈 자동 재실행 루프(M3 재발산 등)는 그 반송
+대상이 이미 끝난 별개 실행 결과일 수 있어 이식하지 않았다.
 
-- **GATE B block** → 즉시 중단(M7/M9 진행 안 함), `unresolvedcritical` 을 확인해 필요한
-  단계부터 수동으로 재시도해야 한다. 원본의 owner 모듈 자동 재실행 루프는 그 반송 대상(M1~M5
-  중 일부)이 이미 끝난 별개 실행 결과일 수 있어 이식하지 않았다.
-- **GATE C(M7)** → 이 프로젝트엔 원본의 "인간 검수 대기(awaitingreview)" UI가 없다. verdict 를
-  기록만 하고 항상 M9 로 계속 진행한다(소스의 `run_full` 자동진행 모드와 동일한 정책).
+**GATE C(M7)** → 이 프로젝트엔 원본의 "인간 검수 대기(awaitingreview)" UI가 없다. verdict 를
+기록만 하고 항상 M9 로 계속 진행한다(소스의 `run_full` 자동진행 모드와 동일한 정책).
 
 ## 소스 대비 변경 사항 (사용자 승인/설계 결정)
 
@@ -71,7 +77,7 @@ GATE B/C 는 이 요청 범위 밖이라 기존 방침 그대로다:
 | 실행 상태 저장 | `store.py`(MySQL `v5runs`/`v5moduleoutputs`) | 없음 — 파이프라인 결과를 JSON 파일로만 저장(`output/v5_m0_m3/`) |
 | 소재 이미지 참조 생성 | `image_gen.ensure_product_references`(S3 업로드) | 제외 — M10~M12(비주얼·영상 생성) 전용이라 범위 밖 |
 | persona_v2 보강 | `gpt_json.gpt_chat_json`(소스 DB `prompts` 테이블, 코드 폴백 없음) | 제외 — 사용자 승인 DB 범위가 카테고리 테이블(읽기 전용)뿐이라 이식 불가 |
-| GATE A reject 시 정지 | `orchestrator.py`(classic) 는 정지, `studio_orchestrator.run_full()` 은 검사 없이 통과 | `run_full` 쪽(통과)을 재현 — 위 "GATE 처리 방식" 참고 |
+| GATE A reject·GATE B block 시 정지 | GATE A: `orchestrator.py`(classic) 는 정지, `run_full()` 은 검사 없이 통과. GATE B: 두 경로 모두 bounce 루프 이후 검사 없이 통과(경고만 다름) | `run_full` 쪽(둘 다 통과)을 재현 — 위 "GATE 처리 방식" 참고 |
 | GATE A/B 자동 반송 루프(M3 재발산/owner 모듈 재실행) | `orchestrator.py`/`studio_orchestrator.py` 최대 2회 | 제외 — 반송 대상(M1~M3)이 별개 파이프라인 실행 결과라 이 함수 안에서 되돌릴 수 없음 |
 | 게이트(M4/M6/M7) 상위 모델 opt-in | `_gate_model`(basicvalue 토글로 gpt-5.5 등 스위칭) | 제외 — claude -p 는 모델 스위칭 개념이 없음 |
 | M5 설득엔진 반-수렴 | `_recent_engines`(소스 DB `v5moduleoutputs` 최근 run 조회) | 제외 — 이 프로젝트엔 run 이력 테이블이 없고 단발 CLI 라 "최근 run" 개념이 없음 |
@@ -83,7 +89,9 @@ GATE B/C 는 이 요청 범위 밖이라 기존 방침 그대로다:
 | 파일 | 역할 |
 |------|------|
 | `cli.py` | M0~M3 진입점 (`--url` `--llm_backend` `--retrieval`, 켜면 `<slug>_retrieval.jsonl` 사용 기록도 저장) |
-| `cli_m4_m9.py` | M4~M9 진입점 (`--input <m0_m3.json>` `--style` `--llm_backend`) |
+| `cli_m4_m9.py` | M4~M9 진입점 (`--input <m0_m3.json>` `--style` `--llm_backend` `--retrieval`, 켜면 `<slug>_m4_m9_retrieval.jsonl` 사용 기록도 저장) |
+| `ab_test_retrieval.py` | M0~M2 고정 후 M3만 retrieval 끄고/켜고 두 번 실행해 비교(`run_ab()`) |
+| `ab_test_retrieval_m5_m9.py` | M0~M4 고정(M4는 1회만 실행) 후 M5~M9만 retrieval 끄고/켜고 두 번 실행해 비교 — M4 자체의 실행 변동을 배제하고 M5~M9 구간의 retrieval 효과만 분리해서 보고 싶을 때 사용 |
 | `pipeline.py` | `run_m0_m3()` / `run_m4_m9()` 오케스트레이션 |
 | `module0_ingest.py` | MODULE 0 — 소재 인제스트(코드) |
 | `v1_bridge.py` | URL 크롤(curl_cffi→curl→httpx) + 소재 분석 LLM 호출 |
@@ -113,7 +121,7 @@ python -m generation.v5_m0_m3.cli --url <제품 상세페이지 URL> [--productt
 
 # 2) M4~M9 (1의 결과를 입력으로)
 python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.json \
-    [--style cinematic] [--llm_backend cli|api]
+    [--style cinematic] [--llm_backend cli|api] [--retrieval]
 ```
 
 - `--producttitle`: 크롤이 봇 차단되면 web_search 복구 단계의 1순위 검색 단서로 쓰인다.
@@ -161,16 +169,30 @@ python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.jso
   값이다(지어내는 것 금지, 반영한 컨셉 수보다 정확성이 우선). 검증 결과: 강제 재검색 테스트에서
   포괄적 검색 1회로는 7개 컨셉 중 1개만 인용을 남겼지만, 렌즈별 타겟 검색으로 바꾸자 5개로
   늘었다 — 인용된 `video_id`들의 실제 DB 내용을 대조해보면 전부 정확했다(할루시네이션 아님).
+- `--retrieval`(cli_m4_m9.py 전용, M4~M9): M0~M3 와 별도로 M4~M9 단계에도 같은 검색 도구를
+  붙일 수 있다. 모듈별 취급이 다르다(`modules_runner._run_module_core` 의 `n in (1,2,3,4,5,6,7,9)`
+  분기):
+  - **M5(스크립트)·M9(콘티)**: M3 처럼 반영을 명시적으로 요구한다 — 훅·카피·씬 연출 기법을
+    검색해 반영했다면 M5 는 top-level `referencedvideoid`/`referencedelement`, M9 는 씬별
+    `scenes[].referencedvideoid`/`referencedelement` 에 근거를 남긴다.
+  - **M4(비평)·M6(레드팀)·M7(합성검증)**: M1/M2 와 동일하게 advisory 로만 열어둔다(출력
+    스키마에 provenance 필드 없음) — 이 모듈들은 컨셉 생성이 아니라 평가·리스크 진단이 목적이라
+    검색이 구조적으로 덜 유용할 수 있지만, 강제로 막지 않고 실사용 여부를 로그로 관찰한다.
+  - 로그 파일은 M0~M3 와 분리된 `<output_dir>/<slug>_m4_m9_retrieval.jsonl` 에 남는다(같은
+    `stage` 태그 형식, 예: `"M4"`·`"M5"`·`"M9"`).
 - 결과: `<output_dir>/<slug>_m0_m3.json`(`{"module0","m1","m2","m3"}`), `<slug>_m4_m9.json`
   (`{"m3"(검증마커 반영)","m4"~"m9","gates":{"a","b","c"}}`).
-- `--retrieval` 사용 시 `<output_dir>/<slug>_retrieval.jsonl` 에 검색 도구 사용 기록이 남는다
-  (도구가 한 번도 호출되지 않았으면 파일 자체가 생기지 않는다 — "검색 안 씀"의 정상적인 표시).
-  한 줄 = 호출 1건: `{"timestamp","stage"(예: "M1"·"M2"·"M3"·"M0:material_analysis"),"tool",`
-  `"arguments","result_count","video_ids","segment_filter","error"}`. `--llm_backend cli`/`api`
-  모두 같은 형식으로 기록된다(둘 다 `evaluation.creative.reference_retrieval._log_call` 을 거침 —
-  cli 는 MCP 서브프로세스가, api 는 같은 프로세스가 직접 씀).
-- M0 가 제품을 특정하지 못하거나, GATE A reject/GATE B block 이거나, 어느 모듈이 재시도 후에도
-  빈 응답이면 `error` 키가 채워지고 그 이후 단계는 실행되지 않는다.
+- `--retrieval` 사용 시 검색 도구 사용 기록이 남는다(M0~M3: `<slug>_retrieval.jsonl`, M4~M9:
+  `<slug>_m4_m9_retrieval.jsonl` — 도구가 한 번도 호출되지 않았으면 파일 자체가 생기지 않는다,
+  "검색 안 씀"의 정상적인 표시). 한 줄 = 호출 1건: `{"timestamp","stage"(예: "M1"·"M2"·"M3"·
+  "M4"·"M5"·"M9"·"M0:material_analysis"),"tool","arguments","result_count","video_ids",`
+  `"segment_filter","error"}`. `--llm_backend cli`/`api` 모두 같은 형식으로 기록된다(둘 다
+  `evaluation.creative.reference_retrieval._log_call` 을 거침 — cli 는 MCP 서브프로세스가, api
+  는 같은 프로세스가 직접 씀).
+- M0 가 제품을 특정하지 못했거나 어느 모듈이 재시도 후에도 빈 응답이면 `error` 키가 채워지고
+  그 이후 단계는 실행되지 않는다. GATE A reject·GATE B block 은 더 이상 `error` 를 채우지
+  않는다 — 소스 `run_full()` 과 동일하게 기록만 하고 다음 단계로 계속 진행한다(위 "GATE
+  처리 방식" 참고).
 
 ## 사전 준비
 
@@ -213,6 +235,7 @@ python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.jso
 - M9 는 원본처럼 씬 타임코드·마이크로샷 보정, 엔딩 팩샷 예약(13~15초), 사용 완결 컷/컷 대비
   계약 위반 시 1회 재생성을 코드로 수행한다(하드 실패 없음 — 재시도 후에도 위반이면 경고만
   남기고 통과).
-- `--retrieval` 은 M4~M9(`cli_m4_m9.py`)에는 없다 — 사용자 요청 범위가 M0~M3 라 그쪽에만
-  연결했다. 도구를 쓸지·안 쓸지, 몇 건을 볼지는 매 LLM 호출마다 모델이 새로 판단한다(이전
-  호출에서 검색한 결과를 "기억"해 재사용하지 않음 — M1/M2/M3 가 각자 필요하면 각자 검색한다).
+- `--retrieval` 은 `cli.py`(M0~M3)와 `cli_m4_m9.py`(M4~M9) 양쪽에 독립적으로 붙는다 — 한쪽만
+  켜고 다른 쪽은 꺼도 된다(예: M3 는 검색 없이, M4~M9 만 검색 사용). 도구를 쓸지·안 쓸지, 몇
+  건을 볼지는 매 LLM 호출마다 모델이 새로 판단한다(이전 호출에서 검색한 결과를 "기억"해
+  재사용하지 않음 — M1~M9 각 모듈이 각자 필요하면 각자 검색한다).

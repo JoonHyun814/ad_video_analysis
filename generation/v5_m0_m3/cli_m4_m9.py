@@ -6,7 +6,7 @@ cli.py(M0~M3)와 완전히 분리된 별도 진입점이다 — 두 파이프라
 
 사용법:
     python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.json \\
-        [--style cinematic] [--llm_backend cli|api]
+        [--style cinematic] [--llm_backend cli|api] [--retrieval]
 """
 from __future__ import annotations
 
@@ -29,6 +29,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--llm_backend", default="cli", choices=("cli", "api"),
                    help="텍스트 LLM 호출 방식 — cli: claude -p CLI(기본, API 키 불필요) | "
                         "api: Anthropic API 직접 호출(env/api.env ANTHROPIC_API_KEY 필요)")
+    p.add_argument("--retrieval", action="store_true",
+                   help="M4~M9 에서도 evaluation/creative 크리에이티브 벡터 DB 검색 도구를 "
+                        "LLM 에 제공한다 — M5(스크립트)/M9(콘티)는 반영 시 "
+                        "referencedvideoid/referencedelement 로 추적되고, M4/M6/M7 은 "
+                        "advisory 로만 열어둔다(강제 아님)")
     p.add_argument("--output_dir", type=Path, default=Path("output/v5_m0_m3"), help="결과 저장 경로")
     return p
 
@@ -36,6 +41,7 @@ def _build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = _build_parser().parse_args()
     llm_adapter.set_backend(args.llm_backend)
+    llm_adapter.set_retrieval(args.retrieval)
     if not args.input.exists():
         raise SystemExit(f"[오류] 입력 파일 없음: {args.input}")
 
@@ -47,6 +53,11 @@ def main() -> None:
     label = args.input.stem.removesuffix("_m0_m3")
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
+    retrieval_log_path = None
+    if args.retrieval:
+        retrieval_log_path = args.output_dir / f"{label}_m4_m9_retrieval.jsonl"
+        llm_adapter.set_retrieval_log(retrieval_log_path)
+
     result = asyncio.run(run_m4_m9(
         data["module0"], data["m1"], data["m2"], data["m3"],
         style=args.style or None, label=label))
@@ -55,6 +66,9 @@ def main() -> None:
     out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"  저장: {out_path}")
     print(f"  gates: {result.get('gates')}")
+    if retrieval_log_path:
+        print(f"  검색 도구 사용 기록: {retrieval_log_path}"
+              f"{' (사용 없음)' if not retrieval_log_path.exists() else ''}")
 
     if result.get("error"):
         raise SystemExit(f"[오류] {result['error']}")

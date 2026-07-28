@@ -66,7 +66,8 @@ _OVERRIDE_BASE: dict[int, str] = {
        '"toneregister":"카테고리 디폴트 대비 반전한 톤 + 어느 진실에서 도출",'
        '"hook":"최종 Hook","modulematrix":{"hook":[],"angle":[],"proof":[],"cta":[]},'
        '"script":[{"line":"순수 자막/대사 텍스트만; 앞에 [태그] 접두·M1/m5 등 모듈명 금지","tag":"Hook|Brand|Demo|P|A|S|CTA"}],"cta":{"text":"","action":"QR스캔 등"},'
-       '"hookhold":["Hook/Hold 가설"],"compliance":["AI표기/기능성/비방 체크"]}',
+       '"hookhold":["Hook/Hold 가설"],"compliance":["AI표기/기능성/비방 체크"],'
+       '"referencedvideoid":"검색 결과에서 실제로 훅·서사·연출 기법을 차용했다면 그 video_id(정수), 아니면 null","referencedelement":"차용한 구체적 기법과 이 스크립트에서 어떻게 변형했는지 1줄. 차용 없으면 빈 문자열"}',
     6: '{"failuremodes":[{"mode":"","severity":"Critical|Major|Minor","module":"M1~M7"}],'
        '"killswitch":"pass|conditional|block",'
        '"unresolvedcritical":["완화 불가한 확정 결함만(검증 가능한 가정은 제외→prioritytop3로). 생성이 규칙 지켰으면 보통 빈 배열)"],'
@@ -78,7 +79,8 @@ _OVERRIDE_BASE: dict[int, str] = {
        '"verdict":"go|nogo","branch":"No-Go시 M5|GATEA 반송"}',
     9: '{"scenes":[{"no":1,"time":"0~3초","role":"story|ending","brief":"씬 고객용 요약 1문장(~40자, 촬영/전문용어 금지)","mood":"무드(BGM/분위기)","shot":"CU|MS|WS+무브","visual":"화면묘사(QR·자막·로고·배지·카피 등 글자 요소 금지 — 글자는 overlay 에만)","audio":"내레이션/BGM/SFX",'
        '"overlay":"텍스트(후반합성)","emotion":"","color":"자연광|상황광(색온도 쿨/웜 대비 금지)","transition":"컷",'
-       '"shots":[{"desc":"마이크로샷 화면묘사(피사체+동작 — 직전 샷과 사이즈|앵글|피사체 중 1개+ 뚜렷이 대비, 글자 요소 금지)","size":"WS|MS|CU","angle":"eye|low|high|top|pov","sec":1.5,"cut":"hard|insert"}]}],'
+       '"shots":[{"desc":"마이크로샷 화면묘사(피사체+동작 — 직전 샷과 사이즈|앵글|피사체 중 1개+ 뚜렷이 대비, 글자 요소 금지)","size":"WS|MS|CU","angle":"eye|low|high|top|pov","sec":1.5,"cut":"hard|insert"}],'
+       '"referencedvideoid":"이 씬의 구도·연출을 검색 결과에서 차용했다면 그 video_id(정수), 아니면 null","referencedelement":"차용한 구체적 기법과 이 씬에서 어떻게 변형했는지 1줄. 차용 없으면 빈 문자열"}],'
        '"emotioncurve":"0초[..]→..","visualkeywords":[],'
        '"usagecutscene":"사용 완결 컷(제품을 실제로 사용/섭취/도포/착용/작동하는 순간이 보이는 씬)의 씬 번호(정수). 앱·디지털 서비스는 마지막 팩샷 씬 번호"}',
 }
@@ -778,10 +780,12 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
                 "shots 를 쓰는 경우 size·angle 필드 기입 의무는 그대로 유지된다.")
 
     # [--retrieval] 크리에이티브 벡터 DB 참조 광고 검색 도구 안내 — 도구 자체는 백엔드가 붙인다
-    # (cli: claude -p --mcp-config, api: llm_adapter 의 Anthropic tool_use 루프). 여기서는
-    # M1~M3(전략·컨셉 모듈)에만 "쓸 수 있다"는 판단 기준을 짧게 얹는다 — 언제·왜 쓸지는
-    # LLM 이 판단(강제 아님, 근거 없는 프롬프트 노출을 피하려 최소한으로만 안내).
-    if n in (1, 2, 3) and llm_adapter.get_retrieval():
+    # (cli: claude -p --mcp-config, api: llm_adapter 의 Anthropic tool_use 루프). M1~M3(전략·
+    # 컨셉 모듈)뿐 아니라 M4~M9(비평~콘티)에도 "쓸 수 있다"는 판단 기준을 얹는다 — 언제·왜
+    # 쓸지는 LLM 이 판단한다(강제 아님). M6(레드팀)·M7(합성검증)은 리스크 진단·평가가 목적이라
+    # 검색이 구조적으로 덜 유용하지만, 다른 모듈과 동일하게 advisory 로만 열어두고 실사용
+    # 여부는 로그로 관찰한다(강제로 막을 이유가 없다 — 안 쓰면 그것도 정보다).
+    if n in (1, 2, 3, 4, 5, 6, 7, 9) and llm_adapter.get_retrieval():
         system += (
             "\n\n---\n\n[참조 광고 검색 도구 사용 가능]\n"
             "search_reference_ads / list_segment_columns 도구가 제공되면, 이 제품과 유사한 "
@@ -810,6 +814,24 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
                 "반영한 컨셉이 아니라면 그 컨셉의 두 필드는 비워 두라(반영한 척 지어내지 "
                 "말 것 — 반영한 컨셉 수보다 정확성이 우선이다). 검색 도구를 아예 호출하지 "
                 "않았다면 모든 컨셉의 두 필드를 비워 둔다."
+            )
+        elif n == 5:
+            system += (
+                "\n이미 선정된 컨셉(M4 selected)을 실제 스크립트(훅·바디·CTA)로 구체화하는 "
+                "단계다. notable_elements 중 훅 오프닝·카피 장치·톤 전환 기법 하나를 검색해 "
+                "참고할 수 있다면 활용하라. 실제로 반영했다면 top-level "
+                "referencedvideoid/referencedelement 필드에 그 video_id와 (원본 기법 → 이 "
+                "스크립트에서의 변형)을 1줄로 적어라. 반영하지 않았다면(또는 검색 자체를 "
+                "안 했다면) 두 필드를 비워 두라 — 반영한 척 지어내지 말 것."
+            )
+        elif n == 9:
+            system += (
+                "\n스크립트를 씬·샷 단위 콘티로 푸는 단계다. 특정 씬의 구도·카메라워크·전환 "
+                "기법을 검색 결과 notable_elements(opening_hook/casting_direction/"
+                "narrative_pattern/sensory_demo_shot)에서 참고할 수 있다면 활용하라. 실제로 "
+                "반영한 씬은 그 씬의 referencedvideoid/referencedelement 필드에 video_id와 "
+                "(원본 기법 → 이 씬에서의 변형)을 1줄로 적고, 반영하지 않은 씬은 두 필드를 "
+                "비워 두라(반영한 척 지어내지 말 것 — 반영한 씬 수보다 정확성이 우선이다)."
             )
         else:
             system += (
