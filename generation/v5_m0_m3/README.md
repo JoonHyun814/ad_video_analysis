@@ -126,9 +126,15 @@ python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.jso
     다른 CLI 헬퍼 기본값(300초)의 **2배(600초)** 로 늘렸다(`llm_adapter._CLI_TIMEOUT_MULTIPLIER`).
   - `api`: Anthropic Messages API 직접 호출(`env/api.env` 의 `ANTHROPIC_API_KEY` 필요, 모델은
     `llm_adapter._API_DEFAULT_MODEL` 고정 — 원본의 tier 별 자동 모델 라우팅은 이식하지 않았다).
-    응답 상한은 `llm_adapter._API_MAX_TOKENS`(12000) — M3 는 컨셉 5~8개 × 필드 10개+(`referencedvideoid`/
-    `referencedelement` 포함)라 검색 도구까지 쓰면 응답이 길어져, 이보다 낮으면 마지막 컨셉이
-    `max_tokens` 로 잘릴 수 있다(실측 확인됨).
+    응답 상한은 `llm_adapter._API_MAX_TOKENS`(24000) — M3 는 컨셉 5~8개 × 필드 10개+(`referencedvideoid`/
+    `referencedelement` 포함)라 검색 도구까지 쓰면 응답이 길어지고, 렌즈별 타겟 검색(아래
+    `--retrieval` 항목 참고)으로 검색 결과가 여러 건 쌓이면 모델이 그걸 종합하는 thinking
+    토큰만으로 12000 을 거의 다 써버려 정작 JSON 답변이 잘리는 사례가 실측됐다 — 그래서 24000
+    으로 올렸다. `_API_MAX_TOKENS` 가 커서 Anthropic SDK 의 비-스트리밍 10분 제한 가드에
+    걸리므로(`ValueError: Streaming is required...`), `llm_adapter._create_message()` 가
+    `client.messages.create` 대신 스트리밍(`client.messages.stream(...).get_final_message()`)
+    으로 호출하고 최종 Message 객체만 돌려준다 — 호출부(`_chat_json_api`/
+    `_chat_json_api_with_tools`)는 이전과 동일하게 다룬다.
 - `--retrieval`(cli.py 전용, M0~M3 만): M1~M3 시스템 프롬프트에 `evaluation/creative` 크리에이티브
   벡터 DB(기존 광고 81편·요소 1592건)를 검색하는 도구(`search_reference_ads`/`list_segment_columns`,
   `creative-retrieval` MCP 서버)를 붙인다. 어떤 세그먼트 컬럼/값으로 몇 건(top_k)을 검색할지는
@@ -140,14 +146,21 @@ python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.jso
   30분 넘게 멈추는 버그가 있었고, 매칭 영상별로 N번 나눠 하던 크리에이티브 요소 조회도 단일
   `$in` 쿼리로 합쳤다). 자세한 도구 스펙은
   [`../../evaluation/creative/README.md`](../../evaluation/creative/README.md) 참고.
-  M3 는 M1/M2 와 달리 "참고만 하고 베끼지 마라"에 그치지 않고, 검색 도구를 호출했다면 발산한
-  컨셉 중 최소 1개에는 검색 결과 `notable_elements`(opening_hook/casting_direction/
-  narrative_pattern/sensory_demo_shot) 중 구체적 연출 기법 하나를 변형해 반영하라는 안내를
-  추가로 받는다(`modules_runner._run_module_core` 의 `n == 3` 분기). 반영 여부는 M3 출력
-  `concepts[].referencedvideoid`/`referencedelement` 로 추적 가능하다 — 실제로 반영했으면
-  참조한 `video_id`와 (원본 기법 → 변형) 1줄, 반영하지 않았으면 둘 다 빈 값이다(지어내는 것
-  금지). 검증 결과: 강제 재검색 테스트에서 이 필드가 가리킨 `video_id`의 실제 DB 내용을
-  대조해보면 인용이 정확했다(할루시네이션 아님).
+  M3 는 M1/M2 와 달리 "참고만 하고 베끼지 마라"에 그치지 않고 두 가지를 추가로 안내받는다
+  (`modules_runner._run_module_core` 의 `n == 3` 분기):
+  1. **포괄적 검색 1회 대신 렌즈별 타겟 검색**을 유도한다 — 선택한 전략 렌즈마다 필요한
+     '증명 방식'이 다르므로(데모·증거 렌즈 → 실측 비교 데모 사례, 적 의인화 렌즈 → 경쟁/현상유지를
+     캐릭터화한 사례 등) 유망한 렌즈 2~3개 이상을 골라 각각 좁은 쿼리로 따로 검색하게 하고,
+     결과 과다를 막기 위해 검색 1건당 `top_k` 는 2~4로 작게 잡으라고 안내한다.
+  2. 검색 도구를 호출했다면 발산한 컨셉 중 **가능한 한 여러 개**(1개에 그치지 않고)에는 그
+     컨셉의 렌즈로 검색한 결과의 `notable_elements`(opening_hook/casting_direction/
+     narrative_pattern/sensory_demo_shot) 중 구체적 연출 기법 하나를 변형해 반영하라고 안내한다.
+
+  반영 여부는 M3 출력 `concepts[].referencedvideoid`/`referencedelement` 로 추적 가능하다 —
+  실제로 반영했으면 참조한 `video_id`와 (원본 기법 → 변형) 1줄, 반영하지 않았으면 둘 다 빈
+  값이다(지어내는 것 금지, 반영한 컨셉 수보다 정확성이 우선). 검증 결과: 강제 재검색 테스트에서
+  포괄적 검색 1회로는 7개 컨셉 중 1개만 인용을 남겼지만, 렌즈별 타겟 검색으로 바꾸자 5개로
+  늘었다 — 인용된 `video_id`들의 실제 DB 내용을 대조해보면 전부 정확했다(할루시네이션 아님).
 - 결과: `<output_dir>/<slug>_m0_m3.json`(`{"module0","m1","m2","m3"}`), `<slug>_m4_m9.json`
   (`{"m3"(검증마커 반영)","m4"~"m9","gates":{"a","b","c"}}`).
 - `--retrieval` 사용 시 `<output_dir>/<slug>_retrieval.jsonl` 에 검색 도구 사용 기록이 남는다

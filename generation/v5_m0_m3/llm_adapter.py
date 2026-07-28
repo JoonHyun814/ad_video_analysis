@@ -57,8 +57,16 @@ _CLI_TIMEOUT_MULTIPLIER = 2  # cli(서브프로세스) 백엔드는 api 대비 �
 _API_DEFAULT_MODEL = "claude-sonnet-5"
 # M3 는 컨셉 5~8개 × 필드 10개(+referencedvideoid/referencedelement) 라 8000 이면 컨셉 7개
 # 근처에서 max_tokens 로 잘릴 수 있다(실측: retrieval 켜고 2회 검색+인용 근거까지 채우니 초과).
-_API_MAX_TOKENS = 12000
-_API_TOOL_ROUNDS = 4  # tool_use 왕복 최대 횟수(무한루프 방지) — 다 써도 답이 없으면 parse_failed
+# 렌즈별 타겟 검색(모듈 안내문 참고)으로 검색 결과가 여러 건 쌓이면 모델이 그 결과를 종합하는
+# 데 쓰는 thinking 토큰이 급격히 늘어 max_tokens 를 그대로 잡아먹는 사례가 실측됐다(12000 중
+# thinking 11389 소모 -> 정작 JSON 답변이 다 못 나오고 잘림). thinking+답변을 모두 감당하도록
+# 여유 있게 잡는다.
+_API_MAX_TOKENS = 24000
+# tool_use 왕복 최대 횟수(무한루프 방지) — 다 써도 답이 없으면 parse_failed. M3 는 렌즈별로
+# 나눠 여러 번 검색하도록 유도하므로(모듈 안내문 참고) 4 는 부족할 수 있어 여유를 뒀다 —
+# 한 라운드에 tool_use 블록을 여러 개 담아 보내는 것도 가능하니 실제로는 라운드 부족보다
+# 여유 있는 편이 안전하다.
+_API_TOOL_ROUNDS = 6
 _JSON_FORCE_INSTRUCTION = (
     "\n\n[OUTPUT FORMAT — STRICT]\n"
     "Reply with ONLY a single valid JSON object.\n"
@@ -144,12 +152,21 @@ def _text_of(msg) -> str:
     return "".join(block.text for block in msg.content if getattr(block, "type", "") == "text")
 
 
+def _create_message(**kwargs):
+    """client.messages.create 대신 스트리밍으로 호출한다 — Anthropic SDK 는 max_tokens 기준
+    예상 소요시간이 10분을 넘을 수 있으면(_API_MAX_TOKENS=24000 이 여기 해당) 비-스트리밍
+    호출을 ValueError 로 거부하고 스트리밍을 요구한다. 여기서 스트리밍으로 받아 최종
+    Message 객체만 돌려주면 호출부(stop_reason/content 등 접근)는 기존과 동일하게 쓸 수 있다."""
+    client = _get_anthropic_client()
+    with client.messages.stream(**kwargs) as stream:
+        return stream.get_final_message()
+
+
 def _chat_json_api(system: str, user: str) -> dict:
     """Anthropic Messages API 직접 호출. json_mode 는 response_format 이 없어 프롬프트 강제 + 파싱 복구로 대신한다."""
     if get_retrieval():
         return _chat_json_api_with_tools(system, user)
-    client = _get_anthropic_client()
-    msg = client.messages.create(
+    msg = _create_message(
         model=_API_DEFAULT_MODEL,
         max_tokens=_API_MAX_TOKENS,
         system=system + _JSON_FORCE_INSTRUCTION,
@@ -167,11 +184,10 @@ def _chat_json_api_with_tools(system: str, user: str) -> dict:
     """
     from evaluation.creative.reference_retrieval import TOOL_DEFINITIONS, call_tool
 
-    client = _get_anthropic_client()
     messages: list[dict] = [{"role": "user", "content": user}]
     msg = None
     for _ in range(_API_TOOL_ROUNDS):
-        msg = client.messages.create(
+        msg = _create_message(
             model=_API_DEFAULT_MODEL,
             max_tokens=_API_MAX_TOKENS,
             system=system + _JSON_FORCE_INSTRUCTION,
