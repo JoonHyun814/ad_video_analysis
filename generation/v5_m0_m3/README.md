@@ -17,9 +17,14 @@ JSON(`{"module0","m1","m2","m3"}`)을 입력으로 받는다 — 즉 M0~M3 를 �
 M4~M9 를 몇 번이든(다른 `--style` 로) 다시 실행할 수 있다.
 
 ```
-python -m generation.v5_m0_m3.cli        --url ...              →  <slug>_m0_m3.json
-python -m generation.v5_m0_m3.cli_m4_m9  --input <slug>_m0_m3.json  →  <slug>_m4_m9.json
+python -m generation.v5_m0_m3.cli          --url ...                 →  <slug>_m0_m3.json
+python -m generation.v5_m0_m3.cli_m4_m9    --input <slug>_m0_m3.json  →  <slug>_m4_m9.json
+python -m generation.v5_m0_m3.cli_storyboard --input <slug>_m4_m9.json →  <slug>_storyboard.html
 ```
+
+세 번째 단계(`cli_storyboard.py`)는 M4~M9 결과를 `generation/AITIVE_스토리보드_데이터필드.html`
+양식에 채운 완성 스토리보드 HTML을 만든다 — "M0~M9 결과 파일들"과 "실제 제작에 넘길 문서"
+사이의 마지막 변환 단계다. 아래 "스토리보드 HTML 생성" 절 참고.
 
 ## M0~M9 란
 
@@ -92,6 +97,9 @@ M6~M9 는 그대로 실행되고, `m6.unresolvedcritical` 을 사후에 직접 �
 | `cli_m4_m9.py` | M4~M9 진입점 (`--input <m0_m3.json>` `--style` `--llm_backend` `--retrieval`, 켜면 `<slug>_m4_m9_retrieval.jsonl` 사용 기록도 저장) |
 | `ab_test_retrieval.py` | M0~M2 고정 후 M3만 retrieval 끄고/켜고 두 번 실행해 비교(`run_ab()`) |
 | `ab_test_retrieval_m5_m9.py` | M0~M4 고정(M4는 1회만 실행) 후 M5~M9만 retrieval 끄고/켜고 두 번 실행해 비교 — M4 자체의 실행 변동을 배제하고 M5~M9 구간의 retrieval 효과만 분리해서 보고 싶을 때 사용 |
+| `cli_storyboard.py` | M4~M9 결과 → 스토리보드 HTML 진입점(`--input <m4_m9.json>` `--m0_m3` `--llm_backend` `--output`) |
+| `storyboard_fill.py` | M0~M9 어디에도 없는 프로덕션 기획 필드(캐릭터·제품·환경·카메라·조명·메타데이터)만 LLM 1회 호출로 채움(`fill_extra_fields()`) |
+| `storyboard_render.py` | `generation/AITIVE_스토리보드_데이터필드.html` 원본과 동일한 CSS·레이아웃으로 최종 HTML을 문자열로 렌더링(`render_storyboard_html()`) — M9 씬/샷 개수에 맞춰 씬 카드·촬영기법 표를 동적으로 생성 |
 | `pipeline.py` | `run_m0_m3()` / `run_m4_m9()` 오케스트레이션 |
 | `module0_ingest.py` | MODULE 0 — 소재 인제스트(코드) |
 | `v1_bridge.py` | URL 크롤(curl_cffi→curl→httpx) + 소재 분석 LLM 호출 |
@@ -122,7 +130,40 @@ python -m generation.v5_m0_m3.cli --url <제품 상세페이지 URL> [--productt
 # 2) M4~M9 (1의 결과를 입력으로)
 python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.json \
     [--style cinematic] [--llm_backend cli|api] [--retrieval]
+
+# 3) 스토리보드 HTML (2의 결과를 입력으로)
+python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m9.json \
+    [--llm_backend cli|api] [--output <out>.html]
 ```
+
+## 스토리보드 HTML 생성 (`cli_storyboard.py`)
+
+`generation/AITIVE_스토리보드_데이터필드.html`(브랜드 필름 실무에서 쓰는 9섹션 스토리보드
+빈 양식)을 M0~M9 산출물로 채운다. 원본 양식의 **CSS·레이아웃·안내 문구는 전부 그대로
+유지**하고, 값이 들어갈 자리(밑줄 기입란 `.ln`, 표 `<td>`, 씬 카드)만 채운다 — 원본이
+정적으로 7개 씬 카드·12행 촬영기법 표를 예시로 담고 있던 것과 달리, 여기서는 M9 의 실제
+씬/샷 개수에 맞춰 그 블록들을 동적으로 생성한다(6씬이면 카드 6장+엔딩, 11샷이면 표 11행).
+
+**값의 출처는 두 갈래다**:
+- **M9(및 M0~M5) 산출물에서 그대로 가져오는 필드** — 씬 화면묘사·오버레이·사이즈/앵글/컷/초·
+  감정곡선·사용완결컷·스크립트(VO)·타깃·카테고리·전환(하드컷/모션컷 다수결) 등. 이미 검증된
+  값을 LLM이 다시 지어내 드리프트가 생기는 걸 막기 위해 코드로만 매핑한다.
+- **M0~M9 어디에도 없는 프로덕션 기획 필드만 LLM 1회 호출로 채운다**(`storyboard_fill.py`) —
+  캐릭터 레퍼런스(역할/연령대·고유식별자·의상·표정 연기·시드 고정)·제품 레퍼런스(외형·색·
+  타입·네거티브)·환경(장소·시간대·톤)·카메라 원칙·조명·메타데이터(장르·컴포지션·팔레트 등).
+  카메라 바디/렌즈처럼 실물 장비를 뜻하는 필드는 이 파이프라인이 AI 이미지-투-비디오 생성이라는
+  점을 감안해 "N/A(AI 생성)"로 채우도록 프롬프트에 명시했다.
+
+**이미지 슬롯**(`IMAGE` 칩이 붙은 자리)은 실제 이미지를 생성하지 않으므로(이 CLI의 범위 밖)
+원본 그대로 빈 자리로 남는다 — 다음 단계(M10~M12, 이 프로젝트 범위 밖)에서 채울 자리다.
+
+**선택지 필드**(`실내/실외`, `아침/낮/저녁/매직아워`, `16:9/9:16/1:1` 등)는 원본처럼 모든
+선택지를 다 보여주되, 선택된 값에 강조 스타일(`.opt.sel`, CSS 1줄만 원본에 추가)을 입혀
+표시한다 — 값을 지우고 하나만 남기지 않는다(원본 형식 유지).
+
+입력 짝 파일 규칙은 `cli_m4_m9.py`와 동일하다 — `<slug>_m4_m9.json`을 넣으면 module0/m1/m2
+를 읽기 위해 같은 디렉터리의 `<slug>_m0_m3.json`을 자동으로 찾는다(다른 곳에 있으면
+`--m0_m3`로 지정).
 
 - `--producttitle`: 크롤이 봇 차단되면 web_search 복구 단계의 1순위 검색 단서로 쓰인다.
 - `--style`: `cinematic`(기본)·`ugc`·`demo`·`asmr`·`testimonial`·`vlog`·`comparison`·`reaction`·

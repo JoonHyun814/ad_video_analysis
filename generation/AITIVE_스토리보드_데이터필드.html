@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스토리보드 제작 양식 (빈 양식)</title>
+<style>
+  @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+
+  :root{
+    --primary-700:#4c25d9; --primary-600:rgb(95,58,242); --primary-500:#7a5cf5;
+    --primary-100:#ece7fe; --primary-50:#f5f2ff;
+    --gray-900:#14151a; --gray-800:#1f2129; --gray-700:#33353f; --gray-600:#4b4e5a;
+    --gray-500:#6b6e7b; --gray-400:#9498a5; --gray-300:#c7cad3; --gray-200:#e3e5ea;
+    --gray-100:#f0f1f4; --gray-50:#f7f8fa; --white:#fff;
+    --req:#c0392b; --req-bg:#fceae5;
+    --outline:inset 0 0 0 1px var(--gray-200);
+    --shadow-sm:0 1px 2px rgba(20,21,26,.06), 0 1px 3px rgba(20,21,26,.04);
+    --shadow-md:0 2px 8px rgba(20,21,26,.08), 0 1px 3px rgba(20,21,26,.05);
+    --font:"Pretendard","Pretendard Variable",Inter,-apple-system,system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--gray-50);color:var(--gray-900);
+       line-height:1.5;-webkit-font-smoothing:antialiased;letter-spacing:-.01em;padding:24px}
+
+  /* ── 안내 배너 ── */
+  .guide{width:1800px;margin:0 auto 16px;background:var(--gray-900);color:var(--white);
+         padding:14px 20px;border-radius:12px;display:flex;gap:22px;align-items:center;flex-wrap:wrap;
+         box-shadow:var(--shadow-md)}
+  .guide h1{font-size:.92rem;font-weight:800;letter-spacing:-.02em}
+  .guide .key{display:flex;align-items:center;gap:7px;font-size:.68rem;color:var(--gray-400)}
+  .guide .chip{font-size:.58rem;font-weight:800;letter-spacing:.06em;padding:2px 8px;border-radius:5px;
+               border:1px dashed #4a4d58;background:#22242c;color:#c9ccd4}
+  .guide .chipline{width:26px;height:0;border-bottom:1px solid #4a4d58}
+  .guide .spacer{flex:1}
+  .guide p{font-size:.68rem;color:var(--gray-400)}
+  .guide p b{color:var(--primary-500)}
+
+  /* ── 시트 ── */
+  .sheet{width:1800px;margin:0 auto;background:var(--white);border-radius:16px;overflow:hidden;
+         box-shadow:var(--outline),var(--shadow-md)}
+
+  .title{border-bottom:1px solid var(--gray-200);padding:20px 24px;display:flex;
+         align-items:flex-start;gap:20px;flex-wrap:wrap;background:var(--gray-50)}
+  .title h1{font-size:1.1rem;font-weight:800;white-space:nowrap;letter-spacing:-.03em;padding-top:8px}
+  .title .tf{flex:1;min-width:200px}
+  .title .tf .k{font-size:.56rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gray-500)}
+  .title .tf .ln{border-bottom:1px solid var(--gray-300);min-height:20px;margin-top:3px}
+
+  .row{display:grid;border-bottom:1px solid var(--gray-200)}
+  .row:last-child{border-bottom:none}
+  .r1{grid-template-columns:1fr 1fr}
+  .r2{grid-template-columns:minmax(0,0.8fr) minmax(0,2.2fr)}
+  .r3{grid-template-columns:1fr 1fr 1.2fr 0.8fr}
+  .cell{padding:20px 22px 24px;border-right:1px solid var(--gray-200)}
+  .cell:last-child{border-right:none}
+
+  /* ── 섹션 헤더 ── */
+  .sec{display:flex;align-items:center;gap:9px;margin-bottom:16px;flex-wrap:wrap}
+  .sec .n{font-size:.66rem;font-weight:800;color:var(--white);background:var(--primary-600);
+          border-radius:6px;padding:3px 8px;letter-spacing:.04em;line-height:1.2}
+  .sec h2{font-size:.95rem;font-weight:800;text-transform:uppercase;letter-spacing:-.01em}
+  .sec .note{font-size:.66rem;color:var(--gray-400);font-weight:500;letter-spacing:0;text-transform:none}
+
+  .sublab{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+          color:var(--gray-400);margin:16px 0 8px}
+  .sublab span{text-transform:none;letter-spacing:0;font-weight:500;color:var(--gray-400)}
+
+  /* ── 이미지 슬롯 ── */
+  .slot{border:1.5px dashed var(--gray-300);border-radius:10px;background:var(--gray-50);
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        text-align:center;padding:10px 8px;gap:4px;min-height:64px}
+  .slot .icn{font-size:.62rem;font-weight:800;letter-spacing:.12em;padding:2px 8px;border-radius:5px;
+             border:1px solid var(--primary-100);color:var(--primary-600);background:var(--primary-50)}
+  .slot .what{font-size:.66rem;font-weight:700;color:var(--gray-700);line-height:1.4}
+  .slot .hint{font-size:.58rem;color:var(--gray-400);line-height:1.4}
+  .slot.tall{min-height:150px} .slot.mid{min-height:110px} .slot.wide{min-height:90px}
+  .cap{font-size:.56rem;font-weight:700;text-align:center;margin-top:6px;color:var(--gray-500);letter-spacing:.04em}
+
+  /* ── 기입란 ── */
+  .ln{border-bottom:1px solid var(--gray-300);min-height:20px;margin-top:4px}
+  .ln.sm{min-height:16px}
+  .fieldrow{margin-bottom:14px}
+  .fieldrow .k{font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gray-600)}
+  .fieldrow .k em{font-style:normal;color:var(--gray-400);font-weight:500;text-transform:none;letter-spacing:0}
+
+  /* ── 안내문 · 선택지 · 필수 ── */
+  .gd{font-size:.6rem;color:var(--gray-400);line-height:1.5;margin-top:3px;font-weight:500;letter-spacing:0;text-transform:none}
+  .gd b{color:var(--gray-600);font-weight:700}
+  .opt{display:inline-block;font-family:var(--mono);font-size:.55rem;font-weight:700;
+       color:var(--primary-700);background:var(--primary-50);border:1px solid var(--primary-100);
+       border-radius:4px;padding:1px 6px;margin-right:4px;letter-spacing:.02em}
+  .req{display:inline-block;font-size:.52rem;font-weight:800;color:var(--req);background:var(--req-bg);
+       border-radius:4px;padding:1px 6px;margin-left:5px;vertical-align:1px;letter-spacing:.03em}
+  .mini-opt{display:block;font-family:var(--mono);font-size:.46rem;font-weight:600;
+            color:var(--gray-400);letter-spacing:0;text-transform:none;margin-top:2px}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+
+  /* ── 컷 카드 ── */
+  .frames{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .frame{border-radius:12px;background:var(--white);box-shadow:var(--outline),var(--shadow-sm);
+         padding:12px;display:flex;flex-direction:column}
+  .frame.end{box-shadow:inset 0 0 0 1.5px var(--primary-100),var(--shadow-sm);background:var(--primary-50)}
+  .frame .fhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:6px}
+  .frame .fno{font-size:.62rem;font-weight:800;background:var(--primary-600);color:var(--white);
+              width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none}
+  .frame.end .fno{background:var(--primary-700)}
+  .frame .tc{flex:1;border-bottom:1px solid var(--gray-300);min-height:16px}
+  .frame .tclab{font-size:.52rem;color:var(--gray-400);font-weight:700;letter-spacing:.06em;flex:none}
+  .frame .blk{margin-top:9px;padding-top:8px;border-top:1px solid var(--gray-100)}
+  .frame .blk:first-of-type{border-top:none;padding-top:0}
+  .frame .mini{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:5px}
+  .frame .mini .m{font-size:.5rem;font-weight:800;letter-spacing:.03em;color:var(--gray-500);text-transform:uppercase}
+  .frame .lab{font-size:.54rem;font-weight:800;letter-spacing:.06em;color:var(--gray-500);
+              text-transform:uppercase;margin-bottom:3px}
+  .frame .ovbox{margin-top:9px;background:var(--gray-50);border-radius:8px;padding:8px 9px;
+                box-shadow:inset 0 0 0 1px var(--gray-100)}
+  .frame .ovbox .lab{color:var(--gray-500)}
+  .frame .gd{font-size:.55rem;margin-top:2px}
+
+  /* ── 표 ── */
+  table{border-collapse:separate;border-spacing:0;width:100%;border-radius:10px;overflow:hidden;
+        box-shadow:var(--outline)}
+  th,td{padding:7px 10px;font-size:.62rem;text-align:left;vertical-align:middle;
+        border-bottom:1px solid var(--gray-100)}
+  th{background:var(--gray-900);color:var(--white);font-weight:600;letter-spacing:.03em;
+     text-transform:uppercase;font-size:.54rem;border-bottom:none}
+  td{height:30px;color:var(--gray-700)}
+  tbody tr:last-child td{border-bottom:none}
+  td.c{text-align:center;font-weight:700;color:var(--gray-500)}
+
+  /* ── 팔레트 ── */
+  .pal{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:6px}
+  .sw{aspect-ratio:1/.55;border:1.5px dashed var(--gray-300);border-radius:8px;background:var(--gray-50);
+      display:flex;align-items:center;justify-content:center;font-size:.55rem;color:var(--gray-400);font-weight:700}
+
+  /* ── 메타데이터 ── */
+  .meta{display:grid;grid-template-columns:repeat(5,1fr);border-radius:12px;overflow:hidden;
+        box-shadow:var(--outline)}
+  .meta .m{border-right:1px solid var(--gray-200);border-bottom:1px solid var(--gray-200);padding:10px 12px}
+  .meta .m:nth-child(5n){border-right:none}
+  .meta .m .k{font-size:.54rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-600)}
+  .meta .m .k em{font-style:normal;font-weight:500;color:var(--gray-400);text-transform:none;letter-spacing:0}
+  .meta .gd{font-size:.55rem;margin-top:3px}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .guide{display:none}
+    .sheet{width:100%;border-radius:0;box-shadow:none;border:1px solid var(--gray-300)}
+  }
+</style>
+</head>
+<body>
+
+<div class="guide">
+  <h1>스토리보드 제작 양식 — 빈 양식</h1>
+  <div class="key"><span class="chip">IMAGE</span> 이미지가 들어가는 자리</div>
+  <div class="key"><span class="chipline"></span> 밑줄 = 기입란</div>
+  <div class="key"><span style="font-size:.58rem;color:#9498a5;font-style:normal">회색 작은 글씨</span> 무엇을 적는지 안내</div>
+  <div class="key"><span class="chip" style="background:#2a1f5c;border-color:#4c25d9;color:#c9b8ff">선택지</span> 정해진 값 중 택1</div>
+  <div class="spacer"></div>
+  <p>9개 섹션 · 이미지 슬롯 30칸 · 각 항목에 <b style="color:#7a5cf5">기입 안내</b> 포함</p>
+</div>
+
+<div class="sheet">
+
+  <!-- 타이틀 -->
+  <div class="title">
+    <h1>스토리보드</h1>
+    <div class="tf"><div class="k">브랜드 / 제품<span class="req">필수</span></div><div class="gd">브랜드명 + 편(篇) 이름까지 · 예: IBK 나라사랑카드 · PX편</div><div class="ln"></div></div>
+    <div class="tf"><div class="k">기획</div><div class="gd">이 보드를 만든 담당자</div><div class="ln"></div></div>
+    <div class="tf" style="flex:1.4"><div class="k">사양 <em style="font-style:normal;font-weight:500;text-transform:none;letter-spacing:0">— 화면비 · 길이 · 씬/컷 수 · 카메라 · 렌즈</em></div><div class="ln"></div></div>
+  </div>
+
+  <!-- ══ ROW 1 ══ -->
+  <div class="row r1">
+
+    <!-- 1. CHARACTER -->
+    <div class="cell">
+      <div class="sec"><span class="n">1.</span><h2>Character Reference</h2><span class="note">전 컷 동일 인물 고정 · 등장인물마다 반복</span></div>
+
+      <div class="g2">
+        <div class="fieldrow"><div class="k">인물 A — 역할 / 연령대<span class="req">필수</span></div><div class="gd">극 중 역할 + 연령대 · 예: 선임 병사 · 20대 남성</div><div class="ln"></div></div>
+        <div class="fieldrow"><div class="k">고유 식별자 <em>— 예: BRAND_WOMAN_01</em><span class="req">필수</span></div><div class="gd">생성 프롬프트에서 이 인물을 부르는 이름 — 전 씬에서 같은 키를 반복 호출</div><div class="ln"></div></div>
+      </div>
+
+      <div class="g5" style="margin-top:10px">
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">정면 CU</span><span class="hint">표정 기준</span></div><div class="cap">FRONT CU</div></div>
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">3/4 상반신</span><span class="hint">45° 각도</span></div><div class="cap">3/4 VIEW</div></div>
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">측면</span><span class="hint">옆모습·목선</span></div><div class="cap">PROFILE</div></div>
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">정면 MS</span><span class="hint">상반신 전체</span></div><div class="cap">FRONT MS</div></div>
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">착용 / 접점 부위</span><span class="hint">제품이 닿는 곳</span></div><div class="cap">DETAIL AREA</div></div>
+      </div>
+
+      <div class="g2" style="margin-top:10px">
+        <div><div class="slot wide"><span class="icn">IMAGE</span><span class="what">의상 디테일</span><span class="hint">원단 질감·핏 크롭</span></div><div class="cap">COSTUME DETAIL</div></div>
+        <div><div class="slot wide"><span class="icn">IMAGE</span><span class="what">손동작 참조</span><span class="hint">주요 동작 손끝</span></div><div class="cap">HAND ACTION</div></div>
+      </div>
+
+      <div class="fieldrow" style="margin-top:12px"><div class="k">의상 사양 <em>— 소재 · 색 · 핏</em></div><div class="gd">소재 · 색 · 핏을 한 문장으로 — 컷마다 옷이 바뀌지 않게 고정</div><div class="ln"></div><div class="ln sm"></div></div>
+      <div class="fieldrow"><div class="k">표정 연기 <em>— 톤 기준</em></div><div class="gd">감정이 어떻게 진행되는지 + 과장 금지선 · 예: 데드팬 → 진짜 놀람, 슬랩스틱 금지</div><div class="ln"></div></div>
+      <div class="g2">
+        <div class="fieldrow"><div class="k">시드 고정 <em>— 인물 일관성</em><span class="req">필수</span></div><div class="gd">전 씬 동일 시드값 — 인물이 컷마다 달라지는 걸 막는 장치</div><div class="ln"></div></div>
+        <div class="fieldrow"><div class="k">고정 규칙</div><div class="gd">얼굴 교체 · 블렌드 금지 등 일관성 제약</div><div class="ln"></div></div>
+      </div>
+
+      <div class="sublab">인물 B <span>— 추가 인물이 있을 때</span></div>
+      <div class="fieldrow" style="margin-bottom:8px"><div class="ln"></div></div>
+      <div class="g5">
+        <div><div class="slot"><span class="icn">IMAGE</span><span class="what">정면</span></div><div class="cap">FRONT</div></div>
+        <div><div class="slot"><span class="icn">IMAGE</span><span class="what">3/4</span></div><div class="cap">3/4</div></div>
+        <div><div class="slot"><span class="icn">IMAGE</span><span class="what">측면</span></div><div class="cap">PROFILE</div></div>
+        <div><div class="slot"><span class="icn">IMAGE</span><span class="what">정면 MS</span></div><div class="cap">FRONT MS</div></div>
+        <div><div class="slot"><span class="icn">IMAGE</span><span class="what">디테일</span></div><div class="cap">DETAIL</div></div>
+      </div>
+    </div>
+
+    <!-- 2. PRODUCT -->
+    <div class="cell">
+      <div class="sec"><span class="n">2.</span><h2>Product Reference</h2><span class="note">제품 외형 고정(LOCK) · 실물 팩샷 우선</span></div>
+
+      <div class="g2" style="margin-bottom:10px">
+        <div class="fieldrow"><div class="k">제품명<span class="req">필수</span></div><div class="gd">정식 제품명 그대로</div><div class="ln"></div></div>
+        <div class="fieldrow"><div class="k">외형 <em>— 용량 · 재질 · 형태</em><span class="req">필수</span></div><div class="gd">용량 · 재질 · 형태를 한 문장으로</div><div class="ln"></div></div>
+      </div>
+
+      <div class="g3">
+        <div><div class="slot tall"><span class="icn">IMAGE</span><span class="what">제품 정면 (히어로)</span><span class="hint">전체 형태</span></div><div class="cap">FRONT / HERO</div></div>
+        <div><div class="slot tall"><span class="icn">IMAGE</span><span class="what">라벨 / 각인 디테일</span><span class="hint">크롭 · 부분 노출</span></div><div class="cap">LABEL DETAIL</div></div>
+        <div><div class="slot tall"><span class="icn">IMAGE</span><span class="what">마감 / 질감 매크로</span><span class="hint">표면 · 엣지</span></div><div class="cap">FINISH MACRO</div></div>
+      </div>
+
+      <div class="sublab">사용 상태 컷 <span>— 제품 타입에 따라: 변형(붓기·도포) / 착용 전후 / 작동 전후</span></div>
+      <div class="g2">
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">사용 순간</span><span class="hint">붓기 · 착용 · 작동</span></div><div class="cap">IN-USE</div></div>
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">사용 후 상태</span><span class="hint">완성된 결과</span></div><div class="cap">RESULT</div></div>
+      </div>
+
+      <div class="g2" style="margin-top:12px">
+        <div class="fieldrow"><div class="k">제품 색 <em>— 실물 색만 유지</em></div><div class="gd">실물 색만 — 배경 조명이 제품색을 물들이지 않게 하는 기준값</div><div class="ln"></div></div>
+        <div class="fieldrow"><div class="k">제품 타입 <em>— 변형 / 설치 / 소품</em><span class="req">필수</span></div><div class="gd"><span class="opt">변형</span><span class="opt">설치</span><span class="opt">소품</span> 이 값이 아래 <b>사용 상태 컷</b> 구성을 결정</div><div class="ln"></div></div>
+      </div>
+      <div class="fieldrow"><div class="k">네거티브 <em>— 금지 표현</em><span class="req">필수</span></div><div class="gd">전 컷 공통 금지 — 생성 아티팩트와 톤 위반을 함께 차단</div><div class="ln"></div><div class="ln sm"></div></div>
+      <div class="fieldrow"><div class="k">참조 소스 <em>— 실물 팩샷 / 생성</em></div><div class="gd"><span class="opt">실물 팩샷</span><span class="opt">생성</span> 실물 팩샷이면 형태 · 로고를 생성하지 않고 그대로 주입</div><div class="ln"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ ROW 2 ══ -->
+  <div class="row r2">
+
+    <!-- 3. ENVIRONMENT -->
+    <div class="cell">
+      <div class="sec"><span class="n">3.</span><h2>Environment / Set</h2></div>
+
+      <div class="slot tall"><span class="icn">IMAGE</span><span class="what">세트 전경</span><span class="hint">공간 전체 와이드</span></div>
+      <div class="cap">SET — WIDE VIEW</div>
+
+      <div class="slot tall" style="margin-top:11px"><span class="icn">IMAGE</span><span class="what">탑다운 블로킹</span><span class="hint">인물 · 가구 · 카메라 위치</span></div>
+      <div class="cap">TOP-DOWN BLOCKING</div>
+
+      <div class="fieldrow" style="margin-top:13px"><div class="k">장소<span class="req">필수</span></div><div class="gd">구체 공간 · 예: 저녁 무렵 일본식 거실</div><div class="ln"></div></div>
+      <div class="g2">
+        <div class="fieldrow"><div class="k">실내 / 실외</div><div class="gd"><span class="opt">실내</span><span class="opt">실외</span></div><div class="ln"></div></div>
+        <div class="fieldrow"><div class="k">시간대</div><div class="gd"><span class="opt">아침</span><span class="opt">낮</span><span class="opt">저녁</span><span class="opt">매직아워</span> 조명 방향과 색온도의 근거</div><div class="ln"></div></div>
+      </div>
+      <div class="fieldrow"><div class="k">인테리어 톤 <em>— 소품 범위</em></div><div class="gd">소품 범위와 색 기조 — 화면이 산만해지지 않게 제한</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">동선 <em>— 인물 이동 경로</em></div><div class="gd">인물 이동 경로 — 씬 간 공간 연속성의 기준</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">키라이트 방향 <em>— 전 컷 계승</em><span class="req">필수</span></div><div class="gd">전 컷이 이어받는 광원 방향 — 바뀌면 같은 공간으로 안 보임</div><div class="ln"></div></div>
+    </div>
+
+    <!-- 4. STORYBOARD -->
+    <div class="cell">
+      <div class="sec"><span class="n">4.</span><h2>Storyboard</h2><span class="note">컷마다 사이즈·앵글 다르게 · 사용 완결 컷 최소 1개 · 화면 글자 금지</span></div>
+
+      <div class="frames">
+        <!-- 씬 1~7 -->
+        <div class="frame">
+          <div class="fhead"><span class="fno">1</span><span class="tclab">TIME</span><span class="tc"></span></div>
+          <div class="slot wide"><span class="icn">IMAGE</span><span class="what">씬 1 화면</span></div>
+          <div class="blk"><div class="lab">화면 묘사</div><div class="gd">피사체 + 동작 · 직전 컷과 뭐가 다른지 · <b>화면 글자는 쓰지 않음</b></div><div class="ln sm"></div><div class="ln sm"></div></div>
+          <div class="blk">
+            <div class="mini"><div class="m">Size<span class="mini-opt">WS·MS·CU</span></div><div class="m">Angle<span class="mini-opt">eye·low·high·top·pov</span></div><div class="m">Cut<span class="mini-opt">hard·insert</span></div><div class="m">Sec<span class="mini-opt">초</span></div></div>
+            <div class="mini"><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div></div>
+            <div class="lab" style="margin-top:5px">렌즈</div><div class="ln sm"></div>
+          </div>
+          <div class="ovbox"><div class="lab">오버레이</div><div class="gd">화면에 얹을 문구 — 영상엔 안 그리고 후반 합성</div><div class="ln sm"></div></div>
+        </div>
+
+        <div class="frame">
+          <div class="fhead"><span class="fno">2</span><span class="tclab">TIME</span><span class="tc"></span></div>
+          <div class="slot wide"><span class="icn">IMAGE</span><span class="what">씬 2 화면</span></div>
+          <div class="blk"><div class="lab">화면 묘사</div><div class="gd">피사체 + 동작 · 직전 컷과 뭐가 다른지 · <b>화면 글자는 쓰지 않음</b></div><div class="ln sm"></div><div class="ln sm"></div></div>
+          <div class="blk">
+            <div class="mini"><div class="m">Size<span class="mini-opt">WS·MS·CU</span></div><div class="m">Angle<span class="mini-opt">eye·low·high·top·pov</span></div><div class="m">Cut<span class="mini-opt">hard·insert</span></div><div class="m">Sec<span class="mini-opt">초</span></div></div>
+            <div class="mini"><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div></div>
+            <div class="lab" style="margin-top:5px">렌즈</div><div class="ln sm"></div>
+          </div>
+          <div class="ovbox"><div class="lab">오버레이</div><div class="gd">화면에 얹을 문구 — 영상엔 안 그리고 후반 합성</div><div class="ln sm"></div></div>
+        </div>
+
+        <div class="frame">
+          <div class="fhead"><span class="fno">3</span><span class="tclab">TIME</span><span class="tc"></span></div>
+          <div class="slot wide"><span class="icn">IMAGE</span><span class="what">씬 3 화면</span></div>
+          <div class="blk"><div class="lab">화면 묘사</div><div class="gd">피사체 + 동작 · 직전 컷과 뭐가 다른지 · <b>화면 글자는 쓰지 않음</b></div><div class="ln sm"></div><div class="ln sm"></div></div>
+          <div class="blk">
+            <div class="mini"><div class="m">Size<span class="mini-opt">WS·MS·CU</span></div><div class="m">Angle<span class="mini-opt">eye·low·high·top·pov</span></div><div class="m">Cut<span class="mini-opt">hard·insert</span></div><div class="m">Sec<span class="mini-opt">초</span></div></div>
+            <div class="mini"><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div></div>
+            <div class="lab" style="margin-top:5px">렌즈</div><div class="ln sm"></div>
+          </div>
+          <div class="ovbox"><div class="lab">오버레이</div><div class="gd">화면에 얹을 문구 — 영상엔 안 그리고 후반 합성</div><div class="ln sm"></div></div>
+        </div>
+
+        <div class="frame">
+          <div class="fhead"><span class="fno">4</span><span class="tclab">TIME</span><span class="tc"></span></div>
+          <div class="slot wide"><span class="icn">IMAGE</span><span class="what">씬 4 화면</span></div>
+          <div class="blk"><div class="lab">화면 묘사</div><div class="gd">피사체 + 동작 · 직전 컷과 뭐가 다른지 · <b>화면 글자는 쓰지 않음</b></div><div class="ln sm"></div><div class="ln sm"></div></div>
+          <div class="blk">
+            <div class="mini"><div class="m">Size<span class="mini-opt">WS·MS·CU</span></div><div class="m">Angle<span class="mini-opt">eye·low·high·top·pov</span></div><div class="m">Cut<span class="mini-opt">hard·insert</span></div><div class="m">Sec<span class="mini-opt">초</span></div></div>
+            <div class="mini"><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div></div>
+            <div class="lab" style="margin-top:5px">렌즈</div><div class="ln sm"></div>
+          </div>
+          <div class="ovbox"><div class="lab">오버레이</div><div class="gd">화면에 얹을 문구 — 영상엔 안 그리고 후반 합성</div><div class="ln sm"></div></div>
+        </div>
+
+        <div class="frame">
+          <div class="fhead"><span class="fno">5</span><span class="tclab">TIME</span><span class="tc"></span></div>
+          <div class="slot wide"><span class="icn">IMAGE</span><span class="what">씬 5 화면</span></div>
+          <div class="blk"><div class="lab">화면 묘사</div><div class="gd">피사체 + 동작 · 직전 컷과 뭐가 다른지 · <b>화면 글자는 쓰지 않음</b></div><div class="ln sm"></div><div class="ln sm"></div></div>
+          <div class="blk">
+            <div class="mini"><div class="m">Size<span class="mini-opt">WS·MS·CU</span></div><div class="m">Angle<span class="mini-opt">eye·low·high·top·pov</span></div><div class="m">Cut<span class="mini-opt">hard·insert</span></div><div class="m">Sec<span class="mini-opt">초</span></div></div>
+            <div class="mini"><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div></div>
+            <div class="lab" style="margin-top:5px">렌즈</div><div class="ln sm"></div>
+          </div>
+          <div class="ovbox"><div class="lab">오버레이</div><div class="gd">화면에 얹을 문구 — 영상엔 안 그리고 후반 합성</div><div class="ln sm"></div></div>
+        </div>
+
+        <div class="frame">
+          <div class="fhead"><span class="fno">6</span><span class="tclab">TIME</span><span class="tc"></span></div>
+          <div class="slot wide"><span class="icn">IMAGE</span><span class="what">씬 6 화면</span></div>
+          <div class="blk"><div class="lab">화면 묘사</div><div class="gd">피사체 + 동작 · 직전 컷과 뭐가 다른지 · <b>화면 글자는 쓰지 않음</b></div><div class="ln sm"></div><div class="ln sm"></div></div>
+          <div class="blk">
+            <div class="mini"><div class="m">Size<span class="mini-opt">WS·MS·CU</span></div><div class="m">Angle<span class="mini-opt">eye·low·high·top·pov</span></div><div class="m">Cut<span class="mini-opt">hard·insert</span></div><div class="m">Sec<span class="mini-opt">초</span></div></div>
+            <div class="mini"><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div></div>
+            <div class="lab" style="margin-top:5px">렌즈</div><div class="ln sm"></div>
+          </div>
+          <div class="ovbox"><div class="lab">오버레이</div><div class="gd">화면에 얹을 문구 — 영상엔 안 그리고 후반 합성</div><div class="ln sm"></div></div>
+        </div>
+
+        <div class="frame end">
+          <div class="fhead"><span class="fno">7</span><span class="tclab">TIME</span><span class="tc"></span></div>
+          <div class="slot wide"><span class="icn">IMAGE</span><span class="what">엔딩 — 제품 히어로</span><span class="hint">CTA용 여백 확보</span></div>
+          <div class="blk"><div class="lab">화면 묘사</div><div class="gd">피사체 + 동작 · 직전 컷과 뭐가 다른지 · <b>화면 글자는 쓰지 않음</b></div><div class="ln sm"></div><div class="ln sm"></div></div>
+          <div class="blk">
+            <div class="mini"><div class="m">Size<span class="mini-opt">WS·MS·CU</span></div><div class="m">Angle<span class="mini-opt">eye·low·high·top·pov</span></div><div class="m">Cut<span class="mini-opt">hard·insert</span></div><div class="m">Sec<span class="mini-opt">초</span></div></div>
+            <div class="mini"><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div></div>
+            <div class="lab" style="margin-top:5px">렌즈</div><div class="ln sm"></div>
+          </div>
+          <div class="ovbox"><div class="lab">CTA <em style="font-style:normal;font-weight:500;text-transform:none;letter-spacing:0">— 후반 합성</em></div><div class="ln sm"></div></div>
+        </div>
+
+        <!-- VO / BGM -->
+        <div class="frame" style="background:var(--gray-50);box-shadow:inset 0 0 0 1.5px var(--gray-200)">
+          <div class="fhead"><span class="fno" style="background:var(--gray-500)">VO</span><span class="tclab">내레이션 · BGM</span></div>
+          <div class="blk" style="margin-top:2px"><div class="lab">내레이션</div><div class="gd">씬별 대사 · 없으면 "VO 없음"으로 명시</div>
+            <div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div><div class="ln sm"></div>
+          </div>
+          <div class="blk"><div class="lab">BGM 흐름</div><div class="gd">음악 전개 + SFX 포인트 · 예: 잔잔한 피아노 → 마무리 훅</div><div class="ln sm"></div><div class="ln sm"></div></div>
+        </div>
+      </div>
+
+      <div class="g2" style="margin-top:13px">
+        <div class="fieldrow"><div class="k">감정 곡선 <em>— 시간대별 감정</em></div><div class="gd">시간대별 감정 진행 — 골과 정점을 명시</div><div class="ln"></div></div>
+        <div class="fieldrow"><div class="k">사용 완결 컷 <em>— 제품을 실제로 쓰는 씬 번호</em><span class="req">필수</span></div><div class="gd">제품을 실제로 쓰는 씬 번호 — <b>최소 1개 필수</b></div><div class="ln"></div></div>
+      </div>
+      <div class="fieldrow"><div class="k">화면 글자 <em>— 자막 · 로고 · QR · CTA는 후반 합성, 보드에 그리지 않음</em></div><div class="gd">기본값은 전부 후반 합성 — 보드·영상에는 글자를 그리지 않음</div><div class="ln"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ ROW 3 ══ -->
+  <div class="row r3">
+
+    <!-- 5. CAMERA -->
+    <div class="cell">
+      <div class="sec"><span class="n">5.</span><h2>Camera Work</h2></div>
+      <div class="fieldrow"><div class="k">기본 원칙</div><div class="gd">전 컷을 관통하는 촬영 규칙 · 예: 고정 카메라 · 아이레벨 · 얕은 심도</div><div class="ln"></div><div class="ln sm"></div></div>
+      <table style="margin-top:9px">
+        <thead><tr><th style="width:15%">씬</th><th>무브 · 프레이밍</th><th style="width:27%">렌즈</th></tr></thead>
+        <tbody>
+          <tr><td class="c">1</td><td></td><td></td></tr>
+          <tr><td class="c">2</td><td></td><td></td></tr>
+          <tr><td class="c">3</td><td></td><td></td></tr>
+          <tr><td class="c">4</td><td></td><td></td></tr>
+          <tr><td class="c">5</td><td></td><td></td></tr>
+          <tr><td class="c">6</td><td></td><td></td></tr>
+          <tr><td class="c">7</td><td></td><td></td></tr>
+        </tbody>
+      </table>
+      <div class="fieldrow" style="margin-top:11px"><div class="k">전환 <em>— 하드컷 기본 · 디졸브 금지</em></div><div class="gd"><span class="opt">컷</span><span class="opt">모션 컷</span><span class="opt">디졸브</span> 편집 전환의 기본값과 금지</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">배정 원칙 <em>— 인접 컷 대비</em></div><div class="gd">렌즈를 어떤 기준으로 나눠 붙였는지 · 예: 이동 광각 · 정지 표준</div><div class="ln"></div></div>
+    </div>
+
+    <!-- 6. LIGHTING -->
+    <div class="cell">
+      <div class="sec"><span class="n">6.</span><h2>Lighting / Mood</h2></div>
+      <div class="g2">
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">키라이트</span><span class="hint">주광원 방향</span></div><div class="cap">KEY LIGHT</div></div>
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">필 / 디퓨전</span><span class="hint">부드러움 정도</span></div><div class="cap">FILL</div></div>
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">인물 조명 무드</span><span class="hint">얼굴에 닿는 빛</span></div><div class="cap">SUBJECT MOOD</div></div>
+        <div><div class="slot mid"><span class="icn">IMAGE</span><span class="what">제품 조명 무드</span><span class="hint">반사 · 하이라이트</span></div><div class="cap">PRODUCT MOOD</div></div>
+      </div>
+      <div class="fieldrow" style="margin-top:12px"><div class="k">조명 세팅 <em>— 클립 전체에 하나의 룩만</em><span class="req">필수</span></div><div class="gd"><b>클립 전체에 하나의 룩만</b> — 컷마다 바뀌면 다른 광고로 보임</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">무드 키워드</div><div class="gd">조명 · 연출이 만들 정서 · 예: 조용한 확신 · 절제</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">금지 <em>— 과채도 · 색온도 수치 표기 등</em></div><div class="gd">조명 · 색 관련 금지 — 색온도 수치 표기 금지가 기본</div><div class="ln"></div></div>
+    </div>
+
+    <!-- 7. TECHNIQUE -->
+    <div class="cell">
+      <div class="sec"><span class="n">7.</span><h2>Shooting Technique</h2><span class="note">컷 단위 · 15초 기준 8~12컷</span></div>
+      <table>
+        <thead><tr><th style="width:5%">#</th><th style="width:7%">씬</th><th>샷 / 액션</th><th style="width:19%">사이즈 · 앵글 · 컷</th><th style="width:16%">렌즈</th><th style="width:7%">초</th></tr></thead>
+        <tbody>
+          <tr><td class="c">1</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">2</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">3</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">4</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">5</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">6</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">7</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">8</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">9</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">10</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">11</td><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td class="c">12</td><td></td><td></td><td></td><td></td><td></td></tr>
+        </tbody>
+      </table>
+      <div class="fieldrow" style="margin-top:11px"><div class="k">인서트 <em>— 인물 없는 제품 디테일 컷</em></div><div class="gd">인물 없는 제품 디테일 컷의 렌즈 레시피 · 예: 매크로 · 랙포커스</div><div class="ln"></div></div>
+    </div>
+
+    <!-- 8. CREDITS -->
+    <div class="cell">
+      <div class="sec"><span class="n">8.</span><h2>Credits</h2></div>
+      <div class="fieldrow"><div class="k">Brand</div><div class="gd">광고주</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">기획</div><div class="gd">이 보드를 만든 담당자</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">Agency</div><div class="gd">광고대행사</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">Director</div><div class="gd">연출 — AI 생성 건에서는 <b>스타일 앵커</b>로 표기</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">Cinematographer / DP</div><div class="gd">촬영 · 조명 · 룩 기준</div><div class="ln"></div></div>
+      <div class="fieldrow"><div class="k">Production</div><div class="gd">제작사 또는 생성 파이프라인</div><div class="ln"></div></div>
+      <div class="sublab" style="margin-top:12px">브랜드 톤</div>
+      <div class="ln"></div><div class="ln"></div><div class="ln"></div>
+      <div class="fieldrow" style="margin-top:11px"><div class="k">전환 목표</div><div class="gd"><span class="opt">구매</span><span class="opt">고려</span><span class="opt">앱 설치</span><span class="opt">방문</span> 광고가 유도하는 최종 행동</div><div class="ln"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ ROW 4 ══ -->
+  <div class="row">
+    <div class="cell">
+      <div class="sec"><span class="n">9.</span><h2>Metadata Card</h2><span class="note">보드 분류 · 검색용</span></div>
+
+      <div class="sublab">컬러 팔레트 <span>— 보드 전체에서 뽑은 무드 컬러</span></div>
+      <div class="pal">
+        <div class="sw">색 1</div><div class="sw">색 2</div><div class="sw">색 3</div><div class="sw">색 4</div>
+        <div class="sw">색 5</div><div class="sw">색 6</div><div class="sw">색 7</div><div class="sw">색 8</div>
+      </div>
+
+      <div class="fieldrow" style="margin:12px 0 13px"><div class="k">Tags <em>— 분위기 키워드</em></div><div class="gd">분위기 키워드 — 자산 검색의 1차 키</div><div class="ln"></div></div>
+
+      <div class="meta">
+        <div class="m"><div class="k">Genre <em>장르</em></div><div class="gd">최상위 광고 분류 · 예: 금융 브랜드 필름 / DR-CTV</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Sub-genre <em>서브장르</em></div><div class="gd">장르 안의 세부 성격 · 예: 예능식 콩트 내러티브</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Brand Tone <em>브랜드 톤</em></div><div class="gd">브랜드가 주려는 정서 — 전략에서 상속</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Ad Format <em>광고 포맷</em></div><div class="gd">송출 형태와 길이 · 예: DR-CTV :15</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Product Integration <em>제품 노출</em></div><div class="gd">제품이 담기는 방식 · 예: 히어로 제품 · 사용 완결 컷</div><div class="ln sm"></div></div>
+
+        <div class="m"><div class="k">Actors <em>출연</em></div><div class="gd">캐스팅 구성 · 예: 선임 1 + 후임 2</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Aspect Ratio <em>화면비</em></div><div class="gd"><span class="opt">16:9</span><span class="opt">9:16</span><span class="opt">1:1</span></div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Format <em>포맷</em></div><div class="gd">촬영 · 저장 방식 · 예: 디지털 · 이미지-투-비디오</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Frame Size <em>프레임 사이즈</em></div><div class="gd">보드 전체에서 쓰인 사이즈 범위 · 예: 혼합 WS/MS/CU</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Shot Type <em>샷 타입</em></div><div class="gd">촬영 구성 방식 · 예: 클린 싱글 + 그룹샷</div><div class="ln sm"></div></div>
+
+        <div class="m"><div class="k">Lens Size <em>렌즈 사이즈</em></div><div class="gd">사용 화각대 · 예: 24–100mm</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Composition <em>구도</em></div><div class="gd">화면 배치 원칙 · 예: 3분할 · CTA 여백</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Lighting <em>조명</em></div><div class="gd">조명 세팅 요약 · 예: 측창 자연광 키</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Lighting Type <em>조명 타입</em></div><div class="gd">광원의 성질 · 예: 데이라이트 / 형광등</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Time of Day <em>시간대</em></div><div class="gd"><span class="opt">아침</span><span class="opt">낮</span><span class="opt">저녁</span><span class="opt">매직아워</span></div><div class="ln sm"></div></div>
+
+        <div class="m"><div class="k">Interior / Exterior <em>실내·실외</em></div><div class="gd"><span class="opt">실내</span><span class="opt">실외</span></div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Location Type <em>로케이션 타입</em></div><div class="gd"><span class="opt">세트</span><span class="opt">로케이션</span></div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Set <em>세트</em></div><div class="gd">구체 공간, 계층으로 · 예: 부대 &gt; 생활관 + PX</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Camera <em>카메라</em></div><div class="gd">카메라 바디 · 예: ARRI Alexa 35</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Lens <em>렌즈</em></div><div class="gd">렌즈군 명칭 · 예: Cooke S7/i</div><div class="ln sm"></div></div>
+
+        <div class="m"><div class="k">Film Stock / Resolution <em>필름 스톡·해상도</em></div><div class="gd">색감 레퍼런스 + 최종 해상도</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Time Period <em>시대</em></div><div class="gd">극의 시대 배경 · 예: 현대(2020년대)</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Category <em>카테고리</em></div><div class="gd">제품 카테고리, 계층으로</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Target <em>타깃</em></div><div class="gd">타깃 인구 · 상황</div><div class="ln sm"></div></div>
+        <div class="m"><div class="k">Duration <em>길이 · 씬/컷 수</em></div><div class="gd">총 길이와 씬/컷 수 · 예: 15초 · 6씬 · 11컷</div><div class="ln sm"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
