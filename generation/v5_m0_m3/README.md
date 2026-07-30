@@ -72,6 +72,17 @@ M6~M9 는 그대로 실행되고, `m6.unresolvedcritical` 을 사후에 직접 �
 **GATE C(M7)** → 이 프로젝트엔 원본의 "인간 검수 대기(awaitingreview)" UI가 없다. verdict 를
 기록만 하고 항상 M9 로 계속 진행한다(소스의 `run_full` 자동진행 모드와 동일한 정책).
 
+**GATE A 사용자 직접 지정(`--select_concept`, 이 프로젝트 확장 — 원본에 없음)**: M4 LLM 이
+자율적으로 컨셉을 고르는 대신, M3 `concepts[]` 중 하나를 이름으로 지정해 바로 GATE A
+통과("selected")로 만들 수 있다 — `pipeline.run_m4_m9(..., forced_concept="컨셉명")` /
+`cli_m4_m9.py --select_concept "컨셉명"`. 이때 M4 LLM 호출 자체를 생략한다(`scores`/`killed`
+는 빈 배열, `reason` 에 "사용자가 직접 지정" 이 기록됨). 이름이 M3 `concepts[]` 에 없으면
+`ValueError`(CLI 에서는 후보 이름 목록과 함께 오류로 표시). M3 발산 결과를 사람이 다 보고
+어떤 컨셉으로 M5~M9 를 만들지 직접 고르고 싶을 때, 또는 M3 전체 컨셉을 하나씩 M5~M9 로
+돌려 비교하고 싶을 때 쓴다 — 후자의 경우 `--select_concept` 를 줄 때마다 결과 파일명에
+컨셉 슬러그가 붙어(`<label>_<컨셉슬러그>_m4_m9.json`) 같은 M3 로 여러 번 돌려도 서로
+덮어쓰지 않는다.
+
 ## 소스 대비 변경 사항 (사용자 승인/설계 결정)
 
 | 항목 | 원본 | 이 프로젝트 |
@@ -94,7 +105,7 @@ M6~M9 는 그대로 실행되고, `m6.unresolvedcritical` 을 사후에 직접 �
 | 파일 | 역할 |
 |------|------|
 | `cli.py` | M0~M3 진입점 (`--url` `--llm_backend` `--retrieval`, 켜면 `<slug>_retrieval.jsonl` 사용 기록도 저장) |
-| `cli_m4_m9.py` | M4~M9 진입점 (`--input <m0_m3.json>` `--style` `--llm_backend` `--retrieval`, 켜면 `<slug>_m4_m9_retrieval.jsonl` 사용 기록도 저장) |
+| `cli_m4_m9.py` | M4~M9 진입점 (`--input <m0_m3.json>` `--style` `--llm_backend` `--retrieval` `--select_concept`, 켜면 `<slug>_m4_m9_retrieval.jsonl` 사용 기록도 저장) |
 | `ab_test_retrieval.py` | M0~M2 고정 후 M3만 retrieval 끄고/켜고 두 번 실행해 비교(`run_ab()`) |
 | `ab_test_retrieval_m5_m9.py` | M0~M4 고정(M4는 1회만 실행) 후 M5~M9만 retrieval 끄고/켜고 두 번 실행해 비교 — M4 자체의 실행 변동을 배제하고 M5~M9 구간의 retrieval 효과만 분리해서 보고 싶을 때 사용 |
 | `cli_storyboard.py` | M4~M9 결과 → 스토리보드 HTML 진입점(`--input <m4_m9.json>` `--m0_m3` `--llm_backend` `--output`) |
@@ -129,7 +140,7 @@ python -m generation.v5_m0_m3.cli --url <제품 상세페이지 URL> [--productt
 
 # 2) M4~M9 (1의 결과를 입력으로)
 python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.json \
-    [--style cinematic] [--llm_backend cli|api] [--retrieval]
+    [--style cinematic] [--llm_backend cli|api] [--retrieval] [--select_concept "컨셉명"]
 
 # 3) 스토리보드 HTML (2의 결과를 입력으로)
 python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m9.json \

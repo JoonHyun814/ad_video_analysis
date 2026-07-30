@@ -14,6 +14,11 @@ studio_orchestrator.py run_full()과 동일한 동작(사용자 요청으로 재
 주석 참고. 소스 조사 결과 run_full()·orchestrator.py start_run() 둘 다 GATE B bounce 루프가
 끝난 뒤 block 값을 검사해 멈추는 코드가 없다 — 의도된 설계라기보단 가드 누락으로 보인다).
 GATE C(M7)는 원본처럼 verdict 만 기록하고 항상 M9 로 진행한다(인간 검수 UI 없음).
+
+run_m4_m9() 의 `forced_concept` 인자(사용자 요청)로 M4 LLM 비평을 생략하고 M3 concepts[]
+중 하나를 이름으로 직접 GATE A 통과시킬 수 있다 — M3 발산 결과를 사람이 다 보고 나서 어떤
+컨셉으로 스크립트·콘티까지 만들지 직접 고르고 싶을 때, 또는 M3 컨셉 전체를 한 번씩 M5~M9 로
+돌려 비교하고 싶을 때 쓴다.
 """
 from __future__ import annotations
 
@@ -56,12 +61,37 @@ async def run_m0_m3(sourceurl: str, *, producttitle: str = "", label: str = "") 
     return {"module0": module0, "m1": handoffs[1], "m2": handoffs[2], "m3": handoffs[3]}
 
 
+def _forced_m4(m3: dict, forced_concept: str) -> dict:
+    """사용자가 M3 concepts[] 중 하나를 이름으로 직접 골라 GATE A 를 통과시킨다(M4 LLM 비평
+    생략) — M4 의 나머지 필드(scores/killed)는 비워 "사용자가 직접 지정했다"는 사실을
+    `reason` 에 남긴다. 이름 매칭은 `modules_runner.annotate_concepts_with_verdict()` 와 같은
+    정규화(`_norm_concept`)를 써서 공백·따옴표·대소문자 차이를 흡수한다."""
+    concepts = [c for c in ((m3 or {}).get("concepts") or []) if isinstance(c, dict)]
+    target = modules_runner._norm_concept(forced_concept)
+    match = next((c for c in concepts if modules_runner._norm_concept(c.get("name")) == target), None)
+    if not match:
+        names = [c.get("name") for c in concepts]
+        raise ValueError(f"forced_concept {forced_concept!r} 를 M3 concepts 에서 찾을 수 없음. "
+                         f"후보: {names}")
+    entry = {
+        "concept": match.get("name"), "onesentence": match.get("provingwhy") or match.get("bigidea") or "",
+        "assumptions": [], "traps": [match["risk"]] if match.get("risk") else [], "recommended": True,
+    }
+    return {"verdict": "go", "scores": [], "killed": [], "shortlist": [entry], "selected": [entry],
+            "reason": f"사용자가 GATE A 를 직접 지정(forced_concept={match.get('name')!r}) — M4 LLM 비평 생략"}
+
+
 async def run_m4_m9(module0: dict, m1: dict, m2: dict, m3: dict, *,
-                    style: str | None = None, label: str = "") -> dict:
+                    style: str | None = None, label: str = "",
+                    forced_concept: str | None = None) -> dict:
     """M4~M9 를 순차 실행. module0/m1/m2/m3 는 run_m0_m3() 의 출력을 그대로 넣는다.
 
     style: M9 콘티 촬영 포맷(video_style.VALID 중 하나). 미지정 시 cinematic 기본값
     (원본의 DB 기반 LLM 자동선택은 이식하지 않았다 — video_style.py 참고).
+    forced_concept: 지정하면 M4 LLM 비평을 생략하고 이 이름과 일치하는 M3 concepts[] 항목을
+    바로 GATE A 통과("selected")로 만든다(사용자 요청 — M3 리스트 중 어떤 컨셉을 통과시킬지
+    사용자가 직접 결정). 이름이 M3 concepts[] 에 없으면 ValueError. 미지정 시 기존처럼 M4 가
+    자율적으로 선택한다.
 
     GATE A(M4) reject·GATE B(M6) block 모두 중단하지 않고 경고만 남긴 뒤 계속 진행한다(아래
     본문 주석 참고 — 소스 studio_orchestrator.run_full() 과 동일한 동작을 사용자 요청으로
@@ -76,7 +106,10 @@ async def run_m4_m9(module0: dict, m1: dict, m2: dict, m3: dict, *,
     handoffs: dict[int, dict] = {1: m1, 2: m2, 3: m3}
     gates: dict[str, str] = {}
 
-    m4 = await modules_runner.run_module(4, module0=module0, handoffs=handoffs)
+    if forced_concept:
+        m4 = _forced_m4(m3, forced_concept)
+    else:
+        m4 = await modules_runner.run_module(4, module0=module0, handoffs=handoffs)
     handoffs[4] = m4
     gates["a"] = modules_runner.gate_a(m4)
     annotated_m3 = modules_runner.annotate_concepts_with_verdict(m3, m4) or m3

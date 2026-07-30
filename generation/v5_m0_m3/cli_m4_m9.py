@@ -6,18 +6,23 @@ cli.py(M0~M3)와 완전히 분리된 별도 진입점이다 — 두 파이프라
 
 사용법:
     python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.json \\
-        [--style cinematic] [--llm_backend cli|api] [--retrieval]
+        [--style cinematic] [--llm_backend cli|api] [--retrieval] [--select_concept "컨셉명"]
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
 import json
+import re
 from pathlib import Path
 
 from generation.v5_m0_m3 import llm_adapter
 from generation.v5_m0_m3.pipeline import run_m4_m9
 from generation.v5_m0_m3.video_style import VALID as _VALID_STYLES
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^0-9A-Za-z가-힣]+", "_", text).strip("_") or "concept"
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -34,6 +39,12 @@ def _build_parser() -> argparse.ArgumentParser:
                         "LLM 에 제공한다 — M5(스크립트)/M9(콘티)는 반영 시 "
                         "referencedvideoid/referencedelement 로 추적되고, M4/M6/M7 은 "
                         "advisory 로만 열어둔다(강제 아님)")
+    p.add_argument("--select_concept", default="",
+                   help="M4 LLM 비평 대신, 입력 M3 concepts[] 중 이 이름과 일치하는 컨셉을 "
+                        "사용자가 직접 GATE A 통과로 지정한다(M4 생략). 미지정 시 기존처럼 "
+                        "M4 가 자율적으로 컨셉을 선택한다. 지정 시 결과 파일명에 컨셉 슬러그가 "
+                        "붙어(<label>_<컨셉슬러그>_m4_m9.json) 같은 M3 로 여러 컨셉을 돌려도 "
+                        "덮어쓰지 않는다")
     p.add_argument("--output_dir", type=Path, default=Path("output/v5_m0_m3"), help="결과 저장 경로")
     return p
 
@@ -51,6 +62,8 @@ def main() -> None:
         raise SystemExit(f"[오류] 입력 JSON 에 필요한 키가 없음: {missing} (run_m0_m3 결과가 아닌 것 같습니다)")
 
     label = args.input.stem.removesuffix("_m0_m3")
+    if args.select_concept:
+        label = f"{label}_{_slug(args.select_concept)}"
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     retrieval_log_path = None
@@ -58,9 +71,12 @@ def main() -> None:
         retrieval_log_path = args.output_dir / f"{label}_m4_m9_retrieval.jsonl"
         llm_adapter.set_retrieval_log(retrieval_log_path)
 
-    result = asyncio.run(run_m4_m9(
-        data["module0"], data["m1"], data["m2"], data["m3"],
-        style=args.style or None, label=label))
+    try:
+        result = asyncio.run(run_m4_m9(
+            data["module0"], data["m1"], data["m2"], data["m3"],
+            style=args.style or None, label=label, forced_concept=args.select_concept or None))
+    except ValueError as e:
+        raise SystemExit(f"[오류] {e}")
 
     out_path = args.output_dir / f"{label}_m4_m9.json"
     out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
