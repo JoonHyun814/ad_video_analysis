@@ -8,6 +8,11 @@
 > 에 있다. G1~G6 와 서로 참조하지 않으며, M0~M3 와 M4~M9 를 각각 따로 실행할 수 있다.
 > 자세한 내용은 [`v5_m0_m3/README.md`](v5_m0_m3/README.md) 참고.
 
+> **story_bard/**: `story_board` 프로젝트를 이식한 독립 도구가 `generation/story_bard/`
+> 에 있다. 스토리보드 자리표시자 HTML을 Codex CLI로 완성 비주얼(이미지 생성·삽입·렌더링)로
+> 바꾸는 후처리 단계로, G1~G6·v5_m0_m3 와 서로 참조하지 않는다. 자세한 내용은
+> [`story_bard/README.md`](story_bard/README.md) 참고.
+
 광고주가 장르/타겟/USP 를 지정하면, facet 벡터 DB(`ad_target`/`ad_usp`/`ad_creative`)에서
 같은 세그먼트의 기존 광고 분포를 분석해 **클리셰를 따를지(follow)/피할지(avoid)/비틀지(subvert)** 를
 결정하고, 그 결정을 준수하는 컨셉·시나리오를 생성한다.
