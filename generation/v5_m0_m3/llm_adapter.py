@@ -13,7 +13,7 @@ claude -p 도 Anthropic API 도 이 어댑터에서는 이미지 입력 경로�
 vision_json 호출부인 page_section_ocr 하나뿐이고, Anthropic API 로 옮기려면 별도 검증이
 필요해 범위를 좁혔다).
 
-[신규] set_retrieval(True) — evaluation/creative 크리에이티브 벡터 DB를 MCP 서버로 노출한
+[신규] set_retrieval(True) — evaluation/creative 참조 벡터 DB를 MCP 서버로 노출한
 `creative-retrieval`(저장소 루트 `.mcp.json`, evaluation/creative/mcp_server.py)의 도구를
 텍스트 LLM 호출에 연결한다. 두 백엔드에서 서로 다른 방식으로 "같은 도구"를 제공한다:
   - "cli" : call_claude 에 --mcp-config(.mcp.json)+--allowedTools 를 넘긴다. claude -p 프로세스
@@ -21,8 +21,13 @@ vision_json 호출부인 page_section_ocr 하나뿐이고, Anthropic API 로 옮
   - "api" : Anthropic API 는 로컬 stdio MCP 서버에 직접 붙을 수 없어(원격 HTTP/SSE MCP 커넥터만
             지원), evaluation.creative.reference_retrieval 의 같은 함수를 Anthropic 네이티브
             tool_use 스키마로 직접 노출하고 이 파일이 도구 호출~응답 루프를 수동으로 돈다
-            (evaluation/creative/reference_retrieval.py 의 TOOL_DEFINITIONS/call_tool 재사용 —
+            (evaluation/creative/reference_retrieval.py 의 TOOL_DEFINITIONS_*/call_tool 재사용 —
             검색 로직 자체는 두 백엔드가 완전히 동일하고 전송 방식만 다르다).
+
+도구는 stage 별로 정확히 한 종류만 노출한다(_STAGE_TOOL_KIND) — M3 는 ad_concept_reference
+검색 도구(concept), M4~M9·STORYBOARD_HTML 은 ad_production_reference 검색 도구(production),
+M1/M2 는 retrieval 이 켜져 있어도 도구를 받지 않는다. 두 용도를 동시에 열어주지 않는다
+(evaluation/README.md 스키마 통합 계획 참고).
 """
 from __future__ import annotations
 
@@ -77,10 +82,31 @@ _JSON_FORCE_INSTRUCTION = (
 # .mcp.json 은 저장소 루트에 있다 — 이 파일은 generation/v5_m0_m3/ 아래라 parents[2].
 _MCP_CONFIG_PATH = str(Path(__file__).resolve().parents[2] / ".mcp.json")
 _MCP_SERVER_NAME = "creative-retrieval"
-_MCP_ALLOWED_TOOLS = [
-    f"mcp__{_MCP_SERVER_NAME}__search_reference_ads",
-    f"mcp__{_MCP_SERVER_NAME}__list_segment_columns",
-]
+_MCP_ALLOWED_TOOLS_BY_KIND: dict[str, list[str]] = {
+    "concept": [
+        f"mcp__{_MCP_SERVER_NAME}__search_concept_reference",
+        f"mcp__{_MCP_SERVER_NAME}__list_concept_segment_columns",
+    ],
+    "production": [
+        f"mcp__{_MCP_SERVER_NAME}__search_production_reference",
+        f"mcp__{_MCP_SERVER_NAME}__list_production_segment_columns",
+    ],
+}
+
+# stage(chat_json 호출자가 넘기는 "M3" 등 라벨) → 노출할 검색 도구 종류. 없는 stage(M1/M2 등)는
+# retrieval 이 켜져 있어도 도구를 받지 않는다 — M3=컨셉 발산 참고, M4~M9/STORYBOARD_HTML=연출 참고.
+_STAGE_TOOL_KIND: dict[str, str] = {
+    "M3": "concept",
+    "M4": "production", "M5": "production", "M6": "production",
+    "M7": "production", "M9": "production",
+    "STORYBOARD_HTML": "production",
+}
+
+
+def _tool_kind_for_stage(stage: str) -> str | None:
+    if not get_retrieval():
+        return None
+    return _STAGE_TOOL_KIND.get(stage)
 
 _anthropic_client = None
 
@@ -162,10 +188,11 @@ def _create_message(**kwargs):
         return stream.get_final_message()
 
 
-def _chat_json_api(system: str, user: str) -> dict:
+def _chat_json_api(system: str, user: str, stage: str) -> dict:
     """Anthropic Messages API 직접 호출. json_mode 는 response_format 이 없어 프롬프트 강제 + 파싱 복구로 대신한다."""
-    if get_retrieval():
-        return _chat_json_api_with_tools(system, user)
+    kind = _tool_kind_for_stage(stage)
+    if kind:
+        return _chat_json_api_with_tools(system, user, kind)
     msg = _create_message(
         model=_API_DEFAULT_MODEL,
         max_tokens=_API_MAX_TOKENS,
@@ -175,15 +202,19 @@ def _chat_json_api(system: str, user: str) -> dict:
     return parse_json(_text_of(msg))
 
 
-def _chat_json_api_with_tools(system: str, user: str) -> dict:
-    """retrieval 활성 시의 Anthropic tool_use 루프 — creative-retrieval 도구를 네이티브 함수콜로 제공.
+def _chat_json_api_with_tools(system: str, user: str, kind: str) -> dict:
+    """retrieval 활성 시의 Anthropic tool_use 루프 — creative-retrieval 도구(kind 별 1종)를
+    네이티브 함수콜로 제공한다.
 
     MCP 프로토콜을 타지 않고 evaluation.creative.reference_retrieval 을 직접 호출한다(같은 검색
     로직, 다른 전송 방식 — 모듈 docstring 참고). 모델이 tool_use 를 멈추고 텍스트로 답할 때까지
     최대 _API_TOOL_ROUNDS 회 왕복한다.
     """
-    from evaluation.creative.reference_retrieval import TOOL_DEFINITIONS, call_tool
+    from evaluation.creative.reference_retrieval import (
+        TOOL_DEFINITIONS_CONCEPT, TOOL_DEFINITIONS_PRODUCTION, call_tool,
+    )
 
+    tools = TOOL_DEFINITIONS_CONCEPT if kind == "concept" else TOOL_DEFINITIONS_PRODUCTION
     messages: list[dict] = [{"role": "user", "content": user}]
     msg = None
     for _ in range(_API_TOOL_ROUNDS):
@@ -192,7 +223,7 @@ def _chat_json_api_with_tools(system: str, user: str) -> dict:
             max_tokens=_API_MAX_TOKENS,
             system=system + _JSON_FORCE_INSTRUCTION,
             messages=messages,
-            tools=TOOL_DEFINITIONS,
+            tools=tools,
         )
         if msg.stop_reason != "tool_use":
             return parse_json(_text_of(msg))
@@ -216,12 +247,13 @@ def _chat_json_api_with_tools(system: str, user: str) -> dict:
     return parse_json(text) if text else {"error": "parse_failed", "raw": "tool_use round 소진, 최종 답변 없음"}
 
 
-def _chat_json_cli(system: str, user: str, *, timeout: int) -> dict:
+def _chat_json_cli(system: str, user: str, *, timeout: int, stage: str) -> dict:
     prompt = f"{system}\n\n---\n\n{user}\n\n위 입력으로 지시를 수행하고, JSON 객체 하나로만 응답하세요."
     kwargs: dict = {"timeout": timeout * _CLI_TIMEOUT_MULTIPLIER}
-    if get_retrieval():
+    kind = _tool_kind_for_stage(stage)
+    if kind:
         kwargs["mcp_config"] = _MCP_CONFIG_PATH
-        kwargs["allowed_tools"] = _MCP_ALLOWED_TOOLS
+        kwargs["allowed_tools"] = _MCP_ALLOWED_TOOLS_BY_KIND[kind]
     return call_claude(prompt, **kwargs)
 
 
@@ -233,19 +265,19 @@ def chat_json(system: str, user: str, *, timeout: int = _CLI_DEFAULT_TIMEOUT, st
     타임아웃을 쓴다. 실패해도 예외를 던지지 않고 {"error": "parse_failed", ...} 를 반환한다
     (utils.json_utils.parse_json 계약 — 호출부가 빈 결과로 graceful 처리).
 
-    stage: 이 호출을 낸 파이프라인 단계 라벨(예: "M1", "M0:material_analysis") — retrieval 사용
-    로그(set_retrieval_log)에 "어느 단계가 검색했는지" 기록하는 용도. retrieval 이 꺼져 있거나
-    로그 경로가 없으면 무시된다.
+    stage: 이 호출을 낸 파이프라인 단계 라벨(예: "M3", "STORYBOARD_HTML"). retrieval 사용
+    로그(set_retrieval_log)에 "어느 단계가 검색했는지" 기록하는 용도일 뿐 아니라, _STAGE_TOOL_KIND
+    를 통해 "이 단계에 어느 검색 도구를 줄지"(concept/production/없음)도 이 값으로 결정된다.
     """
     _sync_retrieval_env(stage)
     backend = get_backend()
     if backend == "api":
         try:
-            return _chat_json_api(system, user)
+            return _chat_json_api(system, user, stage)
         except Exception as e:
             logger.warning(f"[llm_adapter] api backend fail, no fallback: {type(e).__name__}: {e}")
             return {"error": "parse_failed", "raw": str(e)}
-    return _chat_json_cli(system, user, timeout=timeout)
+    return _chat_json_cli(system, user, timeout=timeout, stage=stage)
 
 
 def vision_json(prompt: str, images: list[tuple[bytes, str]], *, model: str | None = None) -> dict:

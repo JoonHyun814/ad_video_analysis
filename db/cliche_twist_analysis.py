@@ -1,7 +1,7 @@
 """검색된 N편 광고 세그먼트의 크리에이티브 요소를 집계하고 클리셰를 비튼 광고를 찾는다.
 
-creative vector db(video_creative_profile/ad_creative_element)에 이미 적재된 영상만
-대상으로 한다 — scenario_analysis.json 자동 추출이나 category DB 조회는 하지 않는다.
+creative vector db(ad_production_reference, record_kind=profile/element)에 이미 적재된
+영상만 대상으로 한다 — scenario_analysis.json 자동 추출이나 category DB 조회는 하지 않는다.
 """
 from pathlib import Path
 

@@ -73,7 +73,11 @@ def _output_schema(industry: str, secondary: str | None = None) -> str:
 _RULES = (
     "[추출 규칙]\n"
     "  - 시나리오에 실제 기술된 내용에만 근거한다. 창작·추정 금지.\n"
-    "  - opening_hook / casting_direction / narrative_pattern 은 각 1개 레코드만 출력한다.\n"
+    "  - opening_hook / casting_direction / narrative_pattern / persuasion_engine / narrative_form /\n"
+    "    tone_register 은 각 1개 레코드만 출력한다.\n"
+    "  - narrative_pattern 은 훅~클로즈 구조 골격, persuasion_engine 은 그 안에서 무엇을 논증하는가,\n"
+    "    narrative_form 은 어떤 이야기 형식으로 전달하는가, tone_register 는 카테고리 디폴트 톤 대비\n"
+    "    반전 여부다 — 네 축이 서로 다르니 혼동해 하나로 합치지 마라.\n"
     "  - 인물이 등장하지 않으면 casting_direction 은 subtype 'none', casting 의 인물 필드는 null.\n"
     "  - sensory_demo_shot / trust_device / cta_device / product_shot 는 해당 요소가 전혀 없으면\n"
     "    subtype 'none' 레코드 1개를 출력한다 (관습의 의도적 생략을 집계하기 위함,\n"

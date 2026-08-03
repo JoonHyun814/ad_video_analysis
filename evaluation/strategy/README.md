@@ -3,6 +3,10 @@
 `scenario_analysis.json` 에서 M1(인사이트)·M2(포지셔닝)·M3(컨셉) 전략 스키마를 역추출해
 `strategy_analysis.json` (`{"m1": {...}, "m2": {...}, "m3": {...}}`) 으로 저장한다.
 
+이 결과는 [`../concept/concept_reference_store.py`](../concept/concept_reference_store.py)가
+`ad_concept_reference` 컬렉션(`generation/v5_m0_m3` M3 컨셉 발산 참고용)의 유일한 문서 소스로
+쓴다 — `evaluation/concept/README.md` 참고.
+
 ## 파일 구성
 
 | 파일 | 역할 |

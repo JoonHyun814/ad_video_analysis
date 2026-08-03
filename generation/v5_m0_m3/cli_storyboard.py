@@ -7,7 +7,7 @@
 
 사용법:
     python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m9.json \\
-        [--m0_m3 <slug>_m0_m3.json 경로] [--llm_backend cli|api] [--output <out.html>]
+        [--m0_m3 <slug>_m0_m3.json 경로] [--llm_backend cli|api] [--retrieval] [--output <out.html>]
 """
 from __future__ import annotations
 
@@ -33,6 +33,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--llm_backend", default="cli", choices=("cli", "api"),
                    help="추가 기획 필드(캐릭터·제품·환경·카메라·조명·메타데이터)를 채우는 "
                         "LLM 호출 방식")
+    p.add_argument("--retrieval", action="store_true",
+                   help="추가 기획 필드를 채울 때 ad_production_reference 벡터 DB의 기존 광고 "
+                        "캐스팅·카메라·조명 연출을 검색하는 도구를 LLM 에 제공한다(강제 아님)")
     p.add_argument("--output", type=Path, default=None,
                    help="결과 HTML 경로(미지정 시 --input 과 같은 디렉터리에 "
                         "<label>_storyboard.html 로 저장)")
@@ -57,6 +60,10 @@ def main() -> None:
     m0_m3 = json.loads(m0_m3_path.read_text(encoding="utf-8"))
 
     llm_adapter.set_backend(args.llm_backend)
+    llm_adapter.set_retrieval(args.retrieval)
+    label = args.input.stem.removesuffix("_m4_m9")
+    if args.retrieval:
+        llm_adapter.set_retrieval_log(args.input.with_name(f"{label}_storyboard_retrieval.jsonl"))
     extra = storyboard_fill.fill_extra_fields(
         m0_m3.get("module0", {}), m0_m3.get("m1", {}), m0_m3.get("m2", {}),
         m4_m9.get("m4", {}), m4_m9.get("m5", {}), m4_m9.get("m9", {}))
@@ -65,7 +72,6 @@ def main() -> None:
         m0_m3.get("module0", {}), m0_m3.get("m1", {}), m0_m3.get("m2", {}),
         m4_m9.get("m4", {}), m4_m9.get("m5", {}), m4_m9.get("m9", {}), extra)
 
-    label = args.input.stem.removesuffix("_m4_m9")
     out_path = args.output or args.input.with_name(f"{label}_storyboard.html")
     out_path.write_text(html, encoding="utf-8")
     print(f"  저장: {out_path}")

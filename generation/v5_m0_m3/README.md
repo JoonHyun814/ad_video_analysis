@@ -108,7 +108,7 @@ M6~M9 는 그대로 실행되고, `m6.unresolvedcritical` 을 사후에 직접 �
 | `cli_m4_m9.py` | M4~M9 진입점 (`--input <m0_m3.json>` `--style` `--llm_backend` `--retrieval` `--select_concept`, 켜면 `<slug>_m4_m9_retrieval.jsonl` 사용 기록도 저장) |
 | `ab_test_retrieval.py` | M0~M2 고정 후 M3만 retrieval 끄고/켜고 두 번 실행해 비교(`run_ab()`) |
 | `ab_test_retrieval_m5_m9.py` | M0~M4 고정(M4는 1회만 실행) 후 M5~M9만 retrieval 끄고/켜고 두 번 실행해 비교 — M4 자체의 실행 변동을 배제하고 M5~M9 구간의 retrieval 효과만 분리해서 보고 싶을 때 사용 |
-| `cli_storyboard.py` | M4~M9 결과 → 스토리보드 HTML 진입점(`--input <m4_m9.json>` `--m0_m3` `--llm_backend` `--output`) |
+| `cli_storyboard.py` | M4~M9 결과 → 스토리보드 HTML 진입점(`--input <m4_m9.json>` `--m0_m3` `--llm_backend` `--retrieval` `--output`, `--retrieval` 켜면 `<slug>_storyboard_retrieval.jsonl` 사용 기록도 저장) |
 | `storyboard_fill.py` | M0~M9 어디에도 없는 프로덕션 기획 필드(캐릭터·제품·환경·카메라·조명·메타데이터)만 LLM 1회 호출로 채움(`fill_extra_fields()`) |
 | `storyboard_render.py` | `generation/AITIVE_스토리보드_데이터필드.html` 원본과 동일한 CSS·레이아웃으로 최종 HTML을 문자열로 렌더링(`render_storyboard_html()`) — M9 씬/샷 개수에 맞춰 씬 카드·촬영기법 표를 동적으로 생성 |
 | `pipeline.py` | `run_m0_m3()` / `run_m4_m9()` 오케스트레이션 |
@@ -163,7 +163,10 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
   캐릭터 레퍼런스(역할/연령대·고유식별자·의상·표정 연기·시드 고정)·제품 레퍼런스(외형·색·
   타입·네거티브)·환경(장소·시간대·톤)·카메라 원칙·조명·메타데이터(장르·컴포지션·팔레트 등).
   카메라 바디/렌즈처럼 실물 장비를 뜻하는 필드는 이 파이프라인이 AI 이미지-투-비디오 생성이라는
-  점을 감안해 "N/A(AI 생성)"로 채우도록 프롬프트에 명시했다.
+  점을 감안해 "N/A(AI 생성)"로 채우도록 프롬프트에 명시했다. `--retrieval` 을 켜면(stage=
+  `"STORYBOARD_HTML"`) `ad_production_reference` 검색 도구(`search_production_reference`/
+  `list_production_segment_columns`)가 advisory 로 붙어, 이 컨셉과 비슷하게 연출된 기존 광고의
+  캐스팅·카메라·조명을 참고해 이 필드들을 채울 수 있다(강제 아님).
 
 **이미지 슬롯**(`IMAGE` 칩이 붙은 자리)은 실제 이미지를 생성하지 않으므로(이 CLI의 범위 밖)
 원본 그대로 빈 자리로 남는다 — 다음 단계(M10~M12, 이 프로젝트 범위 밖)에서 채울 자리다.
@@ -195,8 +198,14 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
     `client.messages.create` 대신 스트리밍(`client.messages.stream(...).get_final_message()`)
     으로 호출하고 최종 Message 객체만 돌려준다 — 호출부(`_chat_json_api`/
     `_chat_json_api_with_tools`)는 이전과 동일하게 다룬다.
-- `--retrieval`(cli.py 전용, M0~M3 만): M1~M3 시스템 프롬프트에 `evaluation/creative` 크리에이티브
-  벡터 DB(기존 광고 81편·요소 1592건)를 검색하는 도구(`search_reference_ads`/`list_segment_columns`,
+- **참조 벡터 DB 스키마는 용도별 컬렉션 2개로 나뉜다**(자세한 배경은
+  [`../../evaluation/README.md`](../../evaluation/README.md)의 스키마 통합 계획 참고) —
+  `ad_concept_reference`(전략·소구 참고, M3 전용)와 `ad_production_reference`(연출·촬영 기법
+  참고, M4~M9·스토리보드 HTML 전용). 어느 stage 가 어느 컬렉션의 도구를 받는지는
+  `llm_adapter._STAGE_TOOL_KIND` 가 고정한다 — **M1/M2 는 `--retrieval` 이 켜져 있어도 도구를
+  받지 않는다.**
+- `--retrieval`(cli.py 전용, M3 만): M3 시스템 프롬프트에 `ad_concept_reference` 벡터 DB를
+  검색하는 도구(`search_concept_reference`/`list_concept_segment_columns`,
   `creative-retrieval` MCP 서버)를 붙인다. 어떤 세그먼트 컬럼/값으로 몇 건(top_k)을 검색할지는
   LLM 이 그때그때 판단한다(강제 호출 아님). 두 `--llm_backend` 모두 지원하지만 전송 방식이
   다르다 — `cli`: `claude -p --mcp-config .mcp.json`, `api`: Anthropic 네이티브 tool_use 루프
@@ -206,24 +215,26 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
   30분 넘게 멈추는 버그가 있었고, 매칭 영상별로 N번 나눠 하던 크리에이티브 요소 조회도 단일
   `$in` 쿼리로 합쳤다). 자세한 도구 스펙은
   [`../../evaluation/creative/README.md`](../../evaluation/creative/README.md) 참고.
-  M3 는 M1/M2 와 달리 "참고만 하고 베끼지 마라"에 그치지 않고 두 가지를 추가로 안내받는다
+  M3 는 "참고만 하고 베끼지 마라"에 그치지 않고 두 가지를 추가로 안내받는다
   (`modules_runner._run_module_core` 의 `n == 3` 분기):
   1. **포괄적 검색 1회 대신 렌즈별 타겟 검색**을 유도한다 — 선택한 전략 렌즈마다 필요한
-     '증명 방식'이 다르므로(데모·증거 렌즈 → 실측 비교 데모 사례, 적 의인화 렌즈 → 경쟁/현상유지를
-     캐릭터화한 사례 등) 유망한 렌즈 2~3개 이상을 골라 각각 좁은 쿼리로 따로 검색하게 하고,
-     결과 과다를 막기 위해 검색 1건당 `top_k` 는 2~4로 작게 잡으라고 안내한다.
+     '증명 방식'이 다르므로(데모·증거 렌즈 → 실측 비교로 우월성을 증명한 사례, 적 의인화 렌즈 →
+     경쟁/현상유지를 캐릭터화한 사례 등) 유망한 렌즈 2~3개 이상을 골라 각각 좁은 쿼리로 따로
+     검색하게 하고, 결과 과다를 막기 위해 검색 1건당 `top_k` 는 2~4로 작게 잡으라고 안내한다.
   2. 검색 도구를 호출했다면 발산한 컨셉 중 **가능한 한 여러 개**(1개에 그치지 않고)에는 그
-     컨셉의 렌즈로 검색한 결과의 `notable_elements`(opening_hook/casting_direction/
-     narrative_pattern/sensory_demo_shot) 중 구체적 연출 기법 하나를 변형해 반영하라고 안내한다.
+     컨셉의 렌즈로 검색한 결과의 `summary`/`appeal_type`/`usp_category`/`positioning_category`
+     중 구체적인 전략적 착안점 하나를 변형해 반영하라고 안내한다(연출·촬영 기법은 이 도구가
+     다루지 않는다 — `ad_production_reference` 는 M5~M9 몫).
 
   반영 여부는 M3 출력 `concepts[].referencedvideoid`/`referencedelement` 로 추적 가능하다 —
-  실제로 반영했으면 참조한 `video_id`와 (원본 기법 → 변형) 1줄, 반영하지 않았으면 둘 다 빈
-  값이다(지어내는 것 금지, 반영한 컨셉 수보다 정확성이 우선). 검증 결과: 강제 재검색 테스트에서
-  포괄적 검색 1회로는 7개 컨셉 중 1개만 인용을 남겼지만, 렌즈별 타겟 검색으로 바꾸자 5개로
-  늘었다 — 인용된 `video_id`들의 실제 DB 내용을 대조해보면 전부 정확했다(할루시네이션 아님).
-- `--retrieval`(cli_m4_m9.py 전용, M4~M9): M0~M3 와 별도로 M4~M9 단계에도 같은 검색 도구를
-  붙일 수 있다. 모듈별 취급이 다르다(`modules_runner._run_module_core` 의 `n in (1,2,3,4,5,6,7,9)`
-  분기):
+  실제로 반영했으면 참조한 `video_id`와 (원본 전략 → 변형) 1줄, 반영하지 않았으면 둘 다 빈
+  값이다(지어내는 것 금지, 반영한 컨셉 수보다 정확성이 우선). 검증 결과(구 `search_reference_ads`
+  단일 도구 시절 실측): 강제 재검색 테스트에서 포괄적 검색 1회로는 7개 컨셉 중 1개만 인용을
+  남겼지만, 렌즈별 타겟 검색으로 바꾸자 5개로 늘었다 — 인용된 `video_id`들의 실제 DB 내용을
+  대조해보면 전부 정확했다(할루시네이션 아님).
+- `--retrieval`(cli_m4_m9.py 전용, M4~M9): M0~M3 와 별도로 M4~M9 단계에 `ad_production_reference`
+  검색 도구(`search_production_reference`/`list_production_segment_columns`)를 붙일 수 있다.
+  모듈별 취급이 다르다(`modules_runner._run_module_core` 의 `n in (4,5,6,7,9)` 분기):
   - **M5(스크립트)·M9(콘티)**: M3 처럼 반영을 명시적으로 요구한다 — 훅·카피·씬 연출 기법을
     검색해 반영했다면 M5 는 top-level `referencedvideoid`/`referencedelement`, M9 는 씬별
     `scenes[].referencedvideoid`/`referencedelement` 에 근거를 남긴다.
@@ -232,6 +243,9 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
     검색이 구조적으로 덜 유용할 수 있지만, 강제로 막지 않고 실사용 여부를 로그로 관찰한다.
   - 로그 파일은 M0~M3 와 분리된 `<output_dir>/<slug>_m4_m9_retrieval.jsonl` 에 남는다(같은
     `stage` 태그 형식, 예: `"M4"`·`"M5"`·`"M9"`).
+- `--retrieval`(cli_storyboard.py 전용, STORYBOARD_HTML): 스토리보드 HTML 의 추가 기획 필드를
+  채울 때도 같은 `ad_production_reference` 검색 도구를 advisory 로 붙일 수 있다(위 "스토리보드
+  HTML 생성" 절 참고). 로그는 `<input과 같은 디렉터리>/<slug>_storyboard_retrieval.jsonl`.
 - 결과: `<output_dir>/<slug>_m0_m3.json`(`{"module0","m1","m2","m3"}`), `<slug>_m4_m9.json`
   (`{"m3"(검증마커 반영)","m4"~"m9","gates":{"a","b","c"}}`).
 - `--retrieval` 사용 시 검색 도구 사용 기록이 남는다(M0~M3: `<slug>_retrieval.jsonl`, M4~M9:
@@ -257,9 +271,15 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
    `--llm_backend api` 사용 시: `env/api.env` 에 `ANTHROPIC_API_KEY` 입력(이미 포함됨).
 3. `env/v5_category_db.env` — 소스 RDS `category` 테이블 접속 정보(이미 포함됨, **읽기 전용
    SELECT만** 실행한다). 이 프로젝트 자체 DB(`env/db.env`, `ad_video_label`)와는 무관하다.
-4. `--retrieval` 사용 시: `output/vector_db` 에 `evaluation.creative` 벡터 DB가 이미 적재되어
-   있어야 한다(`python -m evaluation.cli --mode creative --load_vector ...`). 저장소 루트의
-   `.mcp.json` 이 `creative-retrieval` MCP 서버를 등록한다(커밋됨, 공유).
+4. `--retrieval` 사용 시: `output/vector_db` 에 해당 컬렉션이 이미 적재되어 있어야 한다 —
+   `cli.py`(M3)는 `ad_concept_reference`(`python -m evaluation.cli --mode strategy --video_id
+   <ID> --data_dir <dir>` 로 `strategy_analysis.json` 을 먼저 만든 뒤 `python -m evaluation.cli
+   --mode concept --video_id <ID> --data_dir <dir> --load_vector`), `cli_m4_m9.py`/
+   `cli_storyboard.py`(M4~M9·HTML)는 `ad_production_reference`(`python -m evaluation.cli
+   --mode creative --load_vector ...`)가 필요하다 — **영상 전체를 새로 돌릴 때는 strategy→concept
+   →creative 세 단계를 모두 실행해야 한다**(하나라도 빠뜨리면 해당 컬렉션이 비어 있어
+   그 stage 의 검색 도구가 항상 "컬렉션이 비어 있음"만 반환한다). 저장소 루트의 `.mcp.json`
+   이 `creative-retrieval` MCP 서버를 등록한다(커밋됨, 공유).
    **`--llm_backend cli` 와 함께 쓸 때만** 추가로 승인이 필요하다 — 이 저장소는 `.gitignore` 로
    `.claude/`(개인 로컬 상태)를 전부 제외하므로, `claude -p` 헤드리스 호출이 "Pending approval"
    에 막히지 않으려면 각자 로컬에 `.claude/settings.json` 을 만들어 아래 내용을 넣거나
@@ -287,7 +307,8 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
 - M9 는 원본처럼 씬 타임코드·마이크로샷 보정, 엔딩 팩샷 예약(13~15초), 사용 완결 컷/컷 대비
   계약 위반 시 1회 재생성을 코드로 수행한다(하드 실패 없음 — 재시도 후에도 위반이면 경고만
   남기고 통과).
-- `--retrieval` 은 `cli.py`(M0~M3)와 `cli_m4_m9.py`(M4~M9) 양쪽에 독립적으로 붙는다 — 한쪽만
-  켜고 다른 쪽은 꺼도 된다(예: M3 는 검색 없이, M4~M9 만 검색 사용). 도구를 쓸지·안 쓸지, 몇
-  건을 볼지는 매 LLM 호출마다 모델이 새로 판단한다(이전 호출에서 검색한 결과를 "기억"해
-  재사용하지 않음 — M1~M9 각 모듈이 각자 필요하면 각자 검색한다).
+- `--retrieval` 은 `cli.py`(M3)·`cli_m4_m9.py`(M4~M9)·`cli_storyboard.py`(STORYBOARD_HTML) 세
+  진입점에 독립적으로 붙는다 — 어느 쪽을 켜고 끌지 자유롭게 조합할 수 있다(예: M3 는 검색
+  없이, M4~M9 만 검색 사용). 도구를 쓸지·안 쓸지, 몇 건을 볼지는 매 LLM 호출마다 모델이 새로
+  판단한다(이전 호출에서 검색한 결과를 "기억"해 재사용하지 않음 — 각 모듈이 각자 필요하면
+  각자 검색한다). M1/M2 는 `--retrieval` 이 켜져 있어도 도구를 받지 않는다.

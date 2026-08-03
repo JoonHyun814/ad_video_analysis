@@ -17,11 +17,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--data_dir", type=Path, default=Path("output/codex"),
                    help="데이터 루트 (기본: output/codex). 경로: <data_dir>/<video_id>/")
     p.add_argument("--concept_evaluation", action="store_true", help="컨셉 추출 실행")
-    p.add_argument("--load_vector", action="store_true", help="concept_evaluation.json 을 벡터 DB(video_concept)에 적재")
+    p.add_argument("--load_vector", action="store_true",
+                   help="strategy_analysis.json(evaluation/strategy/run.py 로 미리 추출 — M1·M2·M3 "
+                        "역추출 결과)을 벡터 DB(ad_concept_reference)에 적재 — M3(컨셉 발산)이 "
+                        "참고하는 전략 레퍼런스 컬렉션. 같은 디렉터리에 creative_element_analysis.json"
+                        "이 있으면 target_gender/duration_bucket/price_tier 를, concept_evaluation.json"
+                        "(구 스키마)이 있으면 카테고리 세그먼트 필터를 추가로 크로스 적재한다(둘 다 없어도 무방)")
     p.add_argument("--load_facets", action="store_true",
-                   help="concept_evaluation.json 을 facet 컬렉션 3개(ad_target/ad_usp/ad_creative)에 적재")
+                   help="[레거시, generation/segment_retrieval.py 전용] concept_evaluation.json 을 "
+                        "facet 컬렉션 3개(ad_target/ad_usp/ad_creative)에 적재. ad_concept_reference "
+                        "와는 무관하다")
     p.add_argument("--db_path", type=Path, default=Path("output/vector_db"), help="ChromaDB 저장 경로 (기본: output/vector_db)")
-    p.add_argument("--collection", default="video_concept", help="ChromaDB 컬렉션명 (기본: video_concept)")
     p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default="claude", help="LLM 백엔드 (기본: claude)")
     p.add_argument("--qwen_model", default=_QWEN_DEFAULT_MODEL, help="[qwen] 베이스 모델명/경로")
     p.add_argument("--codex_model", default=None, help="[codex] 사용할 모델명")
@@ -74,13 +80,46 @@ def _load_concept(args: argparse.Namespace, video_dir: Path) -> dict:
     return concept
 
 
+_ENRICH_KEYS = ("target_gender", "duration_bucket", "price_tier")
+
+
+def _enrich_from_creative(video_dir: Path) -> dict | None:
+    """같은 영상의 creative_element_analysis.json profile 에서 target_gender/duration_bucket/
+    price_tier 를 뽑아 ad_concept_reference 크로스 세그먼트 필터로 쓴다(없으면 None)."""
+    path = video_dir / "creative_element_analysis.json"
+    if not path.exists():
+        return None
+    profile = (json.loads(path.read_text(encoding="utf-8")) or {}).get("profile") or {}
+    enrich = {k: profile[k] for k in _ENRICH_KEYS if profile.get(k) is not None}
+    return enrich or None
+
+
+def _load_strategy(video_dir: Path) -> dict:
+    strategy = require_valid_json(video_dir / "strategy_analysis.json", "strategy_analysis")
+    for module in ("m1", "m2", "m3"):
+        if error := strategy.get(module, {}).get("error"):
+            print(f"[오류] strategy_analysis.json 의 {module} 추출 실패: {error}", file=sys.stderr)
+            sys.exit(1)
+    return strategy
+
+
+def _load_concept_eval_optional(video_dir: Path) -> dict | None:
+    """concept_evaluation.json(구 스키마, 있으면) — 세그먼트 필터 보조 카테고리용."""
+    path = video_dir / "concept_evaluation.json"
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return None if "error" in data else data
+
+
 def _run_load_vector(args: argparse.Namespace, video_dir: Path) -> None:
-    from evaluation.concept.concept_vector_store import upsert_concept
-    upsert_concept(
+    from evaluation.concept.concept_reference_store import upsert_concept_reference
+    upsert_concept_reference(
         video_id=int(args.video_id),
-        concept=_load_concept(args, video_dir),
+        strategy=_load_strategy(video_dir),
         db_path=args.db_path,
-        collection_name=args.collection,
+        enrich=_enrich_from_creative(video_dir),
+        concept_eval=_load_concept_eval_optional(video_dir),
     )
 
 

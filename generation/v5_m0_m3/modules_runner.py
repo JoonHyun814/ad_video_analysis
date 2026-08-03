@@ -15,9 +15,12 @@
     재생성"/"M9 계약 위반 1회 재생성" 재시도는 assistant 턴을 남기는 대신 user 텍스트에
     재시도 지시를 이어붙인다.
 
-[신규] --retrieval 옵션(llm_adapter.set_retrieval)이 켜져 있으면 M1~M3 시스템 프롬프트에
-evaluation/creative 크리에이티브 벡터 DB 검색 도구(search_reference_ads/list_segment_columns)
-안내를 덧붙인다 — 실제 도구 연결은 llm_adapter.py 가 백엔드별로 담당한다.
+[신규] --retrieval 옵션(llm_adapter.set_retrieval)이 켜져 있으면 stage 별로 정확히 한 종류의
+참조 검색 도구 안내를 시스템 프롬프트에 덧붙인다 — M3 는 ad_concept_reference 검색
+(search_concept_reference/list_concept_segment_columns, 전략·소구 참고), M4~M9 는
+ad_production_reference 검색(search_production_reference/list_production_segment_columns,
+연출·촬영 기법 참고). M1/M2 는 도구 안내를 받지 않는다. 실제 도구 연결(어느 stage 에 어느
+kind 를 줄지)은 llm_adapter.py._STAGE_TOOL_KIND 가 담당한다.
 """
 from __future__ import annotations
 
@@ -779,43 +782,50 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
                 "설계하고, 자체검증의 페이싱 항목도 이 기준으로 대체하라. "
                 "shots 를 쓰는 경우 size·angle 필드 기입 의무는 그대로 유지된다.")
 
-    # [--retrieval] 크리에이티브 벡터 DB 참조 광고 검색 도구 안내 — 도구 자체는 백엔드가 붙인다
-    # (cli: claude -p --mcp-config, api: llm_adapter 의 Anthropic tool_use 루프). M1~M3(전략·
-    # 컨셉 모듈)뿐 아니라 M4~M9(비평~콘티)에도 "쓸 수 있다"는 판단 기준을 얹는다 — 언제·왜
-    # 쓸지는 LLM 이 판단한다(강제 아님). M6(레드팀)·M7(합성검증)은 리스크 진단·평가가 목적이라
-    # 검색이 구조적으로 덜 유용하지만, 다른 모듈과 동일하게 advisory 로만 열어두고 실사용
-    # 여부는 로그로 관찰한다(강제로 막을 이유가 없다 — 안 쓰면 그것도 정보다).
-    if n in (1, 2, 3, 4, 5, 6, 7, 9) and llm_adapter.get_retrieval():
+    # [--retrieval] 참조 벡터 DB 검색 도구 안내 — 도구 자체는 백엔드가 붙인다(cli: claude -p
+    # --mcp-config, api: llm_adapter 의 Anthropic tool_use 루프). 어느 stage 에 실제로 어느
+    # 도구가 붙는지는 llm_adapter._STAGE_TOOL_KIND 가 결정한다 — M3=concept(ad_concept_reference,
+    # 전략/소구 참고), M4~M9=production(ad_production_reference, 연출/촬영 기법 참고). M1/M2 는
+    # retrieval 이 켜져 있어도 도구를 받지 않는다(evaluation/README.md 스키마 통합 계획 참고).
+    # 언제·왜 쓸지는 LLM 이 판단한다(강제 아님). M6(레드팀)·M7(합성검증)은 리스크 진단·평가가
+    # 목적이라 검색이 구조적으로 덜 유용하지만, 다른 production 단계와 동일하게 advisory 로만
+    # 열어두고 실사용 여부는 로그로 관찰한다(강제로 막을 이유가 없다 — 안 쓰면 그것도 정보다).
+    if n == 3 and llm_adapter.get_retrieval():
         system += (
-            "\n\n---\n\n[참조 광고 검색 도구 사용 가능]\n"
-            "search_reference_ads / list_segment_columns 도구가 제공되면, 이 제품과 유사한 "
-            "산업·타깃·USP·포지셔닝의 기존 광고가 어떤 인사이트·소구·서사를 썼는지 참고할 때 "
+            "\n\n---\n\n[전략 레퍼런스 검색 도구 사용 가능]\n"
+            "search_concept_reference / list_concept_segment_columns 도구가 제공되면, 이 제품과 "
+            "유사한 산업·타깃·USP·포지셔닝의 기존 광고가 어떤 소구·전략을 썼는지 참고할 때 "
             "사용해도 된다. 몇 건을 검색할지(top_k)와 어떤 세그먼트 컬럼/값으로 좁힐지는 "
-            "네가 이 제품 맥락에 맞게 직접 판단하라."
+            "네가 이 제품 맥락에 맞게 직접 판단하라.\n"
+            "**포괄적인 검색 1회로 끝내지 마라 — 렌즈별로 나눠 여러 번 검색하는 "
+            "편이 낫다.** 선택한 전략 렌즈 각각이 필요로 하는 '증명 방식'은 서로 "
+            "다르므로(예: 데모·증거 렌즈 → '실측 비교로 우월성을 증명한 광고', 적 "
+            "의인화 렌즈 → '경쟁·현상유지를 캐릭터화한 광고', 비유·은유 렌즈 → "
+            "'문화적 관용구·상징을 전략으로 쓴 광고'), 유망한 렌즈 2~3개 이상을 골라 "
+            "그 렌즈에 맞는 구체적인 쿼리로 각각 따로 검색하라(포괄적 쿼리 1개보다 "
+            "렌즈별 좁은 쿼리 여러 개가 그 렌즈에 맞는 선례를 찾을 확률이 높다). "
+            "검색 결과가 과도해지지 않도록 검색 1건당 top_k 는 2~4 정도로 작게 잡아라.\n"
+            "검색 도구를 호출했다면, 그대로 베끼는 게 아니라 발산한 컨셉 중 "
+            "**가능한 한 여러 개(1개에 그치지 말고)에는 그 컨셉의 렌즈로 검색한 결과의 "
+            "summary/appeal_type/usp_category/positioning_category 중 구체적인 전략적 착안점 "
+            "하나를 이 제품 맥락에 맞게 변형해 실제로 반영**하라 — '참고한 느낌'만 주지 말고, "
+            "어떤 video_id의 어떤 전략을 어떻게 바꿔 썼는지 알 수 있어야 한다(연출·촬영 기법은 "
+            "이 도구가 다루지 않는다 — 그건 M5~M9 단계 몫이다). 그렇게 반영한 컨셉마다 "
+            "referencedvideoid/referencedelement 필드에 그 video_id와 (원본 전략 → 이 "
+            "컨셉에서의 변형)을 1줄로 적어라. 검색은 했지만 특정 전략을 구체적으로 "
+            "반영한 컨셉이 아니라면 그 컨셉의 두 필드는 비워 두라(반영한 척 지어내지 "
+            "말 것 — 반영한 컨셉 수보다 정확성이 우선이다). 검색 도구를 아예 호출하지 "
+            "않았다면 모든 컨셉의 두 필드를 비워 둔다. 반드시 호출할 필요는 없다."
         )
-        if n == 3:
-            system += (
-                "\n**포괄적인 검색 1회로 끝내지 마라 — 렌즈별로 나눠 여러 번 검색하는 "
-                "편이 낫다.** 선택한 전략 렌즈 각각이 필요로 하는 '증명 방식'은 서로 "
-                "다르므로(예: 데모·증거 렌즈 → '실측 비교 데모 기법을 쓴 광고', 적 "
-                "의인화 렌즈 → '경쟁·현상유지를 캐릭터화한 광고', 비유·은유 렌즈 → "
-                "'문화적 관용구·상징을 시각화한 광고'), 유망한 렌즈 2~3개 이상을 골라 "
-                "그 렌즈에 맞는 구체적인 쿼리로 각각 따로 검색하라(포괄적 쿼리 1개보다 "
-                "렌즈별 좁은 쿼리 여러 개가 그 렌즈에 맞는 선례를 찾을 확률이 높다). "
-                "검색 결과가 과도해지지 않도록 검색 1건당 top_k 는 2~4 정도로 작게 잡아라.\n"
-                "검색 도구를 호출했다면, 그대로 베끼는 게 아니라 발산한 컨셉 중 "
-                "**가능한 한 여러 개(1개에 그치지 말고)에는 그 컨셉의 렌즈로 검색한 결과의 "
-                "notable_elements(opening_hook/casting_direction/narrative_pattern/"
-                "sensory_demo_shot) 중 구체적 연출 기법 하나를 이 제품 맥락에 맞게 변형해 "
-                "실제로 반영**하라 — '참고한 느낌'만 주지 말고, 어떤 video_id의 어떤 기법을 "
-                "어떻게 바꿔 썼는지 알 수 있어야 한다. 그렇게 반영한 컨셉마다 "
-                "referencedvideoid/referencedelement 필드에 그 video_id와 (원본 기법 → 이 "
-                "컨셉에서의 변형)을 1줄로 적어라. 검색은 했지만 특정 기법을 구체적으로 "
-                "반영한 컨셉이 아니라면 그 컨셉의 두 필드는 비워 두라(반영한 척 지어내지 "
-                "말 것 — 반영한 컨셉 수보다 정확성이 우선이다). 검색 도구를 아예 호출하지 "
-                "않았다면 모든 컨셉의 두 필드를 비워 둔다."
-            )
-        elif n == 5:
+    elif n in (4, 5, 6, 7, 9) and llm_adapter.get_retrieval():
+        system += (
+            "\n\n---\n\n[연출 레퍼런스 검색 도구 사용 가능]\n"
+            "search_production_reference / list_production_segment_columns 도구가 제공되면, "
+            "이 컨셉·스크립트와 비슷하게 연출된 기존 광고가 어떤 촬영기법·캐스팅·구도를 썼는지 "
+            "참고할 때 사용해도 된다. 몇 건을 검색할지(top_k)와 어떤 세그먼트 컬럼/값으로 "
+            "좁힐지는 네가 이 맥락에 맞게 직접 판단하라."
+        )
+        if n == 5:
             system += (
                 "\n이미 선정된 컨셉(M4 selected)을 실제 스크립트(훅·바디·CTA)로 구체화하는 "
                 "단계다. notable_elements 중 훅 오프닝·카피 장치·톤 전환 기법 하나를 검색해 "
@@ -836,7 +846,7 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
         else:
             system += (
                 " 검색 결과는 참고 자료일 뿐이다 — 그대로 베끼지 말고, 시장에 이미 있는 "
-                "인사이트와 겹치지 않는지 점검하는 용도로 활용하라."
+                "연출 관행과 겹치지 않는지 점검하는 용도로 활용하라."
             )
         system += " 반드시 호출할 필요는 없다."
 

@@ -28,9 +28,10 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="텍스트 LLM 호출 방식 — cli: claude -p CLI(기본, API 키 불필요) | "
                         "api: Anthropic API 직접 호출(env/api.env ANTHROPIC_API_KEY 필요)")
     p.add_argument("--retrieval", action="store_true",
-                   help="M1~M3 에서 evaluation/creative 크리에이티브 벡터 DB의 기존 광고를 "
-                        "검색하는 도구(creative-retrieval MCP)를 LLM 에 제공한다 — 어떤 "
-                        "세그먼트로 몇 건을 검색할지는 LLM 이 판단한다(강제 아님)")
+                   help="M3(컨셉 발산)에서 ad_concept_reference 벡터 DB의 기존 광고 전략(소구·"
+                        "포지셔닝·타겟)을 검색하는 도구(creative-retrieval MCP)를 LLM 에 제공한다 "
+                        "— M1/M2 는 도구를 받지 않는다. 어떤 세그먼트로 몇 건을 검색할지는 LLM 이 "
+                        "판단한다(강제 아님)")
     p.add_argument("--output_dir", type=Path, default=Path("output/v5_m0_m3"), help="결과 저장 경로")
     return p
 

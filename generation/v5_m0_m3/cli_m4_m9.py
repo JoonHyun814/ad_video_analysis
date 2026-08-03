@@ -35,8 +35,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="텍스트 LLM 호출 방식 — cli: claude -p CLI(기본, API 키 불필요) | "
                         "api: Anthropic API 직접 호출(env/api.env ANTHROPIC_API_KEY 필요)")
     p.add_argument("--retrieval", action="store_true",
-                   help="M4~M9 에서도 evaluation/creative 크리에이티브 벡터 DB 검색 도구를 "
-                        "LLM 에 제공한다 — M5(스크립트)/M9(콘티)는 반영 시 "
+                   help="M4~M9 에서 ad_production_reference 벡터 DB의 기존 광고 연출·촬영 기법을 "
+                        "검색하는 도구를 LLM 에 제공한다 — M5(스크립트)/M9(콘티)는 반영 시 "
                         "referencedvideoid/referencedelement 로 추적되고, M4/M6/M7 은 "
                         "advisory 로만 열어둔다(강제 아님)")
     p.add_argument("--select_concept", default="",

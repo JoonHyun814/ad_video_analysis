@@ -18,7 +18,7 @@ MySQL 조회·CSV 추출 + ChromaDB 벡터 검색·재임베딩 유틸.
 | `load_facets.py` | concept_evaluation.json → facet 컬렉션 3개(`ad_target`/`ad_usp`/`ad_creative`) 일괄 적재 |
 | `cluster.py` | 컬렉션 임베딩 K-Means 클러스터링 (K 자동 선택) |
 | `product_research.py` | 제품명 웹검색 조사 → category/usp/target 프로필 |
-| `ad_retrieval.py` | `video_creative_profile`(creative vector db) 유사도 검색 |
+| `ad_retrieval.py` | `ad_production_reference`(creative vector db, record_kind=profile) 유사도 검색 |
 | `cliche_twist_analysis.py` | 검색 결과 세그먼트 클리셰 집계 + 비튼 광고 판별 |
 | `cliche_twist_format.py` | 위 결과를 txt 리포트로 포맷 |
 | `product_cliche_search.py` | 제품명 → 리서치 + 유사광고 검색 + 클리셰 비틀기 분석 CLI 진입점 |
@@ -213,12 +213,13 @@ python db/cluster.py [--k <정수|auto>] [--out <경로>] [옵션]
 ## `product_cliche_search.py` — 제품명 → 유사광고 검색 → 클리셰 비틀기 분석
 
 제품명만 주면 (1) 웹검색으로 category/usp/target 프로필을 조사하고, (2) 그중 한 축으로
-**creative vector db(`video_creative_profile`)** 를 검색해 유사 광고를 추출하고, (3) 그 결과를
-하나의 임시 세그먼트로 보고 크리에이티브 요소 빈도를 집계해 클리셰를 비튼 광고와 포인트를
-찾아 txt 로 저장한다. **`scenario_analysis.json`이나 `video_category`(category DB)는 참조하지
-않는다** — 이미 creative 요소가 적재된 영상만 검색 대상이라 자동 추출 단계가 없어 빠르지만,
-`video_creative_profile`에 없는 영상은 애초에 후보가 될 수 없다(먼저 `evaluation.cli --mode
-creative --extract --load_vector` 로 적재해둬야 검색 대상에 잡힌다).
+**creative vector db(`ad_production_reference`, record_kind=profile)** 를 검색해 유사 광고를
+추출하고, (3) 그 결과를 하나의 임시 세그먼트로 보고 크리에이티브 요소 빈도를 집계해 클리셰를
+비튼 광고와 포인트를 찾아 txt 로 저장한다. **`scenario_analysis.json`이나 `video_category`
+(category DB)는 참조하지 않는다** — 이미 creative 요소가 적재된 영상만 검색 대상이라 자동
+추출 단계가 없어 빠르지만, `ad_production_reference`에 없는 영상은 애초에 후보가 될 수
+없다(먼저 `evaluation.cli --mode creative --extract --load_vector` 로 적재해둬야 검색 대상에
+잡힌다).
 
 ```bash
 python -m db.product_cliche_search --product_name "세스코" --retrieval_criteria usp
@@ -232,7 +233,7 @@ python -m db.product_cliche_search --product_name "제이에스티나" --retriev
 | `--category` / `--usp` / `--target` | — | 직접 지정하면 해당 항목은 웹검색 조사를 생략하고 그대로 사용 (셋 다 지정하면 리서치 자체를 건너뜀) |
 | `--retrieval_criteria` | (필수) | `category`\|`usp`\|`target` — 유사도 검색에 쓸 축 1개 |
 | `--n_results` | `15` | 추출할 광고 수 |
-| `--duration_bucket` | `15s` | 대상 광고 길이 버킷 (`video_creative_profile`의 `duration_bucket` 필터) |
+| `--duration_bucket` | `15s` | 대상 광고 길이 버킷 (`ad_production_reference`의 `duration_bucket` 필터) |
 | `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
 | `--out` | `output/cliche_twist/<제품명>_<기준>.txt` | 결과 저장 경로 |
 
@@ -242,7 +243,7 @@ python -m db.product_cliche_search --product_name "제이에스티나" --retriev
    (`utils/llm_caller.py::call_claude` 의 `allowed_tools` 인자 — 헤드리스 `-p` 모드는 기본적으로
    WebSearch 권한을 거부하므로 명시적으로 허용해야 한다). `--category`/`--usp`/`--target` 을 지정한
    항목은 조사 결과 대신 그 값을 그대로 쓴다.
-2. **검색**: `ad_retrieval.py` 가 지정 축 텍스트로 `video_creative_profile` 을 벌크 조회(oversample
+2. **검색**: `ad_retrieval.py` 가 지정 축 텍스트로 `ad_production_reference` 을 벌크 조회(oversample
    60건) 후 `duration_bucket == --duration_bucket` 로 필터링해 상위 N건을 추린다. 영상 1개 = 1레코드라
    video_id 자체로 이미 중복이 없다(단, 이 컬렉션엔 brand_name 메타데이터가 없어 리포트엔 제품
    카테고리 원문으로 영상을 식별한다).

@@ -57,6 +57,32 @@ POSITIONING_CATEGORY = ("by_product_innovation", "by_service_quality",
                         "by_cost_leadership", "by_target_needs", "other")
 PRICE_TIER = ("luxury", "premium", "mid_range", "value", "unknown")
 
+# ── concept reference 전용 (evaluation/concept/concept_evaluation.py 추출 어휘) ─────────────
+# usp_category/positioning_category 는 위 USP_CATEGORY/POSITIONING_CATEGORY 를 그대로 재사용한다
+# (concept_evaluation.py 주석 그대로 "동일 어휘, 교차 조회 호환"). industry 는 concept_evaluation
+# 이 더 넓은 업종을 다뤄(retail_ecommerce/finance 등) production 쪽 INDUSTRY_CATEGORIES 와 별도로 둔다.
+
+CONCEPT_INDUSTRY_CATEGORY = ("beauty", "food_beverage", "retail_ecommerce", "finance", "healthcare",
+                             "fashion", "tech_electronics", "automotive", "entertainment", "travel",
+                             "education", "gaming", "other")
+TARGET_PERSONA_CATEGORY = ("demographic", "psychographic", "behavioral", "other")
+APPEAL_TYPE = ("humor", "parody_wordplay", "maternal_love", "vanity", "fear", "sex_appeal",
+              "comparison", "rational_info", "emotional_storytelling", "testimonial",
+              "scarcity_urgency", "nostalgia", "aspiration", "other")
+PERCEIVED_VALUE_CATEGORY = ("functional_quality", "functional_price", "emotional", "social", "other")
+MESSAGE_STRATEGY_CATEGORY = ("informational", "transformational", "other")
+EXECUTION_STYLE = ("slice_of_life", "scientific_evidence", "fantasy", "fashion", "other")
+
+# M3(컨셉 발산) 전략 렌즈 9종 — generation/v5_m0_m3/prompts/module3.md,
+# evaluation/strategy/strategy_schemas.py M3_GUIDE 와 동일 어휘.
+# strategy_analysis.json 의 m3.concepts[].lens 는 스키마상 자유 텍스트라(고정 enum 아님)
+# 그대로 필터링하면 표기 차이로 어긋난다 — concept_reference_store.py 가 아래로
+# 정규화한 뒤 메타데이터에 저장한다.
+CONCEPT_LENS = ("twist_taboo_break", "metaphor_analogy", "demo_evidence", "enemy_personification",
+               "user_testimonial", "identity_belonging", "functional_job_direct",
+               "emotional_job_direct", "comparison_contrast", "other")
+CONCEPT_CLAIMTAG = ("C0", "C1", "C2")
+
 # ── casting (casting_direction 요소의 속성 enum) ───────────────────────────────
 
 MAIN_MODEL = ("solo_female", "solo_male", "couple", "group", "ensemble", "hands_only", "none")
@@ -69,12 +95,26 @@ WARDROBE = ("off_shoulder", "sleeveless", "dress", "casual", "uniform", "formal_
 # beauty 외 산업에서는 추출·집계를 생략하는 캐스팅 필드
 BEAUTY_ONLY_CASTING = ("skin_look", "hair")
 
-# ── element_type 10종 (영상당 1개 / 다중) ──────────────────────────────────────
+# ── element_type 13종 (영상당 1개 / 다중) ──────────────────────────────────────
 
-SINGLE_TYPES = ("opening_hook", "casting_direction", "narrative_pattern")
+SINGLE_TYPES = ("opening_hook", "casting_direction", "narrative_pattern",
+                "persuasion_engine", "narrative_form", "tone_register")
 MULTI_TYPES = ("sensory_demo_shot", "trust_device", "product_shot",
                "color_light_code", "copy_device", "sound_pattern", "cta_device")
 ELEMENT_TYPES = SINGLE_TYPES + MULTI_TYPES
+
+# persuasion_engine/narrative_form/tone_register 어휘 — generation/v5_m0_m3/prompts/module5.md
+# (M5 스크립트 설계) L2 설득 엔진·L2.5 서사 형식·L2.6 톤 레지스터 역전과 동일 어휘를 쓴다.
+# 이 광고가 M5 를 거쳐 만들어진 게 아니라도, 완성 광고를 이 어휘로 역분류해두면
+# M5 가 "이 세그먼트에서 어느 엔진·형식이 이미 많이 쓰였나(recentengines 반-수렴)"를
+# 검색으로 확인할 수 있다.
+PERSUASION_ENGINE = ("pas", "aida", "bab", "product_demo", "star_story_solution",
+                     "four_ps", "social_proof", "unique_mechanism", "fab", "none")
+NARRATIVE_FORM = ("linear_mini_drama", "vignette_anthology", "contrast_parallel", "enumeration",
+                  "twist", "oneshot_longtake", "pov_first_person", "mockumentary_vox_pop",
+                  "metaphor_world", "demo_spectacle", "absurd_exaggeration", "everyday_montage")
+TONE_REGISTER_PATTERN = ("heavy_to_comedy", "serious_to_deadpan", "loud_to_flex",
+                         "sales_to_documentary", "category_default", "other")
 
 # 해당 요소가 전혀 없으면 'none' 레코드 1개를 기록하는 type (의도적 생략을 집계)
 # product_shot 은 무형 서비스 광고(플랫폼 서비스 등) 대응을 위해 포함한다.

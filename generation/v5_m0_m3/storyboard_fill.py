@@ -3,6 +3,10 @@
 채운다. M9가 이미 갖고 있는 씬·샷·감정곡선·사용완결컷 등은 여기서 다시 만들지 않고
 storyboard_render.py 가 M9 원본을 그대로 사용한다 — 이미 검증된 값을 LLM이 다시 지어내
 드리프트를 만들 위험을 피하기 위함이다.
+
+cli_storyboard.py --retrieval 가 켜져 있으면(stage="STORYBOARD_HTML") ad_production_reference
+검색 도구(search_production_reference/list_production_segment_columns)를 advisory 로 제공한다
+— 캐스팅·카메라·조명 필드를 채울 때 참고용(evaluation/README.md 스키마 통합 계획 참고).
 """
 from __future__ import annotations
 
@@ -73,6 +77,15 @@ def _context(module0: dict, m1: dict, m2: dict, m4: dict, m5: dict, m9: dict) ->
     }
 
 
+_RETRIEVAL_NOTE = (
+    "\n\n---\n\n[연출 레퍼런스 검색 도구 사용 가능]\n"
+    "search_production_reference / list_production_segment_columns 도구가 제공되면, 이 컨셉과 "
+    "비슷하게 연출된 기존 광고의 캐스팅·카메라워크·조명·환경을 검색해 character/environment/"
+    "camera/lighting 필드를 더 구체적으로 채우는 데 참고할 수 있다. 그대로 베끼지 말고 이 "
+    "제품·컨셉 맥락에 맞게 변형하라. 반드시 호출할 필요는 없다."
+)
+
+
 def fill_extra_fields(module0: dict, m1: dict, m2: dict, m4: dict, m5: dict, m9: dict) -> dict:
     """스토리보드 HTML 렌더에 필요한 추가 기획 필드를 LLM 1회 호출로 채워 반환한다.
 
@@ -83,7 +96,8 @@ def fill_extra_fields(module0: dict, m1: dict, m2: dict, m4: dict, m5: dict, m9:
     user = (json.dumps(ctx, ensure_ascii=False)
             + "\n\n위 맥락으로 아래 JSON 스키마의 모든 필드를 채워 그 JSON 객체로만 응답하라:\n"
             + json.dumps(_SCHEMA, ensure_ascii=False))
-    out = llm_adapter.chat_json(_SYSTEM, user, stage="STORYBOARD_HTML")
+    system = _SYSTEM + (_RETRIEVAL_NOTE if llm_adapter.get_retrieval() else "")
+    out = llm_adapter.chat_json(system, user, stage="STORYBOARD_HTML")
     if not isinstance(out, dict) or out.get("error"):
         return json.loads(json.dumps(_SCHEMA))
     return out

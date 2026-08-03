@@ -11,7 +11,7 @@
     python run_batch.py --video_ids 89,100-105 --module category -- --category_analysis --load_vector --llm_backend gemini
     python run_batch.py --start_id 89 --module category --data_dir output/product_plan/claude -- --category_analysis --load_vector
 
-    # concept — DB 불필요, 디렉토리 기반 (컨셉 추출 + video_concept 벡터 DB 적재)
+    # concept — DB 불필요, 디렉토리 기반 (컨셉 추출 + ad_concept_reference 벡터 DB 적재)
     python run_batch.py --video_ids 89,100-105 --module concept --data_dir output/product_plan/claude \
         -- --concept_evaluation --load_vector
     python run_batch.py --start_id 89 --module concept --data_dir output/product_plan/claude \

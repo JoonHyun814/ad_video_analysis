@@ -113,9 +113,10 @@ ESG 누적임팩트 수치(코웨이), 비예약형 전문가 리다이렉트(GC
 scenario_analysis.json
    │  LLM 추출 (creative_element_analysis.json)
    ▼
-vectorDB 적재 (컬렉션 2개)
-   ├─ video_creative_profile   ← 영상 1개 = 1레코드 (세그먼트 검색용)
-   └─ ad_creative_element      ← 크리에이티브 요소 1개 = 1레코드 (클리셰 집계용)
+vectorDB 적재 (ad_production_reference 컬렉션, record_kind 로 구분)
+   ├─ record_kind="profile"   ← 영상 1개 = 1레코드 (세그먼트 검색용)
+   └─ record_kind="element"   ← 크리에이티브 요소 1개 = 1레코드 (클리셰 집계용)
+(전략 레퍼런스 ad_concept_reference 는 별도 파이프라인 — evaluation/concept/README.md 참고)
    ▼
 검색: 카테고리/조건 → 세그먼트 n개 선정 (profile 컬렉션)
    ▼
@@ -128,7 +129,7 @@ vectorDB 적재 (컬렉션 2개)
 1편 고립 → 클리셰 파괴 후보. `other`는 임베딩 군집화로 신규 클리셰를 발견하는 입구,
 `none`은 "관습의 의도적 생략"을 집계 가능하게 만드는 장치다.
 
-## 컬렉션 1 — `video_creative_profile` (세그먼트 검색용)
+## 컬렉션 1 — `ad_production_reference`, `record_kind="profile"` (세그먼트 검색용)
 
 추출 파일(`creative_element_analysis.json`)과 DB 레코드는 구조가 다르다.
 추출 파일은 `profile`/`casting` 블록이 분리되어 있고, 적재 시(`element_vector_store.py`)
@@ -168,12 +169,13 @@ casting 이 profile 메타데이터로 평탄화되며 `summary` 는 임베딩 �
 ```jsonc
 {
   "video_id": 20,
+  "record_kind": "profile",  // "element" 과 한 컬렉션을 공유하므로 조회 시 항상 이 값으로 좁힌다
   // 세그먼트 필터 키 — profile 블록에서 복사
   "industry_category": "beauty", "product_category_norm": "mask", "product_subtype": "mask_pack",
   "product_category_raw": "스킨케어 (앰플 마스크팩)", "target_gender": "female",
   "duration_sec": 15.0, "duration_bucket": "15s",
   "usp_category": "functional_tangible", "positioning_category": "by_product_innovation",
-  "price_tier": "premium",
+  "price_tier": "premium", "execution_style": "slice_of_life",  // concept_evaluation 과 동일 어휘
   // 캐스팅 속성 — casting 블록에서 평탄화
   "main_model": "solo_female", "age_band": "20s", "skin_look": "pale",
   "hair": "wet", "wardrobe": "other", "expression_restraint": true,
@@ -192,7 +194,7 @@ usp/positioning 미기재 구버전 파일은 적재 시 같은 폴더의 `conce
 (profile 은 scenario_analysis 단독 입력 원칙). `appeal_type_primary` 등 나머지 concept_evaluation
 대표값 복제와 `creative_dedup_key`(동일 소재 지면 변형 중복 제거)는 필요 시 적재 로직에 추가한다.
 
-## 컬렉션 2 — `ad_creative_element` (클리셰 집계용)
+## 컬렉션 2 — `ad_production_reference`, `record_kind="element"` (클리셰 집계용)
 
 **요소 1개 = 레코드 1개.**
 
@@ -200,7 +202,8 @@ usp/positioning 미기재 구버전 파일은 적재 시 같은 폴더의 `conce
 {
   // ─ 식별/필터 (메타데이터) ─
   "video_id": 480,
-  "element_type": "sensory_demo_shot",  // 10종 enum (v2)
+  "record_kind": "element",
+  "element_type": "sensory_demo_shot",  // 13종 enum (v2)
   "element_subtype": "cream_swirl",     // 공용+산업 팩 병합 enum
   "cut_refs": "6",                      // 근거 컷 번호 (쉼표 결합 문자열로 저장)
   // + profile 의 세그먼트 필터 키 복제 (industry_category, product_category_norm, duration_bucket ...)
@@ -213,7 +216,7 @@ usp/positioning 미기재 구버전 파일은 적재 시 같은 폴더의 `conce
 
 ---
 
-# enum 사전 — element_type 9종 + subtype 정의
+# enum 사전 — element_type 13종 + subtype 정의
 
 ## 1. opening_hook — 오프닝 훅
 
@@ -381,6 +384,61 @@ usp/positioning 미기재 구버전 파일은 적재 시 같은 폴더의 `conce
 | narration_led | 내레이션이 주도하고 음악은 배경으로 절제 |
 | jingle_signature | 브랜드 고유 징글·시그니처 사운드 사용 |
 | other | 위에 속하지 않는 사운드 설계 |
+
+## 10. persuasion_engine — 설득 엔진
+
+**정의**: `generation/v5_m0_m3/prompts/module5.md` L2 와 동일 어휘. 영상이 무엇을 "논증"하는가
+(narrative_pattern 의 구조 골격과는 다른 축). M5 가 `recentengines`(세그먼트 내 최근 확정 엔진)를
+입력받아 반-수렴하므로, 완성 광고를 이 어휘로 역분류해두면 M5 가 "이미 많이 쓰인 엔진"을
+검색으로 확인할 수 있다. 영상당 1개.
+
+| subtype | 설명 |
+|---|---|
+| pas | Problem-Agitate-Solution — 문제 환기 후 해결. 비포애프터형 남용 1순위 |
+| aida | Attention-Interest-Desire-Action — 신카테고리·문제 미인식 오디언스용 |
+| bab | Before-After-Bridge — 변환 약속형. PAS 와 함께 반-수렴 대상 1순위 |
+| product_demo | 제품 시연 중심 — 평가 단계 오디언스, 재수렴 2순위로 흔함 |
+| star_story_solution | 증언·변환 서사 — 정체성 소구 |
+| four_ps | Promise-Picture-Proof-Push — 문제 프레임 없이 약속→그림→증거→푸시 |
+| social_proof | 사회적 증거(후기·판매량·순위) 중심 |
+| unique_mechanism | 고유 메커니즘·원리 제시로 차별화 |
+| fab | Feature-Advantage-Benefit — 속성→이점→혜택 순 서술 |
+| none | 특정 설득 엔진 미사용(엔진 미장착 근거가 있는 경우만) |
+
+## 11. narrative_form — 서사 형식
+
+**정의**: module5.md L2.5 와 동일 어휘. 어떤 이야기 "형식"으로 전달하는가(설득 논리와 분리된
+축). "선형 미니드라마" 디폴트 수렴을 막기 위한 형식 메뉴 12종. 영상당 1개.
+
+| subtype | 설명 |
+|---|---|
+| linear_mini_drama | 선형 미니드라마 — 카테고리 디폴트, 반-수렴 대상 1순위 |
+| vignette_anthology | 비네트·앤솔로지 — 주인공 없는 3~4개 미니씬 나열 |
+| contrast_parallel | 대조·평행 — A vs B, with·without 구도 |
+| enumeration | 열거 — rapid-fire 리스트 나열 |
+| twist | 반전 — turn 지점에서 기대 전복 |
+| oneshot_longtake | 원샷·롱테이크 |
+| pov_first_person | POV·1인칭 시점 |
+| mockumentary_vox_pop | 모큐멘터리·인터뷰·vox-pop |
+| metaphor_world | 은유세계 — 제품 세계를 장소로 구현 |
+| demo_spectacle | 데모-스펙터클 — ASMR·공정 시각화·oddly satisfying |
+| absurd_exaggeration | 부조리 과장 |
+| everyday_montage | 일상 몽타주 — 중심 갈등 없는 나열형 |
+
+## 12. tone_register — 톤 레지스터 역전
+
+**정의**: module5.md L2.6 과 동일 개념. 카테고리 디폴트 톤(예: 건강식품=따뜻·걱정) 대비 실제
+반전 여부·방향. 고정 enum 이 아니라 module5.md 가 예시로 든 반전 패턴을 닫힌 집합으로 삼는다
+(자유서술로 두면 영상마다 라벨이 갈려 빈도 집계가 무의미해진다). 영상당 1개.
+
+| subtype | 설명 |
+|---|---|
+| heavy_to_comedy | 무거움→코미디 반전 |
+| serious_to_deadpan | 진지→데드팬 반전 |
+| loud_to_flex | 시끄러움→자랑(플렉스) 반전 |
+| sales_to_documentary | 파는 톤→다큐 반전 |
+| category_default | 카테고리 디폴트 톤 유지(반전 없음) |
+| other | 위 패턴에 속하지 않는 반전 |
 
 ---
 

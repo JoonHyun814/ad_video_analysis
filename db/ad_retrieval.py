@@ -1,4 +1,4 @@
-"""video_creative_profile(creative vector db)에서 지정 기준으로 유사 광고를 추출한다.
+"""ad_production_reference(creative vector db)에서 지정 기준으로 유사 광고를 추출한다.
 
 scenario_analysis.json 이나 video_category(category DB)는 참조하지 않는다 — 이미
 creative 요소가 적재된 영상만 검색 대상이 된다 (커버리지는 그만큼 제한적일 수 있음).
@@ -8,7 +8,7 @@ from pathlib import Path
 import chromadb
 
 from evaluation.category.vector_store import _get_or_create
-from evaluation.creative.element_vector_store import PROFILE_COLLECTION
+from evaluation.creative.element_vector_store import PRODUCTION_COLLECTION
 
 _DEFAULT_DB = Path("output/vector_db")
 _OVERSAMPLE = 60
@@ -23,16 +23,17 @@ def retrieve_similar_ads(
 ) -> list[dict]:
     """query_text 유사도 순으로 duration_bucket 광고를 creative vector db 에서 최대 n_results건 추출한다.
 
-    video_creative_profile 은 영상 1개 = 1레코드라 video_id 자체로 이미 중복이 없다.
+    ad_production_reference 는 record_kind="profile" 이 영상 1개 = 1레코드라 video_id 자체로
+    이미 중복이 없다(record_kind="element" 레코드는 이 필터로 제외된다).
     """
     client = chromadb.PersistentClient(path=str(db_path))
-    col = _get_or_create(client, PROFILE_COLLECTION)
+    col = _get_or_create(client, PRODUCTION_COLLECTION)
     if col.count() == 0:
         return []
     res = col.query(
         query_texts=[query_text],
         n_results=min(oversample, col.count()),
-        where={"duration_bucket": {"$eq": duration_bucket}},
+        where={"$and": [{"duration_bucket": {"$eq": duration_bucket}}, {"record_kind": {"$eq": "profile"}}]},
         include=["documents", "metadatas", "distances"],
     )
     picked: list[dict] = []

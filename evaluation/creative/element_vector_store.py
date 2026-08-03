@@ -1,7 +1,12 @@
-"""creative_element_analysis.json 을 컬렉션 2개에 적재·조회한다.
+"""creative_element_analysis.json 을 ad_production_reference 컬렉션 1개에 적재·조회한다.
 
-- video_creative_profile: 영상 1개 = 1레코드. 세그먼트 검색용.
-- ad_creative_element   : 크리에이티브 요소 1개 = 1레코드. 클리셰 빈도 집계용.
+컨셉 확정 후 M5(스크립트)~M9(콘티)·스토리보드 HTML 이 참고하는 "연출/프로덕션 디테일"
+전용 컬렉션이다(전략 단계 M3 참고용 ad_concept_reference 는 evaluation/concept/
+concept_reference_store.py 가 별도로 관리한다 — evaluation/README.md 스키마 통합 계획 참고).
+
+record_kind 메타데이터로 레코드 2종을 한 컬렉션에 함께 둔다:
+- record_kind="profile": 영상 1개 = 1레코드. 세그먼트 검색용(캐스팅·서사패턴·연출 스타일 포함).
+- record_kind="element" : 크리에이티브 요소 1개 = 1레코드. 클리셰 빈도 집계·연출 기법 검색용.
   요소 메타데이터에 profile 필터 키를 복제해 세그먼트 필터를 요소 단위로 직접 건다.
 """
 from pathlib import Path
@@ -11,14 +16,16 @@ import chromadb
 from evaluation.category.vector_store import _get_or_create
 from evaluation.creative import element_schema as es
 
-PROFILE_COLLECTION = "video_creative_profile"
-ELEMENT_COLLECTION = "ad_creative_element"
+PRODUCTION_COLLECTION = "ad_production_reference"
 
 # 요소 레코드에 복제되는 세그먼트 필터 키
 _SEGMENT_KEYS = ("industry_category", "industry_secondary", "product_category_norm", "product_subtype",
                  "target_gender", "duration_bucket",
                  "usp_category", "positioning_category", "price_tier")
 _CASTING_KEYS = ("main_model", "age_band", "skin_look", "hair", "wardrobe", "expression_restraint")
+# 영상당 1개인 SINGLE_TYPES 요소 중, profile 메타데이터로도 승격해 세그먼트 필터·클리셰
+# 캐스팅 집계(cliche_aggregate._aggregate_casting)에서 바로 걸 수 있게 하는 것들.
+_PROMOTED_ELEMENT_TYPES = ("narrative_pattern", "persuasion_engine", "narrative_form", "tone_register")
 
 
 def _normalize_legacy(analysis: dict) -> dict:
@@ -36,17 +43,25 @@ def _normalize_legacy(analysis: dict) -> dict:
     return analysis
 
 
-def _collection(name: str, db_path: str | Path) -> chromadb.Collection:
+def _collection(db_path: str | Path) -> chromadb.Collection:
     client = chromadb.PersistentClient(path=str(db_path))
-    return _get_or_create(client, name)
+    return _get_or_create(client, PRODUCTION_COLLECTION)
+
+
+def _with_kind(where: dict | None, record_kind: str) -> dict:
+    """호출측 where 에 record_kind 조건을 합친다(단일 조건이면 $and 로 감싸지 않는다)."""
+    cond = {"record_kind": {"$eq": record_kind}}
+    if not where:
+        return cond
+    return {"$and": [cond, where]}
 
 
 # ── 문서 / 메타데이터 빌더 ──────────────────────────────────────────────────────
 
 def _profile_metadata(video_id: int, analysis: dict) -> dict:
     profile, casting = analysis.get("profile") or {}, analysis.get("casting") or {}
-    meta: dict = {"video_id": video_id}
-    for key in (*_SEGMENT_KEYS, "product_category_raw", "duration_sec"):
+    meta: dict = {"video_id": video_id, "record_kind": "profile"}
+    for key in (*_SEGMENT_KEYS, "product_category_raw", "duration_sec", "execution_style"):
         if (val := profile.get(key)) is not None:
             meta[key] = val
     for key in _CASTING_KEYS:
@@ -55,9 +70,9 @@ def _profile_metadata(video_id: int, analysis: dict) -> dict:
                 val = str(val).lower() == "true"  # 구버전 추출 결과의 "true"/"false" 문자열 흡수
             meta[key] = val
     for elem in analysis.get("elements") or []:
-        if elem.get("element_type") == "narrative_pattern":
-            meta["narrative_pattern"] = elem.get("element_subtype", "other")
-            break
+        etype = elem.get("element_type")
+        if etype in _PROMOTED_ELEMENT_TYPES:
+            meta[etype] = elem.get("element_subtype", "other")
     return meta
 
 
@@ -78,6 +93,7 @@ def _element_document(elem: dict) -> str:
 def _element_metadata(video_id: int, elem: dict, profile_meta: dict) -> dict:
     meta = {
         "video_id": video_id,
+        "record_kind": "element",
         "element_type": elem.get("element_type", "other"),
         "element_subtype": elem.get("element_subtype", "other"),
         "cut_refs": ",".join(str(c) for c in elem.get("cut_refs") or []),
@@ -98,16 +114,17 @@ def upsert_analysis(
     """분석 결과 1건을 profile 1레코드 + element N레코드로 upsert 한다 (v1 파일 흡수)."""
     analysis = _normalize_legacy(analysis)
     profile_meta = _profile_metadata(video_id, analysis)
-    _collection(PROFILE_COLLECTION, db_path).upsert(
+    col = _collection(db_path)
+    col.upsert(
         ids=[f"ad:{video_id}:profile"],
         documents=[_profile_document(analysis)],
         metadatas=[profile_meta],
     )
 
     elements = analysis.get("elements") or []
-    col = _collection(ELEMENT_COLLECTION, db_path)
-    # 요소 개수가 줄어든 재적재에서 잔여 레코드가 남지 않도록 기존 요소를 먼저 지운다
-    col.delete(where={"video_id": video_id})
+    # 요소 개수가 줄어든 재적재에서 잔여 레코드가 남지 않도록 기존 요소만 지운다
+    # (record_kind="element" 로 좁히지 않으면 방금 올린 profile 레코드까지 지워진다).
+    col.delete(where={"$and": [{"video_id": {"$eq": video_id}}, {"record_kind": {"$eq": "element"}}]})
     if elements:
         col.upsert(
             ids=[f"ad:{video_id}:elem:{i}" for i in range(len(elements))],
@@ -161,9 +178,7 @@ def build_segment_where(
 
 def fetch_profiles(where: dict | None = None, db_path: str | Path = "output/vector_db") -> list[dict]:
     """세그먼트에 속한 profile 레코드를 조회한다."""
-    res = _collection(PROFILE_COLLECTION, db_path).get(
-        **({"where": where} if where else {}), include=["documents", "metadatas"]
-    )
+    res = _collection(db_path).get(where=_with_kind(where, "profile"), include=["documents", "metadatas"])
     return [
         {"video_id": m.get("video_id"), "document": d, "metadata": m}
         for d, m in zip(res["documents"], res["metadatas"])
@@ -172,9 +187,7 @@ def fetch_profiles(where: dict | None = None, db_path: str | Path = "output/vect
 
 def fetch_elements(where: dict | None = None, db_path: str | Path = "output/vector_db") -> list[dict]:
     """세그먼트에 속한 요소 레코드를 조회한다 (클리셰 집계 입력)."""
-    res = _collection(ELEMENT_COLLECTION, db_path).get(
-        **({"where": where} if where else {}), include=["documents", "metadatas"]
-    )
+    res = _collection(db_path).get(where=_with_kind(where, "element"), include=["documents", "metadatas"])
     return [
         {
             "video_id": m.get("video_id"),

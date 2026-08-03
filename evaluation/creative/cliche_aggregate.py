@@ -64,6 +64,7 @@ def _aggregate_casting(profiles: list[dict]) -> dict:
     dist: dict[str, dict] = {}
     for key in ("main_model", "age_band", "skin_look", "hair", "wardrobe",
                 "expression_restraint", "narrative_pattern",
+                "persuasion_engine", "narrative_form", "tone_register",
                 "usp_category", "positioning_category", "price_tier"):
         counter: dict[str, int] = defaultdict(int)
         for p in profiles:

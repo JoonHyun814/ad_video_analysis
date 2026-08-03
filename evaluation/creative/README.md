@@ -2,15 +2,22 @@
 
 클리셰 분석 파이프라인 — [`creative_element_schema.md`](creative_element_schema.md) 설계 문서의 구현 (v2).
 
-`scenario_analysis.json` 에서 크리에이티브 요소(오프닝 훅, 인물 연출, 감각 시연, 신뢰 장치,
-제품 컷, 색·조명, 카피 장치, 서사, 사운드, CTA)를 enum 으로 추출해 벡터 DB 에 적재하고,
-세그먼트(예: beauty×스킨케어×15초) 내 빈도 집계로 클리셰/클리셰 파괴 요소를 판정한다.
+`scenario_analysis.json` 에서 크리에이티브 요소(오프닝 훅, 인물 연출, 서사 구조, 설득 엔진,
+서사 형식, 톤 레지스터, 감각 시연, 신뢰 장치, 제품 컷, 색·조명, 카피 장치, 사운드, CTA)를
+enum 으로 추출해 벡터 DB 에 적재하고, 세그먼트(예: beauty×스킨케어×15초) 내 빈도 집계로
+클리셰/클리셰 파괴 요소를 판정한다.
+
+`persuasion_engine`/`narrative_form`/`tone_register` 3종은 `generation/v5_m0_m3/prompts/module5.md`
+(M5 스크립트 설계) L2 설득 엔진·L2.5 서사 형식·L2.6 톤 레지스터 역전과 동일 어휘다 — 이 완성
+광고들이 M5 를 거쳐 만들어진 게 아니어도, 같은 어휘로 역분류해두면 M5 가 "이 세그먼트에서
+이미 많이 쓰인 엔진·형식"을 검색으로 확인해 반-수렴할 수 있다(module5.md 의 `recentengines`
+입력). `narrative_pattern`(훅~클로즈 구조 골격)과는 별개 축이니 혼동하지 않는다.
 
 핵심 원칙 두 가지:
 
 - **클리셰 여부는 적재 시점에 판정하지 않는다** — DB 에는 중립적 요소만 저장하고,
   판정은 리포트 시점에 세그먼트 상대 빈도로 계산한다 (코퍼스가 바뀌면 판정도 바뀐다).
-- **(v2) element_type 10종은 전 산업 공통, subtype 은 공용 사전 + 산업 팩 병합** —
+- **(v2) element_type 13종은 전 산업 공통, subtype 은 공용 사전 + 산업 팩 병합** —
   추출 시 `category_analysis.json` 의 industry_category 로 팩(beauty/tech_electronics/entertainment/
   fashion_apparel/health_medical/food_beverage/household_care)을 선택한다. 산업 관통 클리셰는 type/공용 subtype 레벨에서 교차 비교된다.
   `household_care`(생활용품: 세정살균티슈·섬유유연제·세제부스터)는 category_analysis.json 상 `retail_ecommerce`/`other`
@@ -28,21 +35,33 @@
 | 파일 | 역할 |
 |------|------|
 | `run.py` | CLI 실행기 (`python -m evaluation.cli --mode creative`) |
-| `element_schema.py` | element_type 10종·profile/casting enum·산업별 카테고리 enum·legacy 매핑 |
+| `element_schema.py` | element_type 13종(`persuasion_engine`/`narrative_form`/`tone_register` 포함)·profile/casting enum·산업별 카테고리 enum·legacy 매핑 |
 | `subtypes_common.py` | 전 산업 공용 subtype 사전 |
 | `subtypes_packs.py` | 산업별 subtype 확장 팩 (beauty / tech_electronics / entertainment / fashion_apparel / health_medical / food_beverage / household_care) |
 | `element_analysis.py` | LLM 추출 (claude) — 시나리오+산업 팩 → `creative_element_analysis.json` |
-| `element_vector_store.py` | 컬렉션 2개 upsert/조회 + v1 파일 legacy 정규화 |
+| `element_vector_store.py` | `ad_production_reference` 컬렉션(연출/프로덕션 참고용) upsert/조회 + v1 파일 legacy 정규화 |
 | `cliche_aggregate.py` | 세그먼트 빈도 집계 + 판정 (strong_cliche/convention/minor/cliche_breaker) |
-| `reference_retrieval.py` | 크리에이티브 벡터 DB에서 참조 광고를 의미 유사도로 검색하는 서비스 함수(`search_reference_ads`/`list_segment_columns`). MCP 서버와 `generation/v5_m0_m3` 의 Anthropic tool_use 경로가 공유한다 |
-| `mcp_server.py` | 위 함수를 FastMCP 도구로 노출하는 stdio MCP 서버(`creative-retrieval`). 저장소 루트 `.mcp.json`/`.claude/settings.json` 이 등록·승인을 담당 |
+| `reference_retrieval.py` | 벡터 DB 2개(`ad_concept_reference`/`ad_production_reference`)에서 참조 광고를 의미 유사도로 검색하는 서비스 함수(`search_concept_reference`/`search_production_reference` + 각각의 `list_*_segment_columns`). MCP 서버와 `generation/v5_m0_m3` 의 Anthropic tool_use 경로가 공유한다 |
+| `mcp_server.py` | 위 함수 4개를 FastMCP 도구로 노출하는 stdio MCP 서버(`creative-retrieval`). 저장소 루트 `.mcp.json`/`.claude/settings.json` 이 등록·승인을 담당 |
 
 ## 컬렉션
 
+이 폴더가 관리하는 컬렉션은 `ad_production_reference` 하나다(연출/프로덕션 디테일 —
+컨셉 확정 후 M5~M9·스토리보드 HTML 참고용). 전략 레퍼런스 컬렉션 `ad_concept_reference`
+(M3 컨셉 발산 참고용)는 [`../concept/README.md`](../concept/README.md)의
+`concept_reference_store.py` 가 별도로 관리한다 — 두 컬렉션의 용도 구분은
+[`../README.md`](../README.md)의 스키마 통합 계획 참고.
+
 | 컬렉션 | 단위 | 용도 |
 |--------|------|------|
-| `video_creative_profile` | 영상 1개 = 1레코드 | 세그먼트 검색. 메타데이터에 `industry_category`+정규화 필터 키+캐스팅 속성 |
-| `ad_creative_element` | 요소 1개 = 1레코드 | 클리셰 빈도 집계. 세그먼트 필터 키를 요소 메타데이터에 복제 |
+| `ad_production_reference` (`record_kind="profile"`) | 영상 1개 = 1레코드 | 세그먼트 검색. 메타데이터에 `industry_category`+정규화 필터 키+캐스팅 속성+`execution_style` |
+| `ad_production_reference` (`record_kind="element"`) | 요소 1개 = 1레코드 | 클리셰 빈도 집계·연출 기법 검색. 세그먼트 필터 키를 요소 메타데이터에 복제 |
+
+`opening_hook`/`casting_direction`/`narrative_pattern`/`persuasion_engine`/`narrative_form`/
+`tone_register` 6종(`SINGLE_TYPES`, 영상당 정확히 1개)은 값이 profile 메타데이터로도 승격돼
+(`element_vector_store._profile_metadata`) `PRODUCTION_SEGMENT_COLUMNS`(`persuasion_engine`/
+`narrative_form`)로 직접 필터링하거나 `cliche_aggregate._aggregate_casting` 분포 집계에 잡힌다.
+`tone_register` 는 필터 컬럼에는 없다 — 6종뿐이라 자연어 검색이 더 유용하다.
 
 판정 기준: 세그먼트 내 빈도 ≥60% → `strong_cliche`, 30~60% → `convention`,
 1편 고립(n≥3) → `cliche_breaker`, 그 외 `minor`.
@@ -64,7 +83,7 @@ python -m evaluation.cli --mode creative [--extract] [--load_vector] [--report] 
 | `--data_dir` | `output/total` | `<data_dir>/<video_id>/scenario_analysis.json` 입력 (industry 는 같은 폴더의 `category_analysis.json` 에서 판별. `fashion`→`fashion_apparel`, `healthcare`→`health_medical` 등 어휘 차이는 `run.py::_CATEGORY_INDUSTRY_ALIAS` 로 흡수) |
 | `--extract` | off | 요소 추출 → `creative_element_analysis.json` |
 | `--industry_secondary` | — | [extract] 부산업 강제 지정 (예: `entertainment`). 배치 전체 동일 적용. 미지정 시 `category_analysis.json` 의 `industry_category` 가 리스트면 2번째 값을 자동 사용 |
-| `--load_vector` | off | 추출 결과를 컬렉션 2개에 upsert (v1 파일 자동 변환) |
+| `--load_vector` | off | 추출 결과를 `ad_production_reference` 에 upsert (v1 파일 자동 변환) |
 | `--report` | off | 세그먼트 클리셰 리포트 출력 |
 | `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
 | `--industry` | — | [report] `industry_category` 필터 (예: `beauty`, `tech_electronics`) |
@@ -89,28 +108,35 @@ python -m evaluation.cli --mode creative --report --industry tech_electronics --
 
 ## MCP 서버 — 참조 광고 검색 도구
 
-`video_creative_profile`/`ad_creative_element` 두 컬렉션을 `creative-retrieval` 라는 이름의
-MCP 서버로 노출한다(저장소 최초의 MCP 서버). 도구 2개:
+`ad_concept_reference`/`ad_production_reference` 두 컬렉션을 `creative-retrieval` 라는 이름의
+MCP 서버로 노출한다(저장소 최초의 MCP 서버). 도구 4개(용도별 쌍):
 
 | 도구 | 인자 | 반환 |
 |------|------|------|
-| `list_segment_columns` | 없음 | `{"columns": {...}, "note": ...}` — `columns` 는 필터 가능한 세그먼트 컬럼과 각 컬럼의 허용 값(`reference_retrieval.SEGMENT_COLUMNS`, `element_schema.py` enum 에서 파생), `note` 는 이 값들이 오타·의역 불가한 정확 일치(exact-match) enum 이며 맞는 값이 없으면 `segment_column`/`segment_value` 를 생략하고 `query_text` 자연어 검색만 쓰라는 안내문 |
-| `search_reference_ads` | `query_text`(필수, 자연어), `segment_column`/`segment_value`(선택, `list_segment_columns` 가 준 값과 정확히 일치해야 함 — 특히 `_norm` 이 붙은 컬럼은 표준화된 고정 enum), `top_k`(기본 5, 최대 20) | `query_text` 의미 유사도로 정렬된 참조 광고 목록. 각 항목에 대표 크리에이티브 요소(`notable_elements`, 최대 4개)도 첨부. 세그먼트 필터를 걸었는데 0건이면 "enum 값은 유효하나 적재된 데이터 없음" 안내(`note`)를 함께 반환 |
+| `list_concept_segment_columns` | 없음 | `ad_concept_reference` 필터 컬럼/허용값(`reference_retrieval.CONCEPT_SEGMENT_COLUMNS`) |
+| `search_concept_reference` | `query_text`(필수, 자연어), `segment_column`/`segment_value`(선택, exact-match), `top_k`(기본 5, 최대 20) | 전략적으로 비슷한 참조 광고 목록(소구·포지셔닝·타겟). 연출/촬영 기법은 포함하지 않는다 |
+| `list_production_segment_columns` | 없음 | `ad_production_reference` 필터 컬럼/허용값(`reference_retrieval.PRODUCTION_SEGMENT_COLUMNS`) |
+| `search_production_reference` | `query_text`(필수, 자연어), `segment_column`/`segment_value`(선택, exact-match — `_norm` 컬럼은 표준화된 고정 enum), `top_k`(기본 5, 최대 20) | 연출이 비슷한 참조 광고 목록 + 대표 크리에이티브 요소(`notable_elements`, 최대 4개) |
 
-`generation/v5_m0_m3` 파이프라인이 `--retrieval` 옵션으로 이 도구를 M1~M3 LLM 호출에 연결한다
-(자세한 내용은 [`../../generation/v5_m0_m3/README.md`](../../generation/v5_m0_m3/README.md)) — 어떤
-컬럼/값으로 몇 건을 검색할지는 LLM 이 그때그때 판단하되, `segment_value` 는 `list_segment_columns`
-가 반환한 값 그대로만 써야 하고(추측·의역 금지), 맞는 값이 없으면 `query_text` 자연어 검색으로
-대체하도록 도구 설명에 명시돼 있다.
+두 `list_*` 도구 모두 반환에 `note` 필드로 "오타·의역 불가한 정확 일치 enum" 안내를 담는다 —
+맞는 값이 없으면 `segment_column`/`segment_value` 를 생략하고 `query_text` 자연어 검색만 쓰라는
+지시다.
+
+`generation/v5_m0_m3` 파이프라인이 `--retrieval` 옵션으로 이 도구들을 stage 별로 정확히 한
+용도씩만 연결한다 — M3 는 concept 쌍, M4~M9·스토리보드 HTML 은 production 쌍, M1/M2 는 도구를
+받지 않는다(자세한 내용은 [`../../generation/v5_m0_m3/README.md`](../../generation/v5_m0_m3/README.md)).
+어떤 컬럼/값으로 몇 건을 검색할지는 LLM 이 그때그때 판단하되, `segment_value` 는 해당
+`list_*_segment_columns` 가 반환한 값 그대로만 써야 하고(추측·의역 금지), 맞는 값이 없으면
+`query_text` 자연어 검색으로 대체하도록 도구 설명에 명시돼 있다.
 
 **호출 로깅(선택)**: 환경변수 `REFERENCE_RETRIEVAL_LOG_PATH`(필수) + `REFERENCE_RETRIEVAL_LOG_STAGE`
-(선택, "누가 호출했는지" 태그)를 지정하면 두 도구 호출마다 그 경로에 JSONL 로 1줄씩 append 된다
+(선택, "누가 호출했는지" 태그)를 지정하면 네 도구 호출마다 그 경로에 JSONL 로 1줄씩 append 된다
 (`reference_retrieval._log_call`). MCP(별도 서브프로세스) 경유든 같은 프로세스 안에서 함수를
 직접 부르든 이 두 환경변수만 맞으면 동일하게 기록된다 — `generation/v5_m0_m3` 는 이 메커니즘을
 `--retrieval` 사용 기록(`<slug>_retrieval.jsonl`)에 그대로 쓴다. 미지정 시 로깅 없음(기본).
 
 **임베딩 모델 예열**: `mcp_server.py` 는 `__main__` 실행 시 `reference_retrieval.warm_up()` 으로
-bge-m3 임베딩 모델을 서버 기동 시점에 미리 로드한다 — 그렇지 않으면 첫 `search_reference_ads`
+bge-m3 임베딩 모델과 두 컬렉션을 서버 기동 시점에 미리 로드한다 — 그렇지 않으면 첫 검색
 호출이 모델 로딩 비용(수십 초, 기기 부하에 따라 더 걸릴 수 있음)까지 떠안아 `claude -p` 쪽
 도구 호출이 느려 보이거나 타임아웃에 걸릴 수 있다.
 
