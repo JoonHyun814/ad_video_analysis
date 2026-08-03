@@ -16,6 +16,8 @@ from pathlib import Path
 REQUIRED_OUTPUTS = (
     "completed.html",
     "completed.png",
+    "storyboard-grid.png",
+    "prompt.txt",
     "completed-package.zip",
     "assets",
     "references",
@@ -26,7 +28,8 @@ REQUIRED_OUTPUTS = (
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "HTML을 Codex에 전달해 완성 HTML, PNG, 생성 에셋, 참고자료, ZIP을 생성합니다."
+            "HTML을 Codex에 전달해 완성 HTML, PNG, 생성 에셋, 참고자료, ZIP과 "
+            "Seedance 2.0 영상 생성용 스토리보드 그리드 PNG·프롬프트 텍스트를 생성합니다."
         )
     )
     parser.add_argument(
@@ -152,8 +155,55 @@ MANDATORY ADAPTIVE IMAGE LAYOUT PASS
   placeholder's old fixed-height ratio.
 """
 
+    seedance_instruction = f"""
+
+MANDATORY SEEDANCE 2.0 HAND-OFF PACKAGE
+- 목적: 완성된 스토리보드를 Seedance 2.0(image-to-video, storyboard-to-video)에 그대로
+  업로드해 영상을 만들 수 있도록 "스토리보드 그리드 이미지" 한 장과 "영상 생성 프롬프트"
+  텍스트 한 개를 함께 산출한다. 완성 HTML 자체(문서 양식 전체)는 Seedance 입력으로 적합하지
+  않으므로 별도로 만든다.
+- {output_dir / "storyboard-grid.png"}: 완성 HTML의 Storyboard/컷 섹션에 삽입한 컷 이미지만을
+  촬영 순서대로 격자(그리드)로 이어붙인 단일 이미지. 라벨, 기입선, 안내 문구, 표, 아이콘 같은
+  문서 UI는 전부 제외하고 컷 이미지와(선택적으로) 작은 컷 번호만 남긴다. 중립적인 단색 배경과
+  일정한 여백으로 컷 사이를 구분하고, 화면 안에는 어떤 문자·자막·워터마크·로고도 그리지 않는다.
+  각 컷의 인물·의상·제품 외형·조명 톤이 컷마다 흔들리지 않고 동일하게 유지되는지 확인한다
+  (Seedance는 이 그리드 한 장을 시각적 기준으로 영상을 만든다).
+- {output_dir / "prompt.txt"}: Seedance 2.0에 그대로 붙여넣을 완성된 영상 생성 프롬프트.
+  이미지 태그 나열이 아니라 연출 노트 형식의 자연어 문단으로 작성하며, 입력 HTML에 있는
+  아래 정보를 읽어 순서대로 종합한다(HTML에 해당 섹션·필드가 없으면 이 구조를 유지한 채
+  합리적으로 생략하거나 장면 관찰로 대체한다).
+    1. 도입부: 사양(화면비·총 길이·씬/컷 수)과 메타데이터(장르·서브장르·브랜드 톤·시대·
+       타깃·시간대)를 한두 문장으로 요약해 이 영상이 무엇인지 밝힌다.
+    2. 스타일/일관성 앵커: 인물·제품 레퍼런스 섹션의 고정값(인물 외형과 의상, 제품 외형과
+       색, 장소, 키라이트 방향)과 조명 섹션의 조명 세팅·무드 키워드를 하나의 스타일 문단으로
+       정리한다 — 이 문단이 전 컷에서 일관되게 유지돼야 할 기준이다.
+    3. 시퀀스: Storyboard 섹션의 컷을 순서대로 훑으며 각 컷의 화면 묘사(피사체+동작)를
+       Size/Angle/Cut/렌즈 지시와 함께 시간 순서가 분명하게 드러나도록 이어 쓴다
+       ("먼저 ... 이어서 ... 마지막으로 ..." 같은 흐름). 카메라 섹션의 기본 원칙과 전환
+       규칙(하드컷 등)을 문장에 자연스럽게 반영한다.
+    4. 오디오: VO/BGM 정보를 오디오 지시로 옮긴다. 내레이션이 있으면 대사를 그대로 옮기고,
+       "VO 없음"이면 배경 음악 없이 장면에서 실제로 들릴 법한 사운드(재료·동작·환경음 등
+       ASMR 스타일)로 대체한다.
+    5. 마무리 네거티브 프롬프트: 제품 레퍼런스의 "네거티브" 필드, "화면 글자는 후반 합성"
+       원칙(문자·자막·로고·워터마크·CTA 없음), 조명 섹션의 "금지" 필드를 모아 한 문단으로
+       명시한다.
+  참고할 프롬프트 문체 예시(장면을 순서대로 나열하고, 스타일 문단과 오디오 지시와 네거티브
+  프롬프트를 구분해 마지막에 모으는 구성):
+  '''
+  Transform this storyboard into a seamless cinematic [image-to-video] short film.
+  [한두 문장으로 톤·배경·상황 요약].
+  [컷 1 행동] ... [컷 2 행동] ... [마지막 컷의 리빌/마무리].
+  [스타일 앵커 문단: 화풍/질감/조명/시대감].
+  No music. No dialogue. Only [환경음 나열] sounds.
+  No text, no subtitles, no logo, no watermark.
+  '''
+  이 예시의 문구를 그대로 베끼지 말고, 이 입력 HTML의 실제 내용으로 새로 작성한다.
+- storyboard-grid.png 와 prompt.txt 는 {output_dir / "completed-package.zip"} 에도 포함한다.
+"""
+
     return f"""\
 {layout_instruction}
+{seedance_instruction}
 {reference_block}
 아래 HTML 파일을 완성된 비주얼 산출물로 변환하라.
 
@@ -241,15 +291,18 @@ MANDATORY ADAPTIVE IMAGE LAYOUT PASS
 반드시 다음 경로에 최종 파일을 생성하라:
 - {output_dir / "completed.html"}
 - {output_dir / "completed.png"}
+- {output_dir / "storyboard-grid.png"}
+- {output_dir / "prompt.txt"}
 - {output_dir / "assets"}
 - {output_dir / "references"}
 - {output_dir / "references" / "sources.json"}
 - {output_dir / "completed-package.zip"}
 
-ZIP에는 completed.html, completed.png, HTML이 참조하는 모든 에셋, references
-폴더와 sources.json이 들어 있어야 한다. 완료 전에 모든 필수 결과물이 실제로
-존재하고, HTML의 상대 이미지 경로와 sources.json의 local_path가 모두 유효한지
-검사하라. 최종 응답에는 생성 이미지와 저장한 외부 참고자료의 구분, 렌더링 방식,
+ZIP에는 completed.html, completed.png, storyboard-grid.png, prompt.txt, HTML이
+참조하는 모든 에셋, references 폴더와 sources.json이 들어 있어야 한다. 완료 전에
+모든 필수 결과물이 실제로 존재하고, HTML의 상대 이미지 경로와 sources.json의
+local_path가 모두 유효하며, prompt.txt가 비어 있지 않은지 검사하라. 최종 응답에는
+생성 이미지와 저장한 외부 참고자료의 구분, 렌더링 방식, prompt.txt를 구성한 근거,
 가정과 제한사항을 간단히 기록하라.{extra_block}
 """
 
@@ -288,6 +341,14 @@ def validate_outputs(output_dir: Path) -> list[str]:
         for relative in REQUIRED_OUTPUTS
         if not (output_dir / relative).exists()
     ]
+
+    prompt_path = output_dir / "prompt.txt"
+    if prompt_path.is_file() and not prompt_path.read_text(encoding="utf-8-sig").strip():
+        issues.append(f"prompt.txt가 비어 있음: {prompt_path}")
+
+    grid_path = output_dir / "storyboard-grid.png"
+    if grid_path.is_file() and grid_path.stat().st_size == 0:
+        issues.append(f"storyboard-grid.png가 비어 있음: {grid_path}")
 
     manifest_path = output_dir / "references" / "sources.json"
     references_root = (output_dir / "references").resolve()
@@ -335,6 +396,8 @@ def validate_outputs(output_dir: Path) -> list[str]:
             for required in (
                 "completed.html",
                 "completed.png",
+                "storyboard-grid.png",
+                "prompt.txt",
                 "references/sources.json",
             ):
                 if required not in names:

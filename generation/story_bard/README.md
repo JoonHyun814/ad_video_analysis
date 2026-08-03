@@ -6,8 +6,15 @@
 
 기존 `generation/`(G1~G6)·`generation/v5_m0_m3`(M0~M9) 파이프라인과는 **별개의 독립 도구**다 —
 서로 참조하지 않는다. 스토리보드 자리표시자(placeholder) HTML을 입력받아 Codex CLI로 완성
-비주얼(이미지 생성·삽입·렌더링)을 만드는 후처리 단계로, M0~M9 의 `cli_storyboard.py` 산출물이나
+비주얼(이미지 생성·삽입·렌더링)을 만드는 후처리 단계로, M0~M9 의 `cli_storyboard.py` 산출물
+([`../AITIVE_스토리보드_데이터필드.html`](../AITIVE_스토리보드_데이터필드.html) 양식을 채운 결과)이나
 그 밖의 어떤 스토리보드 HTML에도 적용할 수 있다.
+
+완성 HTML·PNG 렌더링에 더해, **Seedance 2.0(image-to-video) 핸드오프 산출물**
+(`storyboard-grid.png` + `prompt.txt`)도 함께 생성한다 — 아래 "Seedance 핸드오프" 절 참고.
+프롬프트 작성 방식은 [`../docs/GPT_Image2_Seedance2_Workflow.md`](../docs/GPT_Image2_Seedance2_Workflow.md)와
+`../docs/` 아래 실사용 예시(ASMR 요리 영상, 지브리풍 애니메이션)의 구성(연출 노트형 문단 — 스타일
+앵커 → 컷 순서 나열 → 오디오 지시 → 네거티브 프롬프트)을 따른다.
 
 ## 파일 구성
 
@@ -52,15 +59,35 @@ python generation/story_bard/run_storyboard_codex.py \
 
 ### 산출물 (`--output_dir` 하위)
 
-- `completed.html`, `completed.png`
+- `completed.html`, `completed.png` — 완성 스토리보드 문서와 그 전체 페이지 캡처
+- `storyboard-grid.png` — Seedance 업로드용. 문서 UI(라벨·기입선·표) 없이 컷 이미지만 촬영
+  순서대로 이어붙인 단일 그리드 이미지
+- `prompt.txt` — Seedance 2.0에 그대로 붙여넣는 영상 생성 프롬프트 (연출 노트형 문단)
 - `assets/` — 생성 이미지
 - `references/`, `references/sources.json` — 조사 과정에서 참고한 실제 자료와 메타데이터
 - `completed-package.zip` — 위 산출물을 묶은 ZIP
 - `image-layout.json`, `image-layout-report.json` — `storyboard_image_layout.py` 매니페스트/리포트 (Codex가 렌더링 전에 생성·실행)
 - `codex-last-message.txt` — Codex 마지막 응답
 
-실행이 끝나면 위 필수 산출물의 존재 여부와 `sources.json`/ZIP 내용을 자동 검증하며, 실패 시
-비정상 종료 코드와 함께 문제 목록을 stderr에 출력한다.
+실행이 끝나면 위 필수 산출물의 존재 여부, `prompt.txt`가 비어 있지 않은지,
+`sources.json`/ZIP 내용을 자동 검증하며, 실패 시 비정상 종료 코드와 함께 문제 목록을
+stderr에 출력한다.
+
+## Seedance 핸드오프
+
+`run_storyboard_codex.py`가 Codex에 전달하는 프롬프트에는 `storyboard-grid.png`·`prompt.txt`를
+만들라는 별도 지시(`MANDATORY SEEDANCE 2.0 HAND-OFF PACKAGE`)가 포함돼 있다. Codex는 완성
+HTML의 다음 정보를 읽어 `prompt.txt`를 합성한다.
+
+1. **도입부** — 사양(화면비·길이·씬/컷 수)과 메타데이터(장르·브랜드 톤·시대·타깃)를 요약
+2. **스타일/일관성 앵커** — 인물·제품 외형, 장소, 키라이트 방향, 조명 세팅·무드 키워드
+3. **시퀀스** — 컷을 순서대로 훑어 화면 묘사 + Size/Angle/Cut/렌즈를 시간 흐름이 드러나게 연결
+4. **오디오** — 내레이션 또는 "VO 없음"이면 장면 기반 ASMR 사운드 디자인으로 대체
+5. **네거티브 프롬프트** — 제품 레퍼런스의 금지 항목 + "문자·자막·로고·워터마크 없음" 원칙
+
+두 파일을 얻은 뒤에는 수동으로 Seedance 2.0(예: Hailuo `Seedance 2.0` 모드)에
+`storyboard-grid.png`를 업로드하고 `prompt.txt` 내용을 영상 프롬프트로 붙여넣는다 — 이 도구는
+Seedance API를 직접 호출하지 않는다.
 
 ## storyboard_image_layout.py 단독 실행
 

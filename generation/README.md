@@ -10,7 +10,8 @@
 
 > **story_bard/**: `story_board` 프로젝트를 이식한 독립 도구가 `generation/story_bard/`
 > 에 있다. 스토리보드 자리표시자 HTML을 Codex CLI로 완성 비주얼(이미지 생성·삽입·렌더링)로
-> 바꾸는 후처리 단계로, G1~G6·v5_m0_m3 와 서로 참조하지 않는다. 자세한 내용은
+> 바꾸고, 이어서 Seedance 2.0(image-to-video) 핸드오프용 `storyboard-grid.png`·`prompt.txt`
+> 까지 생성하는 후처리 단계로, G1~G6·v5_m0_m3 와 서로 참조하지 않는다. 자세한 내용은
 > [`story_bard/README.md`](story_bard/README.md) 참고.
 
 광고주가 장르/타겟/USP 를 지정하면, facet 벡터 DB(`ad_target`/`ad_usp`/`ad_creative`)에서
