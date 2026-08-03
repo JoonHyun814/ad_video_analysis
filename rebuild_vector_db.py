@@ -113,8 +113,10 @@ def main() -> None:
     p.add_argument("--video_ids", required=True, metavar="RANGE",
                    help="처리할 video_id 범위/목록. 예: 1-10 / 1,3,5 / 1-503")
     p.add_argument("--interval", type=int, default=1800, help="추출이 실제로 일어난 뒤 대기 시간(초, 기본 1800=30분)")
-    p.add_argument("--llm_backend", default="claude", choices=("claude", "codex", "gemini"),
-                   help="ad_concept_production 추출 백엔드")
+    p.add_argument("--llm_backend", default="claude", choices=("claude", "codex", "gemini", "claude_api"),
+                   help="ad_concept_production 추출 백엔드 — claude: claude -p CLI(로그인 세션 필요) | "
+                        "claude_api: Anthropic API 직접 호출(env/api.env ANTHROPIC_API_KEY 필요) | "
+                        "codex: codex CLI | gemini: Gemini API(env/api.env GEMINI_API_KEY 필요)")
     p.add_argument("--log", type=Path, default=_REPO_ROOT / "rebuild_vector_db.log")
     args = p.parse_args()
 

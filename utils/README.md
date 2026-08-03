@@ -10,9 +10,10 @@
 | `json_utils.py` | LLM 응답에서 JSON 안전 파싱 |
 | `io_checks.py` | 파이프라인 입력 JSON 의 존재·`parse_failed` 검증 |
 | `llm_caller.py` | Claude CLI / Codex CLI 호출 |
+| `claude_api_caller.py` | Anthropic Claude API 호출 (텍스트, CLI 세션 불필요) |
 | `gemini_caller.py` | Gemini API 호출 (텍스트 / 비전) |
 | `openai_caller.py` | OpenAI API 호출 (텍스트 / 비전) |
-| `llm_dispatch.py` | `backend` 인자로 위 셋을 일괄 디스패치 |
+| `llm_dispatch.py` | `backend` 인자로 위 넷을 일괄 디스패치 |
 
 ## `env_loader.py`
 
@@ -63,6 +64,21 @@ from utils.llm_caller import call_claude, call_codex
 
 > **예외**: `pipeline/cast_analysis.py` 는 `--add-dir` 플래그, `cast_analysis_codex.py` 는 `-i` 이미지 플래그가 필요해 공통 모듈을 사용하지 않는다.
 
+## `claude_api_caller.py`
+
+API 키는 `env/api.env` 의 `ANTHROPIC_API_KEY` 또는 동명 환경변수에서 읽는다. `llm_caller.call_claude`(CLI)와
+달리 로그인된 `claude` 세션이 필요 없다 — API 키만 있으면 서버·배치 프로세스에서도 호출할 수 있다
+(`generation/v5_m0_m3/llm_adapter.py` 의 `--llm_backend api` 와 같은 방식, 별도 재구현).
+
+| 함수 | 설명 |
+|------|------|
+| `call_claude_api(prompt, model=DEFAULT_MODEL, timeout=300) -> dict` | Anthropic API 텍스트 호출(스트리밍). 529 과부하 자동 재시도 |
+| `DEFAULT_MODEL` | `"claude-sonnet-5"` |
+
+```python
+from utils.claude_api_caller import call_claude_api
+```
+
 ## `gemini_caller.py`
 
 API 키는 `env/api.env` 의 `GEMINI_API_KEY` 또는 동명 환경변수에서 읽는다.
@@ -98,7 +114,7 @@ from utils.openai_caller import call_openai, call_openai_with_images, DEFAULT_MO
 
 | 함수 | 설명 |
 |------|------|
-| `call_llm(prompt, *, backend="claude", gemini_model="", codex_model=None, timeout=300) -> dict` | `backend` 인자(`claude`/`codex`/`gemini`)에 따라 위 호출을 일괄 라우팅 |
+| `call_llm(prompt, *, backend="claude", gemini_model="", codex_model=None, claude_api_model="", timeout=300) -> dict` | `backend` 인자(`claude`/`claude_api`/`codex`/`gemini`)에 따라 위 호출을 일괄 라우팅 |
 
 ```python
 from utils.llm_dispatch import call_llm

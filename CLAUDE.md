@@ -69,7 +69,7 @@ utils/          # 프로젝트 전반에서 재사용하는 헬퍼 (env 로딩 �
 | `env/db.env` | MySQL 연결 정보 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` |
 | `env/dir.env` | 네트워크 공유폴더 경로 | `ROOT_VIDEO_DIR` |
 | `env/python.env` | Python 런타임 및 가상환경 경로 | `PYTHON_PATH`, `VENV_PATH` |
-| `env/api.env` | 외부 LLM API 키 | `GEMINI_API_KEY`, `OPENAI_API_KEY`(`generation/v5_m0_m3` 비전 OCR·브랜드 리서치용), `ANTHROPIC_API_KEY`(`generation/v5_m0_m3 --llm_backend api` 전용 — 기본값 `cli`(claude -p)는 불필요) |
+| `env/api.env` | 외부 LLM API 키 | `GEMINI_API_KEY`, `OPENAI_API_KEY`(`generation/v5_m0_m3` 비전 OCR·브랜드 리서치용), `ANTHROPIC_API_KEY`(`generation/v5_m0_m3 --llm_backend api`, `utils/llm_dispatch.py`/`evaluation.ad_concept_production`/`rebuild_vector_db.py --llm_backend claude_api` 용 — 기본값 `cli`(claude -p)는 불필요) |
 | `env/v5_category_db.env` | `generation/v5_m0_m3` 카테고리 분류용 — 소스 shortform-pipeline RDS 의 `category` 테이블 읽기 전용 접속 정보(이 프로젝트 자체 DB 와 무관) | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` |
 
 **새 환경 변수가 필요하면** 성격에 맞는 파일에 추가하고, 파일이 없으면 새 `.env` 파일을 만든다. `env/README.md`도 함께 업데이트한다.

@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-_LLM_BACKENDS = ("claude", "codex", "gemini")
+_LLM_BACKENDS = ("claude", "codex", "gemini", "claude_api")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -17,7 +17,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--data_dir", type=Path, default=Path("output/total"),
                    help="데이터 루트(기본: output/total). 경로: <data_dir>/<video_id>/")
     p.add_argument("--db_path", type=Path, default=Path("output/vector_db"), help="ChromaDB 저장 경로")
-    p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default="claude", help="LLM 백엔드(기본: claude)")
+    p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default="claude",
+                   help="LLM 백엔드(기본: claude) — claude: claude -p CLI(로그인 세션 필요) | "
+                        "claude_api: Anthropic API 직접 호출(env/api.env ANTHROPIC_API_KEY 필요) | "
+                        "codex: codex CLI | gemini: Gemini API(env/api.env GEMINI_API_KEY 필요)")
     p.add_argument("--timeout", type=int, default=600, help="추출 1건당 LLM 호출 타임아웃 초(기본: 600)")
     p.add_argument("--force", action="store_true",
                    help="concept_analysis.json/production_analysis.json 이 이미 있어도 무시하고 재추출")

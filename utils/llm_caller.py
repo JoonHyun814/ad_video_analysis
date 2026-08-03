@@ -1,5 +1,6 @@
 """Claude / Codex CLI 호출 공통 유틸리티."""
 import json
+import shutil
 import subprocess
 import tempfile
 import time
@@ -8,6 +9,14 @@ from pathlib import Path
 from utils.json_utils import parse_json
 
 _RETRY_DELAYS = (30, 60, 120)
+
+
+def _resolve_exe(name: str) -> str:
+    """Windows에서 npm 이 설치하는 CLI(codex 등)는 `<name>.cmd` 배치 파일이라, shell=False
+    subprocess.run(["codex", ...]) 는 CreateProcess 가 PATHEXT 를 확장하지 않아 그냥 "codex"
+    로는 FileNotFoundError(WinError 2) 가 난다 — shutil.which 로 PATHEXT 를 반영해 실제
+    실행 파일 경로를 미리 찾아 넘긴다(못 찾으면 원래 이름 그대로 반환해 에러가 자연히 드러나게 둔다)."""
+    return shutil.which(name) or name
 
 
 def call_claude(prompt: str, timeout: int = 300, allowed_tools: list[str] | None = None,
@@ -62,12 +71,19 @@ def _unwrap_envelope(raw: str) -> tuple[str, bool]:
 
 
 def call_codex(prompt: str, model: str | None = None, timeout: int = 300) -> dict:
-    """Codex CLI로 프롬프트를 실행하고 JSON 결과를 반환한다."""
+    """Codex CLI로 프롬프트를 실행하고 JSON 결과를 반환한다.
+
+    prompt는 CLI 인자가 아니라 stdin(`-`)으로 넘긴다 — Windows에서 codex(.cmd 배치 파일, npm
+    설치)는 cmd.exe를 거쳐 실행되는데, cmd.exe의 명령줄 길이 제한(8191자)을 넘는 프롬프트를
+    인자로 주면 "The command line is too long." 로 조용히 실패해(returncode=1, out_file 빈 채로
+    남음) parse_failed 로만 보인다. codex exec는 PROMPT 인자가 없거나 `-`면 stdin에서 읽는다.
+    """
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
         out_file = Path(f.name)
-    cmd = ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "-o", str(out_file)]
+    cmd = [_resolve_exe("codex"), "exec", "--dangerously-bypass-approvals-and-sandbox", "-o", str(out_file)]
     if model:
         cmd += ["-m", model]
-    cmd.append(prompt)
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+    cmd.append("-")
+    subprocess.run(cmd, input=prompt, text=True, encoding="utf-8",
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
     return parse_json(out_file.read_text(encoding="utf-8"))

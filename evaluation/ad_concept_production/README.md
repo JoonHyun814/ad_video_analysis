@@ -59,7 +59,7 @@ python -m evaluation.cli --mode ad_concept_production --video_id <ID> --data_dir
 | `--video_id` | (필수) | 대상 영상 ID(쉼표 구분 복수 허용) |
 | `--data_dir` | `output/total` | `<data_dir>/<video_id>/scenario_analysis.json` 입력(같은 폴더에 `category_analysis.json` 있으면 산업 판별에 사용, 없으면 `other`) |
 | `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
-| `--llm_backend` | `claude` | `claude` \| `codex` \| `gemini` |
+| `--llm_backend` | `claude` | `claude`(`claude -p` CLI, 로그인 세션 필요) \| `claude_api`(Anthropic API 직접 호출, `env/api.env` `ANTHROPIC_API_KEY` 필요) \| `codex` \| `gemini`(`env/api.env` `GEMINI_API_KEY` 필요) |
 | `--timeout` | `600` | 추출 1건당 LLM 호출 타임아웃(초) |
 | `--force` | off | `concept_analysis.json`/`production_analysis.json` 이 이미 있어도 무시하고 재추출(기본은 있으면 그 파일을 그대로 적재만 해 재실행 시 중복 과금을 막는다) |
 
