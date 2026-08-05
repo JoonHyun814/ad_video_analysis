@@ -77,6 +77,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Codex를 실행하지 않고 명령과 프롬프트만 출력합니다.",
     )
+    parser.add_argument(
+        "--unsafe_bypass_sandbox",
+        action="store_true",
+        help=(
+            "Codex를 --sandbox workspace-write 대신 --dangerously-bypass-approvals-and-sandbox 로 "
+            "실행합니다. Codex 자신의 Windows 샌드박스가 호출자 프로세스(예: 이미 샌드박스 안에서 "
+            "동작하는 에이전트 도구)와 중첩되어 'windows sandbox: timed out ... connecting runner "
+            "pipe-in' 으로 멈출 때만 사용하세요 — Codex의 파일 쓰기 범위 제한이 사라지므로 기본값은 "
+            "꺼져 있습니다."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -313,12 +324,16 @@ def build_command(
     last_message: Path,
     model: str | None,
     keep_session: bool,
+    unsafe_bypass_sandbox: bool = False,
 ) -> list[str]:
     command = [
         codex_bin,
         "exec",
-        "--sandbox",
-        "workspace-write",
+        *(
+            ["--dangerously-bypass-approvals-and-sandbox"]
+            if unsafe_bypass_sandbox
+            else ["--sandbox", "workspace-write"]
+        ),
         "--skip-git-repo-check",
         "--color",
         "never",
@@ -452,6 +467,7 @@ def main() -> int:
         last_message=last_message,
         model=args.model,
         keep_session=args.keep_session,
+        unsafe_bypass_sandbox=args.unsafe_bypass_sandbox,
     )
 
     if args.dry_run:

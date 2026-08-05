@@ -56,6 +56,7 @@ python generation/story_bard/run_storyboard_codex.py \
 | `--extra_instruction` | `""` | 기본 프롬프트 뒤에 추가할 지시사항 |
 | `--keep_session` | `False` | Codex 세션 기록 유지 (기본은 `--ephemeral`) |
 | `--dry_run` | `False` | 실행하지 않고 명령/프롬프트만 출력 |
+| `--unsafe_bypass_sandbox` | `False` | Codex를 `--sandbox workspace-write` 대신 `--dangerously-bypass-approvals-and-sandbox` 로 실행. 호출자 프로세스 자체가 이미 샌드박스 안이라 Codex의 Windows 샌드박스가 중첩되어 `windows sandbox: timed out ... connecting runner pipe-in` 으로 멈출 때만 사용(예: 에이전트 도구 안에서 이 스크립트를 실행하는 경우) — Codex의 파일 쓰기 범위 제한이 사라지므로 일반 실행에서는 켜지 않는다 |
 
 ### 산출물 (`--output_dir` 하위)
 
