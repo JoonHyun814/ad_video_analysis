@@ -1,13 +1,15 @@
-"""v5_m0_m3 오케스트레이터 — 두 개의 독립 파이프라인.
+"""v5_m0_m3 오케스트레이터 — 세 개의 독립 실행 단계.
 
-  run_m0_m3(): M0(소재 인제스트) → M1(인사이트) → M2(포지셔닝) → M3(컨셉 발산)
+  run_m0_m2(): M0(소재 인제스트) → M1(인사이트) → M2(포지셔닝)
+  run_m3():    M3(컨셉 발산) — run_m0_m2() 의 출력을 입력받아 단독 실행
   run_m4_m9(): M4(비평·킬/GATE A) → M5(DR 스크립트) → M6(레드팀/GATE B) → M7(저비용 검증/GATE C) → M9(콘티)
 
-사용자 요청에 따라 서로 따로 실행할 수 있도록 분리했다 — run_m4_m9() 는 run_m0_m3() 의 반환값
-(module0/m1/m2/m3)을 그대로 입력받는다. 원본 orchestrator.py 의 GATE A/B 자동 반송 루프
-(M3 재발산·owner 모듈 재실행)는 이식하지 않았다 — 그 반송 대상(M1~M3)이 이미 끝난 별개의
-파이프라인 실행 결과라 이 함수 안에서 되돌릴 수 없다. VoC 마이닝 토글·DB 기록도 제외 — 직선
-순차 실행만 한다.
+사용자 요청에 따라 서로 따로 실행할 수 있도록 분리했다(cli.py=M0~M2, cli_m3.py=M3,
+cli_m4_m9.py=M4~M9) — 뒤 단계는 앞 단계의 반환값을 그대로 입력받는다. `run_m0_m3()` 는
+run_m0_m2()+run_m3() 를 이어 붙인 편의 래퍼로 남겨뒀다(한 번에 다 돌리고 싶을 때).
+원본 orchestrator.py 의 GATE A/B 자동 반송 루프(M3 재발산·owner 모듈 재실행)는 이식하지
+않았다 — 그 반송 대상(M1~M3)이 이미 끝난 별개의 파이프라인 실행 결과라 이 함수 안에서
+되돌릴 수 없다. VoC 마이닝 토글·DB 기록도 제외 — 직선 순차 실행만 한다.
 
 GATE A(M4) reject·GATE B(M6) block 모두 중단하지 않고 계속 진행한다 — 소스의
 studio_orchestrator.py run_full()과 동일한 동작(사용자 요청으로 재현, run_m4_m9() 내부
@@ -37,20 +39,26 @@ def module0_is_usable(module0: dict) -> tuple[bool, str]:
                    "제품 제목을 더 구체적으로 입력하거나 다른 URL 로 다시 시도하세요")
 
 
-async def run_m0_m3(sourceurl: str, *, producttitle: str = "", label: str = "") -> dict:
-    """M0~M3 를 순차 실행하고 각 단계 결과를 dict 로 모아 반환.
+async def run_m0_m2(sourceurl: str, *, producttitle: str = "", label: str = "",
+                    guideline_md: str = "") -> dict:
+    """M0(소재 인제스트) → M1(인사이트) → M2(포지셔닝) 만 실행.
 
-    반환: {"module0": {...}, "m1": {...}, "m2": {...}, "m3": {...}}
-    M0 가 unusable 이면 "error" 키만 채워 반환하고 M1~M3 는 실행하지 않는다.
+    guideline_md: 지정하면 module0["brandguideline"] 으로 실려 MODULE 1·2 시스템 프롬프트에
+    최우선 고정 지시로 삽입된다(modules_runner._run_module_core 참고). M0 는 코드 기반 인제스트라
+    LLM 프롬프트가 없다.
+    반환: {"module0": {...}, "m1": {...}, "m2": {...}}
+    M0 가 unusable 이거나 M1/M2 중 하나가 실패하면 "error" 키만 채워 반환한다.
     """
     module0 = await module0_ingest.ingest(sourceurl=sourceurl, producttitle=producttitle, label=label)
+    if guideline_md:
+        module0["brandguideline"] = guideline_md
     usable, reason = module0_is_usable(module0)
     if not usable:
         logger.warning(f"[v5_m0_m3 {label}] {reason}")
         return {"module0": module0, "error": reason}
 
     handoffs: dict[int, dict] = {}
-    for n in (1, 2, 3):
+    for n in (1, 2):
         out = await modules_runner.run_module(n, module0=module0, handoffs=handoffs)
         handoffs[n] = out
         if not out:
@@ -58,7 +66,36 @@ async def run_m0_m3(sourceurl: str, *, producttitle: str = "", label: str = "") 
             return {"module0": module0, "handoffs": handoffs,
                     "error": f"MODULE {n} 실행 실패(빈 응답, 재시도 후에도 실패)"}
 
-    return {"module0": module0, "m1": handoffs[1], "m2": handoffs[2], "m3": handoffs[3]}
+    return {"module0": module0, "m1": handoffs[1], "m2": handoffs[2]}
+
+
+async def run_m3(module0: dict, m1: dict, m2: dict, *, label: str = "") -> dict:
+    """MODULE 3(컨셉 발산) 단독 실행. module0/m1/m2 는 run_m0_m2() 의 출력을 그대로 받는다 —
+    M0~M2 를 한 번 고정해두고 그 위에서 M3 만 몇 번이든(예: --retrieval on/off 비교, 리롤)
+    다시 돌릴 수 있다.
+
+    반환은 cli_m4_m9.py 입력 형식과 동일하게 {"module0","m1","m2","m3"} 로 맞춘다.
+    M3 가 실패하면 "error" 키만 채워 반환한다.
+    """
+    handoffs: dict[int, dict] = {1: m1, 2: m2}
+    out = await modules_runner.run_module(3, module0=module0, handoffs=handoffs)
+    if not out:
+        logger.error(f"[v5_m0_m3 {label}] MODULE 3 failed")
+        return {"module0": module0, "m1": m1, "m2": m2,
+                "error": "MODULE 3 실행 실패(빈 응답, 재시도 후에도 실패)"}
+    return {"module0": module0, "m1": m1, "m2": m2, "m3": out}
+
+
+async def run_m0_m3(sourceurl: str, *, producttitle: str = "", label: str = "",
+                    guideline_md: str = "") -> dict:
+    """run_m0_m2()+run_m3() 를 이어 붙인 편의 래퍼 — M0~M3 를 한 번에 순차 실행하고 싶을 때만
+    쓴다. 단계를 나눠 돌리려면(예: M0~M2 는 고정, M3 만 재시도) 두 함수를 직접 호출한다.
+    반환: {"module0": {...}, "m1": {...}, "m2": {...}, "m3": {...}}
+    """
+    m0_m2 = await run_m0_m2(sourceurl, producttitle=producttitle, label=label, guideline_md=guideline_md)
+    if m0_m2.get("error"):
+        return m0_m2
+    return await run_m3(m0_m2["module0"], m0_m2["m1"], m0_m2["m2"], label=label)
 
 
 def _forced_m4(m3: dict, forced_concept: str) -> dict:

@@ -96,7 +96,7 @@ async def run_ab(input_path: Path, *, llm_backend: str = "cli", style: str | Non
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="M5~M9 --retrieval on/off A/B 비교 (M0~M4 고정)")
     p.add_argument("--input", required=True, type=Path,
-                   help="run_m0_m3()/cli.py 가 만든 *_m0_m3.json 경로 ({module0,m1,m2,m3})")
+                   help="run_m0_m3()/cli_m3.py 가 만든 *_m0_m3.json 경로 ({module0,m1,m2,m3})")
     p.add_argument("--llm_backend", default="cli", choices=("cli", "api"))
     p.add_argument("--style", default="", help="M9 콘티 촬영 포맷(미지정 시 cinematic 기본값)")
     p.add_argument("--output_dir", type=Path, default=Path("output/v5_m0_m3/m3_ab_test"))

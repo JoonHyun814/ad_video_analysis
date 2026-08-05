@@ -1,12 +1,13 @@
 """v5_m0_m3 CLI — M0~M3 결과(JSON)를 입력받아 M4(비평)~M9(콘티)까지 실행한다.
 
-cli.py(M0~M3)와 완전히 분리된 별도 진입점이다 — 두 파이프라인을 독립적으로 실행할 수 있도록
-설계했다. 입력은 `python -m generation.v5_m0_m3.cli` 가 만든 `*_m0_m3.json`
+cli.py(M0~M2)·cli_m3.py(M3)와 완전히 분리된 별도 진입점이다 — 단계를 독립적으로 실행할 수
+있도록 설계했다. 입력은 `python -m generation.v5_m0_m3.cli_m3` 가 만든 `*_m0_m3.json`
 (`{"module0","m1","m2","m3"}`)이다.
 
 사용법:
     python -m generation.v5_m0_m3.cli_m4_m9 --input output/v5_m0_m3/<slug>_m0_m3.json \\
-        [--style cinematic] [--llm_backend cli|api] [--retrieval] [--select_concept "컨셉명"]
+        [--style cinematic] [--llm_backend cli|api] [--retrieval] [--select_concept "컨셉명"] \\
+        [--self_video_id <video_id> --self_mode restore|exclude]
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ def _slug(text: str) -> str:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="v5 M4~M9 파이프라인 (비평·킬 → 스크립트 → 레드팀 → 검증 → 콘티)")
     p.add_argument("--input", required=True, type=Path,
-                   help="run_m0_m3()/cli.py 가 만든 *_m0_m3.json 경로 ({module0,m1,m2,m3})")
+                   help="run_m0_m3()/cli_m3.py 가 만든 *_m0_m3.json 경로 ({module0,m1,m2,m3})")
     p.add_argument("--style", default="", choices=("", *_VALID_STYLES),
                    help="M9 콘티 촬영 포맷. 미지정 시 cinematic 기본값")
     p.add_argument("--llm_backend", default="cli", choices=("cli", "api"),
@@ -36,15 +37,26 @@ def _build_parser() -> argparse.ArgumentParser:
                         "api: Anthropic API 직접 호출(env/api.env ANTHROPIC_API_KEY 필요)")
     p.add_argument("--retrieval", action="store_true",
                    help="M4~M9 에서 ad_production_reference 벡터 DB의 기존 광고 연출·촬영 기법을 "
-                        "검색하는 도구를 LLM 에 제공한다 — M5(스크립트)/M9(콘티)는 반영 시 "
-                        "referencedvideoid/referencedelement 로 추적되고, M4/M6/M7 은 "
-                        "advisory 로만 열어둔다(강제 아님)")
+                        "검색하는 도구를 LLM 에 제공한다 — M5(스크립트)는 반영 시 top-level "
+                        "referencedvideoid/referencedelement 로, M9(콘티)는 반영 시 top-level "
+                        "referencedads[](videoid/element/scenenos — 참고한 광고별로 영향받은 씬 "
+                        "번호를 모아 기록)로 추적되고, M4/M6/M7 은 advisory 로만 열어둔다(강제 아님)")
     p.add_argument("--select_concept", default="",
                    help="M4 LLM 비평 대신, 입력 M3 concepts[] 중 이 이름과 일치하는 컨셉을 "
                         "사용자가 직접 GATE A 통과로 지정한다(M4 생략). 미지정 시 기존처럼 "
                         "M4 가 자율적으로 컨셉을 선택한다. 지정 시 결과 파일명에 컨셉 슬러그가 "
                         "붙어(<label>_<컨셉슬러그>_m4_m9.json) 같은 M3 로 여러 컨셉을 돌려도 "
                         "덮어쓰지 않는다")
+    p.add_argument("--self_video_id", type=int, default=None,
+                   help="--retrieval 검색 결과에 이 video_id 가 걸렸을 때의 처리 방식을 "
+                        "--self_mode 로 지정한다. 기존 방영 광고를 M3 로 재추출해(generation/"
+                        "v5_m0_m3/existing_ad_adapter.py) M4~M9 를 돌릴 때, 그 광고 자신이 "
+                        "ad_production_reference 에 이미 적재돼 있어 검색에 자기 자신이 잡히는 "
+                        "self-reference 상황 전용 — 미지정 시(기본) 기존 동작 그대로")
+    p.add_argument("--self_mode", default="restore", choices=("restore", "exclude"),
+                   help="--self_video_id 지정 시만 적용. restore(기본): 자기 자신 히트에 실제 "
+                        "scenario_analysis/production_analysis 원본을 덧붙이고 그대로 재현하라는 "
+                        "지시를 준다. exclude: 자기 자신을 검색 결과에서 아예 제외한다")
     p.add_argument("--output_dir", type=Path, default=Path("output/v5_m0_m3"), help="결과 저장 경로")
     return p
 
@@ -53,6 +65,7 @@ def main() -> None:
     args = _build_parser().parse_args()
     llm_adapter.set_backend(args.llm_backend)
     llm_adapter.set_retrieval(args.retrieval)
+    llm_adapter.set_self_reference(args.self_video_id, args.self_mode)
     if not args.input.exists():
         raise SystemExit(f"[오류] 입력 파일 없음: {args.input}")
 

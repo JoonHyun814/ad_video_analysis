@@ -40,6 +40,119 @@ _MAX_TOP_K = 20
 _LOG_PATH_ENV = "REFERENCE_RETRIEVAL_LOG_PATH"
 _LOG_STAGE_ENV = "REFERENCE_RETRIEVAL_LOG_STAGE"
 
+# self-reference 정책(선택) — 환경변수로만 켜진다(generation/v5_m0_m3/llm_adapter.py 의
+# set_self_reference() 가 셋업). "지금 분석 중인 광고 자기 자신"이 검색 결과에 걸렸을 때의
+# 처리 방식. 기존 방영 광고를 M3 로 재추출해 M4~M9 를 돌리는 실험(generation/v5_m0_m3/
+# existing_ad_adapter.py)에서만 쓰인다 — 일반 URL 소재 파이프라인은 이 값을 설정하지 않으므로
+# 동작이 전혀 바뀌지 않는다.
+#   REFERENCE_RETRIEVAL_SELF_MODE=restore : 자기 자신 히트에 실제 scenario_analysis/
+#     production_analysis 원본(cast/scenes/elements)을 덧붙이고 "그대로 재현하라"는 지시를 준다
+#     — retrieval 이 self-hit을 찾았을 때 원본 복원 수준까지 도달할 수 있는지 검증하는 용도.
+#   REFERENCE_RETRIEVAL_SELF_MODE=exclude : 자기 자신을 결과에서 아예 제외한다 — self-hit
+#     없이 순수 타 광고 레퍼런스만으로 돌렸을 때를 보기 위한 ablation.
+_SELF_VIDEO_ID_ENV = "REFERENCE_RETRIEVAL_SELF_VIDEO_ID"
+_SELF_MODE_ENV = "REFERENCE_RETRIEVAL_SELF_MODE"
+_EXISTING_AD_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "ad_concept_production"
+
+def _beats_text(scene: dict[str, Any], types: tuple[str, ...]) -> str:
+    beats = [b for b in (scene.get("beats") or []) if isinstance(b, dict) and b.get("type") in types]
+    return " / ".join(str(b.get("description", "")).strip() for b in beats if b.get("description"))
+
+
+def _build_restore_note(detail: dict[str, Any]) -> str:
+    """복원 지시문을 원본의 실제 컷 수·캐스트·엔딩에 맞춰 구체적으로 조립한다.
+
+    [사용자 피드백 반영] 1차 버전(정적 문구)은 self-hit을 찾아도 M9 가 표준 '15초=4~6씬 통합'
+    규칙·인물 수 축소·surreal 은유 창작 습관을 그대로 따라가 원본과 씬 수·캐스트·엔딩이 크게
+    갈렸다(video 86: 10컷→6씬, 캐스트 5명→사실상 1명, CG 추격 엔딩 소실 / video 25: 캐스트
+    9명→3명, 실제 활동 전부 소실, 원본에 없는 '빛 입자' 은유 발명). 아래 4개 지시로 그 구체적
+    실패 지점을 정면으로 겨냥한다 — 이 노트는 self-hit 이 있을 때만(즉 restore 모드에서만)
+    붙으므로 일반 URL 소재 파이프라인(브랜드 브리프로 새 컨셉을 발산하는 경우)에는 영향 없다."""
+    scenes = detail.get("scenes") or []
+    cast = detail.get("cast") or []
+    cut_count = len(scenes)
+    cast_count = len(cast)
+    cast_list = "; ".join(
+        f"{c.get('id', '')}: {str(c.get('description', ''))[:40]}" for c in cast if isinstance(c, dict)
+    )
+    ending = scenes[-1] if scenes else {}
+    ending_desc = _beats_text(ending, ("background", "action")) or "(엔딩 컷 정보 없음)"
+    ending_dialogue = _beats_text(ending, ("dialogue",))
+
+    return (
+        "이 결과는 지금 콘티를 쓰고 있는 광고의 원본 그 자체다(self-reference). 아래 "
+        "source_cast/source_scenes/source_production_notes/source_elements 는 실제로 제작·방영된 "
+        "정확한 기록이다. 다음 네 가지를 반드시 지켜라 — 새로 창작하지 말고 이 원본을 최대한 "
+        "그대로 재현하는 것이 최우선이다:\n"
+        f"1) 컷 구조 우선: 원본은 정확히 {cut_count}개 컷으로 구성된다. '15초 광고는 4~6개 씬으로 "
+        "통합' 같은 일반 규칙보다 이 원본 컷 분할·순서·타이밍을 우선하라 — 컷을 인위적으로 "
+        "4~6개로 뭉개 캐릭터나 사건을 통째로 빠뜨리지 말고, scenes 를 원본 컷 수에 최대한 "
+        "가깝게 나누거나 shots(마이크로샷)로 원본 컷마다 대응시켜 전체 컷 수·리듬을 보존하라.\n"
+        f"2) 인물 구성 고정: 원본 캐스트는 정확히 {cast_count}명이다 — {cast_list}. 이 인원 "
+        "구성과 각자의 역할을 그대로 유지하라 — 인물을 합치거나 빼서 단순화하지 마라. 원본에 "
+        "여러 인물이 등장하는 장면(리액션, 앙상블 활동 등)을 1인 시점으로 축소하지 마라.\n"
+        "3) 새 은유·오브제 창작 금지: 원본에 없는 추상적 시각 은유(예: 빛의 입자, 상징적 오브제, "
+        "새로 지어낸 캐릭터)를 만들지 말고, 원본에 실제로 등장한 그래픽·UI·소품·동작·자막만 "
+        "그대로 묘사하라.\n"
+        f"4) 엔딩 필수 반영: 원본의 마지막 컷은 다음과 같다 — {ending_desc}"
+        + (f" (대사/내레이션: {ending_dialogue})" if ending_dialogue else "") + ". 이 엔딩 비주얼을 "
+        "마지막 씬에 반드시 그대로 반영하라. 학습된 정형화된 클로징(예: '제품이 중앙에 정면으로 "
+        "놓이고 조명 반사만 스치는 락다운 샷')으로 대체하지 마라 — 그것이 이 원본의 실제 엔딩이 "
+        "아니라면 쓰지 마라."
+    )
+
+
+def _load_existing_ad_detail(video_id: int) -> dict[str, Any] | None:
+    """data/ad_concept_production/<video_id>/ 의 scenario_analysis·production_analysis 원본."""
+    root = _EXISTING_AD_DATA_ROOT / str(video_id)
+    scenario_path = root / "scenario_analysis.json"
+    if not scenario_path.exists():
+        return None
+    scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
+    production_path = root / "production_analysis.json"
+    production = json.loads(production_path.read_text(encoding="utf-8")) if production_path.exists() else {}
+    return {
+        "cast": scenario.get("cast", []),
+        "scenes": scenario.get("scenes", []),
+        "production_notes": scenario.get("production_notes", ""),
+        "elements": production.get("elements", []),
+    }
+
+
+def _apply_self_reference_policy(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """search_production_reference 결과에 self-reference 정책(restore/exclude)을 적용한다.
+
+    환경변수가 없으면(일반 호출) 결과를 그대로 반환 — 기존 동작 무변화.
+    """
+    self_id_raw = os.environ.get(_SELF_VIDEO_ID_ENV)
+    mode = os.environ.get(_SELF_MODE_ENV, "")
+    if not self_id_raw or mode not in ("restore", "exclude"):
+        return results
+    try:
+        self_id = int(self_id_raw)
+    except ValueError:
+        return results
+
+    if mode == "exclude":
+        return [r for r in results if r.get("video_id") != self_id]
+
+    out: list[dict[str, Any]] = []
+    for r in results:
+        if r.get("video_id") == self_id:
+            detail = _load_existing_ad_detail(self_id)
+            if detail:
+                r = {
+                    **r,
+                    "exact_source_match": True,
+                    "restoration_note": _build_restore_note(detail),
+                    "source_cast": detail["cast"],
+                    "source_scenes": detail["scenes"],
+                    "source_production_notes": detail["production_notes"],
+                    "source_elements": detail["elements"],
+                }
+        out.append(r)
+    return out
+
 
 def _log_call(tool: str, arguments: dict[str, Any], result: dict[str, Any]) -> None:
     log_path = os.environ.get(_LOG_PATH_ENV)
@@ -330,6 +443,7 @@ def search_production_reference(
             entry["notable_elements"] = elements_by_video.get(video_id, [])[:elements_per_ad]
         results.append(entry)
 
+    results = _apply_self_reference_policy(results)
     out = {
         "results": results,
         "count": len(results),

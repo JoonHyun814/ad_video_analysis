@@ -122,6 +122,14 @@ MCP 서버로 노출한다(저장소 최초의 MCP 서버). 도구 4개(용도�
 맞는 값이 없으면 `segment_column`/`segment_value` 를 생략하고 `query_text` 자연어 검색만 쓰라는
 지시다.
 
+**self-reference 정책(선택, 환경변수)**: `search_production_reference` 결과에 환경변수
+`REFERENCE_RETRIEVAL_SELF_VIDEO_ID`/`REFERENCE_RETRIEVAL_SELF_MODE`(`restore`|`exclude`)가
+설정돼 있으면, 그 `video_id`가 결과에 걸렸을 때 `restore`는 `data/ad_concept_production/<id>/`
+원본(cast/scenes/elements)을 덧붙이고, `exclude`는 그 결과를 아예 제거한다. 둘 다 미설정이면
+기존 동작 그대로다 — 기존 방영 광고를 재추출해 M4~M9 를 도는 실험 전용 옵션으로,
+`generation/v5_m0_m3/llm_adapter.set_self_reference()`/[`../../generation/v5_m0_m3/README.md`](../../generation/v5_m0_m3/README.md)
+의 `cli_m4_m9.py --self_video_id`/`--self_mode` 참고.
+
 `generation/v5_m0_m3` 파이프라인이 `--retrieval` 옵션으로 이 도구들을 stage 별로 정확히 한
 용도씩만 연결한다 — M3 는 concept 쌍, M4~M9·스토리보드 HTML 은 production 쌍, M1/M2 는 도구를
 받지 않는다(자세한 내용은 [`../../generation/v5_m0_m3/README.md`](../../generation/v5_m0_m3/README.md)).

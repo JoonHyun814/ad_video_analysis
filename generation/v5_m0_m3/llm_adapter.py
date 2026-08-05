@@ -24,8 +24,9 @@ vision_json 호출부인 page_section_ocr 하나뿐이고, Anthropic API 로 옮
             (evaluation/creative/reference_retrieval.py 의 TOOL_DEFINITIONS_*/call_tool 재사용 —
             검색 로직 자체는 두 백엔드가 완전히 동일하고 전송 방식만 다르다).
 
-도구는 stage 별로 정확히 한 종류만 노출한다(_STAGE_TOOL_KIND) — M3 는 ad_concept_reference
-검색 도구(concept), M4~M9·STORYBOARD_HTML 은 ad_production_reference 검색 도구(production),
+도구는 stage 별로 정확히 한 종류만 노출한다(_STAGE_TOOL_KIND) — M3·M3_LENS_SCOUT(M3 발산
+직전 사전 조사, modules_runner._scout_emergent_lenses 참고)는 ad_concept_reference 검색
+도구(concept), M4~M9·STORYBOARD_HTML 은 ad_production_reference 검색 도구(production),
 M1/M2 는 retrieval 이 켜져 있어도 도구를 받지 않는다. 두 용도를 동시에 열어주지 않는다
 (evaluation/README.md 스키마 통합 계획 참고).
 """
@@ -49,12 +50,20 @@ _VALID_BACKENDS = ("cli", "api")
 _backend: contextvars.ContextVar[str] = contextvars.ContextVar("v5_m0_m3_llm_backend", default="cli")
 _retrieval: contextvars.ContextVar[bool] = contextvars.ContextVar("v5_m0_m3_llm_retrieval", default=False)
 _retrieval_log: contextvars.ContextVar[str | None] = contextvars.ContextVar("v5_m0_m3_llm_retrieval_log", default=None)
+_self_video_id: contextvars.ContextVar[int | None] = contextvars.ContextVar("v5_m0_m3_self_video_id", default=None)
+_self_mode: contextvars.ContextVar[str] = contextvars.ContextVar("v5_m0_m3_self_mode", default="")
 
 # evaluation.creative.reference_retrieval 이 읽는 환경변수 이름과 반드시 일치해야 한다 — 그 모듈이
 # "어떤 단계가 호출했는지" 로그에 남기는 유일한 통로다(MCP 서브프로세스 경유든 API 인프로세스
 # 툴콜이든 이 두 환경변수만 셋업하면 동일하게 동작). generation/v5_m0_m3/README.md 참고.
 _RR_LOG_PATH_ENV = "REFERENCE_RETRIEVAL_LOG_PATH"
 _RR_LOG_STAGE_ENV = "REFERENCE_RETRIEVAL_LOG_STAGE"
+# evaluation.creative.reference_retrieval 의 self-reference 정책(restore/exclude) 환경변수 이름과
+# 반드시 일치해야 한다 — 기존 방영 광고를 M3 로 재추출해 M4~M9 를 돌릴 때만 쓰는 옵션(위 모듈
+# docstring, generation/v5_m0_m3/existing_ad_adapter.py 참고). 일반 URL 소재 파이프라인은 이
+# 두 값을 설정하지 않으므로 동작이 전혀 바뀌지 않는다.
+_RR_SELF_VIDEO_ID_ENV = "REFERENCE_RETRIEVAL_SELF_VIDEO_ID"
+_RR_SELF_MODE_ENV = "REFERENCE_RETRIEVAL_SELF_MODE"
 
 _CLI_DEFAULT_TIMEOUT = 300
 _CLI_TIMEOUT_MULTIPLIER = 2  # cli(서브프로세스) 백엔드는 api 대비 느릴 수 있어 기본 timeout 2배
@@ -96,7 +105,7 @@ _MCP_ALLOWED_TOOLS_BY_KIND: dict[str, list[str]] = {
 # stage(chat_json 호출자가 넘기는 "M3" 등 라벨) → 노출할 검색 도구 종류. 없는 stage(M1/M2 등)는
 # retrieval 이 켜져 있어도 도구를 받지 않는다 — M3=컨셉 발산 참고, M4~M9/STORYBOARD_HTML=연출 참고.
 _STAGE_TOOL_KIND: dict[str, str] = {
-    "M3": "concept",
+    "M3": "concept", "M3_LENS_SCOUT": "concept",
     "M4": "production", "M5": "production", "M6": "production",
     "M7": "production", "M9": "production",
     "STORYBOARD_HTML": "production",
@@ -148,8 +157,37 @@ def set_retrieval_log(path: str | Path | None) -> None:
     _retrieval_log.set(str(path) if path else None)
 
 
+def set_self_reference(video_id: int | None, mode: str = "restore") -> None:
+    """검색 결과에 분석 대상 광고 자기 자신(video_id)이 걸렸을 때의 처리 방식을 지정한다.
+
+    기존 방영 광고를 M3 로 재추출해 M4~M9 를 돌리는 실험(generation/v5_m0_m3/
+    existing_ad_adapter.py) 전용 — video_id 를 안 주면(None) 기본 동작 그대로라 일반 URL 소재
+    파이프라인에는 영향 없다.
+      mode="restore": 자기 자신이 검색되면 evaluation.creative.reference_retrieval 이 실제
+        scenario_analysis/production_analysis 원본(cast/scenes/elements)을 결과에 덧붙이고
+        "새로 창작하지 말고 그대로 재현하라"는 지시를 함께 반환한다 — self-reference 가 원본
+        복원 수준까지 도달할 수 있는지 검증하는 용도.
+      mode="exclude": 자기 자신을 검색 결과에서 아예 제외한다 — self-hit 없이 순수 타 광고
+        레퍼런스만으로 돌렸을 때를 보는 ablation.
+    """
+    _self_video_id.set(video_id)
+    _self_mode.set(mode if video_id is not None else "")
+
+
+def get_self_reference() -> tuple[int | None, str]:
+    return _self_video_id.get(), _self_mode.get()
+
+
 def _sync_retrieval_env(stage: str) -> None:
-    """chat_json 호출 직전에 부른다 — retrieval 이 꺼져 있거나 로그 경로 미지정이면 아무것도 안 한다."""
+    """chat_json 호출 직전에 부른다."""
+    self_id, self_mode = get_self_reference()
+    if self_id is not None and self_mode:
+        os.environ[_RR_SELF_VIDEO_ID_ENV] = str(self_id)
+        os.environ[_RR_SELF_MODE_ENV] = self_mode
+    else:
+        os.environ.pop(_RR_SELF_VIDEO_ID_ENV, None)
+        os.environ.pop(_RR_SELF_MODE_ENV, None)
+
     if not get_retrieval():
         return
     log_path = _retrieval_log.get()

@@ -82,10 +82,12 @@ _OVERRIDE_BASE: dict[int, str] = {
        '"verdict":"go|nogo","branch":"No-Go시 M5|GATEA 반송"}',
     9: '{"scenes":[{"no":1,"time":"0~3초","role":"story|ending","brief":"씬 고객용 요약 1문장(~40자, 촬영/전문용어 금지)","mood":"무드(BGM/분위기)","shot":"CU|MS|WS+무브","visual":"화면묘사(QR·자막·로고·배지·카피 등 글자 요소 금지 — 글자는 overlay 에만)","audio":"내레이션/BGM/SFX",'
        '"overlay":"텍스트(후반합성)","emotion":"","color":"자연광|상황광(색온도 쿨/웜 대비 금지)","transition":"컷",'
-       '"shots":[{"desc":"마이크로샷 화면묘사(피사체+동작 — 직전 샷과 사이즈|앵글|피사체 중 1개+ 뚜렷이 대비, 글자 요소 금지)","size":"WS|MS|CU","angle":"eye|low|high|top|pov","sec":1.5,"cut":"hard|insert"}],'
-       '"referencedvideoid":"이 씬의 구도·연출을 검색 결과에서 차용했다면 그 video_id(정수), 아니면 null","referencedelement":"차용한 구체적 기법과 이 씬에서 어떻게 변형했는지 1줄. 차용 없으면 빈 문자열"}],'
+       '"shots":[{"desc":"마이크로샷 화면묘사(피사체+동작 — 직전 샷과 사이즈|앵글|피사체 중 1개+ 뚜렷이 대비, 글자 요소 금지)","size":"WS|MS|CU","angle":"eye|low|high|top|pov","sec":1.5,"cut":"hard|insert"}]}],'
        '"emotioncurve":"0초[..]→..","visualkeywords":[],'
-       '"usagecutscene":"사용 완결 컷(제품을 실제로 사용/섭취/도포/착용/작동하는 순간이 보이는 씬)의 씬 번호(정수). 앱·디지털 서비스는 마지막 팩샷 씬 번호"}',
+       '"usagecutscene":"사용 완결 컷(제품을 실제로 사용/섭취/도포/착용/작동하는 순간이 보이는 씬)의 씬 번호(정수). 앱·디지털 서비스는 마지막 팩샷 씬 번호",'
+       '"referencedads":[{"videoid":"검색 결과에서 실제로 차용한 광고의 video_id(정수). 콘티 전체에서 실제로 참고한 광고마다 이 배열에 항목을 1개씩 추가한다(같은 광고를 여러 항목으로 중복하지 않는다). 참고한 광고가 하나도 없으면 referencedads 자체를 빈 배열([])로 둔다",'
+       '"element":"차용한 구체적 기법과 이 콘티에서 어떻게 변형했는지 1줄(원본 기법 → 변형)",'
+       '"scenenos":[1,3]}]}',
 }
 
 
@@ -644,6 +646,27 @@ _SHOT_CONTRAST_RETRY_HINT = (
     "같은 JSON 스키마로 다시 작성하라."
 )
 
+
+def _referencedads_violation(out: dict) -> str:
+    """M9 레퍼런스 인용 계약검증(사용자 요청) — --retrieval 켜진 상태에서는 referencedads 가
+    최소 1건이어야 한다. --retrieval 꺼져 있으면(도구 자체가 없음) 검증하지 않는다."""
+    if not llm_adapter.get_retrieval():
+        return ""
+    ads = out.get("referencedads")
+    if isinstance(ads, list) and any(isinstance(a, dict) and a.get("videoid") for a in ads):
+        return ""
+    return "referencedads 비어 있음(--retrieval 켜진 상태에서는 최소 1건 인용 필수)"
+
+
+_REFERENCEDADS_RETRY_HINT = (
+    "직전 응답의 referencedads 가 비어 있다. --retrieval 이 켜져 있으므로 이 콘티는 "
+    "search_production_reference 로 최소 1건은 실제로 검색해, 그 결과 중 씬 구도·카메라워크·"
+    "전환 기법 하나 이상을 실제로 반영해야 한다(빈 배열 금지). 검색 결과에서 이 콘티와 맞닿는 "
+    "지점을 찾아 반영하고, referencedads 에 그 video_id·element(원본 기법 → 이 콘티에서의 "
+    "변형)·scenenos(영향받은 씬 번호들)를 최소 1개 항목으로 채워 같은 JSON 스키마로 다시 "
+    "작성하라."
+)
+
 _CRITICAL_KEY = {1: "corejob", 2: "messagecandidates", 3: "concepts", 5: "script", 9: "scenes"}
 
 _EMPTY_RETRY_HINT = (
@@ -763,6 +786,115 @@ def gate_c(m7: dict) -> str:
     return "nogo" if v in ("nogo", "no-go", "reject") else "go"
 
 
+# prompts/module3.md "전략 렌즈 풀"과 반드시 동일하게 유지 — 여기서만 바뀌면 emergent lens
+# 판별(중복 배제)이 그 md 파일과 어긋난다.
+_FIXED_LENS_POOL = (
+    "반전·금기 깨기", "비유·은유", "데모·증거", "적(현상유지) 의인화", "사용자 증언",
+    "정체성·소속", "기능적 Job 직격", "감정적 Job 직격", "비교·대조(전후 / 우리 vs 경쟁)",
+)
+
+_LENS_SCOUT_SCHEMA = (
+    '{"emergentlenses":[{"name":"기존 9개 풀에 없는 새 전략 렌즈 이름(짧은 구)",'
+    '"rationale":"이 렌즈가 왜 이 제품·카테고리에 통하는지 1문장",'
+    '"sourcedvideoid":"근거가 된 검색 결과의 video_id(정수), 없으면 null"}]}'
+)
+
+_LENS_SCOUT_MIN = 3  # 사용자 요청: 적어도 3개는 채우도록 시도(부족하면 1회 재검색 유도)
+_LENS_SCOUT_MAX = 5
+
+_LENS_SCOUT_RETRY_HINT = (
+    "\n\n직전 검색으로는 서로 다른 렌즈를 {found}개밖에 못 찾았다 — 최소 {min_n}개가 목표다. "
+    "지금까지와 다른 세그먼트 컬럼(appeal_type/positioning_category/usp_category 등)이나 "
+    "다른 쿼리로 추가 검색해서 더 찾아라. 여러 번 나눠 검색해도 된다. 다만 억지로 지어내지는 "
+    "마라 — 최선을 다해 검색했는데도 {min_n}개 미만이면 실제로 찾은 만큼만 반환해도 된다."
+)
+
+
+def _scout_emergent_lenses(module0: dict, handoffs: dict) -> list[dict]:
+    """M3 발산 직전 사전 조사(사용자 피드백 반영) — 기존엔 M3 의 retrieval 이 '이미 고른 렌즈에
+    맞는 사례 찾기'에만 쓰여서 module3.md 의 고정 9렌즈 풀 밖으로 발산을 못 넓혔다. 여기서는
+    본 M3 호출 전에 ad_concept_reference 를 렌즈 특정 없이 넓게 검색해, 그 9개 풀에 없는(중복
+    아닌) 전략 각도를 찾는다. 최소 _LENS_SCOUT_MIN(3)개를 목표로 하고, 미달이면 다른
+    세그먼트/쿼리로 1회 더 검색하게 한다(사용자 요청) — 그래도 못 채우면 있는 만큼만 반환한다
+    (근거 없는 지어내기는 금지). 반환값은 M3 시스템 프롬프트에 '추가 렌즈 후보'로 얹을 때
+    (`_format_emergent_lenses`)와, M3 출력 JSON 에 어느 광고가 어느 렌즈의 근거였는지 남길 때
+    (`_tag_lens_origin`) 양쪽에 쓰인다. --retrieval 꺼져 있으면 빈 리스트."""
+    if not llm_adapter.get_retrieval():
+        return []
+    m2 = handoffs.get(2, {}) or {}
+    system = (
+        "당신은 광고 전략 렌즈 스카우트다. search_concept_reference/list_concept_segment_columns "
+        "도구로 이 제품과 유사한 카테고리·타깃·포지셔닝의 기존 광고를 특정 렌즈에 매이지 말고 "
+        "포괄적으로 검색해, 아래 '기존 고정 렌즈 풀'에 없는 새로운 전략 각도를 찾아라.\n\n"
+        "기존 고정 렌즈 풀(이미 커버됨 — 이것과 겹치면 제안하지 마라):\n"
+        + "\n".join(f"- {lens}" for lens in _FIXED_LENS_POOL) + "\n\n"
+        "검색 결과에서 반복 관찰되는 패턴(appeal_type/positioning_category/summary)이 위 9개 "
+        "풀 중 하나로 이미 설명되면 제안하지 마라 — 정말 새로운 각도만 제안하라. 근거 없이 "
+        "지어내지 마라. 검색해서 실제로 참고한 광고가 있다면 sourcedvideoid 에 반드시 그 "
+        f"video_id 를 적어라(근거 없이 null 로 비우지 말 것 — 검색 결과 기반 제안이면 항상 "
+        f"출처가 있어야 한다). 서로 다른 렌즈를 최소 {_LENS_SCOUT_MIN}개, 최대 {_LENS_SCOUT_MAX}개 "
+        "찾는 게 목표다 — 한 번의 포괄적 검색으로 부족하면 세그먼트 컬럼(appeal_type/"
+        f"positioning_category/usp_category 등)을 바꿔가며 여러 번 검색하라. 그래도 {_LENS_SCOUT_MIN}개를 "
+        "못 채우면(정말 더는 없으면) 찾은 만큼만 반환해도 된다 — 억지로 채우기보다 정확성이 "
+        "우선이다.\n\n"
+        "JSON 스키마: " + _LENS_SCOUT_SCHEMA
+    )
+    user = (
+        json.dumps({
+            "productname": module0.get("productname", ""), "category": module0.get("category", ""),
+            "m2positioning": m2.get("positioningstatement", ""),
+            "m2valueproposition": m2.get("valueproposition", ""),
+        }, ensure_ascii=False)
+        + "\n\n위 입력으로 지시를 수행하고, 지정된 JSON 객체로만 응답하세요(코드펜스·설명 없이)."
+    )
+    lenses: list[dict] = []
+    for attempt in (1, 2):
+        out = llm_adapter.chat_json(system, user, stage="M3_LENS_SCOUT")
+        lenses = [lens for lens in (out.get("emergentlenses") or []) if isinstance(lens, dict) and lens.get("name")]
+        if len(lenses) >= _LENS_SCOUT_MIN or attempt == 2:
+            break
+        logger.info(f"[v5_m0_m3 M3_LENS_SCOUT] {len(lenses)}개만 찾음(목표 {_LENS_SCOUT_MIN}) -> 1회 재검색")
+        user = user + _LENS_SCOUT_RETRY_HINT.format(found=len(lenses), min_n=_LENS_SCOUT_MIN)
+    return lenses[:_LENS_SCOUT_MAX]
+
+
+def _format_emergent_lenses(lenses: list[dict]) -> str:
+    """_scout_emergent_lenses() 결과를 M3 시스템 프롬프트에 얹을 텍스트 블록으로 변환."""
+    if not lenses:
+        return ""
+    lines = []
+    for lens in lenses:
+        src = f"(참고 video_id={lens['sourcedvideoid']})" if lens.get("sourcedvideoid") else ""
+        lines.append(f"- {lens['name']}: {lens.get('rationale', '')} {src}".strip())
+    return (
+        "\n\n---\n\n[레퍼런스 발굴 렌즈 후보 — 사전 검색으로 찾은, 위 9개 고정 풀에 없는 추가 "
+        "전략 렌즈. 아래도 '전략 렌즈 풀'의 일부로 취급해 선택할 수 있다(강제 아님, 적합하면 "
+        "쓰고 아니면 무시). 앵커링 방지 프로토콜(서로 다른 렌즈 사용)은 고정 풀+아래 후보 "
+        "전체를 대상으로 동일하게 적용한다]\n" + "\n".join(lines)
+    )
+
+
+def _tag_lens_origin(out: dict, emergent_lenses: list[dict]) -> None:
+    """M3 concepts[] 각 항목의 lens 가 emergent lens 후보(스카우트 결과)에서 왔는지, 왔다면
+    어느 video_id 가 근거였는지 이름 매칭으로 코드가 직접 태깅한다(LLM 판단에 맡기지 않음 —
+    referencedvideoid/referencedelement 는 '이 컨셉이 어느 광고를 어떻게 변형했나'를 이미
+    다루지만, '이 렌즈 자체가 어느 광고에서 나왔나'는 별개 추적 축이라 새로 추가했다. 사용자
+    요청). `_norm_concept` 로 정규화해 매칭한다 — concepts[].lens 에는 emergentlenses[].name 의
+    부연 괄호(예: "라인업 핏 개런티(맞춤 옵션 보장)")가 생략된 채 적히는 경우가 실측됐다(모델이
+    렌즈명을 그대로 복사하지 않고 축약). concepts[] 가 비었거나 dict 가 아니면 아무 것도
+    하지 않는다."""
+    concepts = out.get("concepts")
+    if not isinstance(concepts, list):
+        return
+    by_name = {_norm_concept(lens.get("name")): lens for lens in emergent_lenses}
+    for c in concepts:
+        if not isinstance(c, dict):
+            continue
+        src = by_name.get(_norm_concept(c.get("lens")))
+        c["lensorigin"] = "emergent" if src else "fixed"
+        c["lenssourcedvideoid"] = src.get("sourcedvideoid") if src else None
+
+
 def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | None = None,
                      rerun_hint: dict | None = None) -> dict:
     """MODULE n(1~7,9) 단일 실행. 동기(호출부가 asyncio.to_thread)."""
@@ -790,7 +922,10 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
     # 언제·왜 쓸지는 LLM 이 판단한다(강제 아님). M6(레드팀)·M7(합성검증)은 리스크 진단·평가가
     # 목적이라 검색이 구조적으로 덜 유용하지만, 다른 production 단계와 동일하게 advisory 로만
     # 열어두고 실사용 여부는 로그로 관찰한다(강제로 막을 이유가 없다 — 안 쓰면 그것도 정보다).
+    emergent_lenses: list[dict] = []
     if n == 3 and llm_adapter.get_retrieval():
+        emergent_lenses = _scout_emergent_lenses(module0, handoffs)
+        system += _format_emergent_lenses(emergent_lenses)
         system += (
             "\n\n---\n\n[전략 레퍼런스 검색 도구 사용 가능]\n"
             "search_concept_reference / list_concept_segment_columns 도구가 제공되면, 이 제품과 "
@@ -836,19 +971,27 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
             )
         elif n == 9:
             system += (
-                "\n스크립트를 씬·샷 단위 콘티로 푸는 단계다. 특정 씬의 구도·카메라워크·전환 "
-                "기법을 검색 결과 notable_elements(opening_hook/casting_direction/"
-                "narrative_pattern/sensory_demo_shot)에서 참고할 수 있다면 활용하라. 실제로 "
-                "반영한 씬은 그 씬의 referencedvideoid/referencedelement 필드에 video_id와 "
-                "(원본 기법 → 이 씬에서의 변형)을 1줄로 적고, 반영하지 않은 씬은 두 필드를 "
-                "비워 두라(반영한 척 지어내지 말 것 — 반영한 씬 수보다 정확성이 우선이다)."
+                "\n스크립트를 씬·샷 단위 콘티로 푸는 단계다. **이 단계에서는 검색 도구 호출이 "
+                "선택이 아니라 필수다 — search_production_reference 로 최소 1건은 반드시 검색해, "
+                "그 결과 중 특정 씬의 구도·카메라워크·전환 기법을 검색 결과 notable_elements"
+                "(opening_hook/casting_direction/narrative_pattern/sensory_demo_shot)에서 찾아 "
+                "이 콘티에 실제로 반영하라.** 씬마다 따로 적지 말고, 콘티 전체를 다 쓴 뒤 "
+                "top-level referencedads 배열에 **실제로 참고한 광고 단위로** 정리하라 — 참고한 "
+                "광고 1건당 항목 1개(videoid, 원본 기법 → 이 콘티에서의 변형을 적은 element, "
+                "그 기법이 영향을 준 모든 씬 번호를 모은 scenenos 배열). 같은 광고를 여러 씬에서 "
+                "참고했어도 항목을 반복하지 말고 scenenos 에 씬 번호를 모아 담아라. "
+                "referencedads 는 **최소 1개 항목 이상**이어야 한다(빈 배열 금지) — 다만 억지로 "
+                "안 맞는 기법을 끼워 맞추지 말고, 검색 결과 중 이 콘티와 실제로 맞닿는 지점을 "
+                "찾아 반영하라(지어내는 것과는 다르다 — 검색은 실제로 하고, 그 결과에서 진짜 "
+                "쓸 만한 것을 골라라)."
             )
         else:
             system += (
                 " 검색 결과는 참고 자료일 뿐이다 — 그대로 베끼지 말고, 시장에 이미 있는 "
                 "연출 관행과 겹치지 않는지 점검하는 용도로 활용하라."
             )
-        system += " 반드시 호출할 필요는 없다."
+        if n != 9:
+            system += " 반드시 호출할 필요는 없다."
 
     try:
         cps = []
@@ -868,6 +1011,19 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
     except Exception:
         pass
 
+    # [사용자 요청] 브랜드 광고 목표 가이드라인(cli.py --guideline) — M1(인사이트)·M2(포지셔닝)에만
+    # 적용. 시스템 프롬프트의 맨 끝(공통 지침·모듈 지시문·오버라이드·커스텀 지시 뒤)에 붙여
+    # 그 위 모든 지시보다 우선하도록 명시한다 — 크롤로 추출된 module0 원시 정보가 이 가이드라인의
+    # 공식 타깃/포지셔닝과 어긋나도 가이드라인이 이긴다.
+    brandguideline = str(module0.get("brandguideline") or "").strip()
+    if n in (1, 2) and brandguideline:
+        system += (
+            f"\n\n---\n\n[브랜드 광고 목표 가이드라인 — MODULE {n} 최우선 고정 지시. 위의 모든 "
+            "지시(공통 운영 지침·모듈 지시문·오버라이드·사용자 커스텀 지시 포함)와 내용이 "
+            "충돌하면 이 가이드라인을 따른다. 단, 출력 JSON 스키마·형식 규칙은 그대로 유지한다]\n"
+            + brandguideline
+        )
+
     user = _build_user(n, module0, handoffs, review, rerun_hint)
 
     for attempt in (1, 2):
@@ -877,6 +1033,9 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
                 out = _backfill_legacy(n, out)
             if isinstance(out, dict) and n == 5:
                 out = _sanitize_m5_script(out)
+            if isinstance(out, dict) and n == 3:
+                out["emergentlenses"] = emergent_lenses
+                _tag_lens_origin(out, emergent_lenses)
             if isinstance(out, dict) and n == 9 and _normalize_scene_times(out):
                 logger.info("[v5_m0_m3 module9] 씬 타임코드 보정됨(0->15 연속 스냅)")
             if isinstance(out, dict) and n == 9 and _ensure_scene_count(out, handoffs):
@@ -896,15 +1055,17 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
             if isinstance(out, dict) and n == 9:
                 ucv = _usagecut_violation(out)
                 scv = _shot_contrast_violation(out)
+                rav = _referencedads_violation(out)
                 slow9 = video_style.pace_of(video_style.style_of(module0)) == "slow"
-                retryviols = "; ".join(v for v in (ucv, "" if slow9 else scv) if v)
+                retryviols = "; ".join(v for v in (ucv, "" if slow9 else scv, rav) if v)
                 if retryviols and attempt == 1 and not rerun_hint:
                     logger.warning(f"[v5_m0_m3 module9] 계약 위반 -> 1회 재생성: {retryviols}")
                     hint = " ".join(h for v, h in ((ucv, _USAGECUT_RETRY_HINT),
-                                                  ("" if slow9 else scv, _SHOT_CONTRAST_RETRY_HINT)) if v)
+                                                  ("" if slow9 else scv, _SHOT_CONTRAST_RETRY_HINT),
+                                                  (rav, _REFERENCEDADS_RETRY_HINT)) if v)
                     user = user + "\n\n" + hint
                     continue
-                viols = "; ".join(v for v in (ucv, scv) if v)
+                viols = "; ".join(v for v in (ucv, scv, rav) if v)
                 if viols:
                     logger.warning(f"[v5_m0_m3 module9] 계약 미충족(경고만, 통과): {viols}")
 
