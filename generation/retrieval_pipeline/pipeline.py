@@ -1,7 +1,11 @@
 """retrieval_pipeline 오케스트레이터.
 
-  run_m0_m2(): generation.v5_m0_m3.pipeline.run_m0_m2() 를 그대로 재노출한다(사용자 요청 —
-      "M0~M2는 v5_m0_m3과 동일"). 크롤·M1·M2 로직을 이 파이프라인에 다시 구현하지 않는다.
+  run_m0_m2(): v5_m0_m3 를 import 하지 않는 이 파이프라인 전용 독립 구현이다(사용자 요청 —
+      "m0-m2 를 v5_m0_m3 거를 import 하는게 아니라 독립적으로 코드 새롭게 만들어서"). v5_m0_m3
+      는 크롤이 1차 소스였지만, 이 구현은 **브랜드 가이드라인이 1차 소스**이고 가이드라인에서
+      확인할 수 없는 정보만 크롤링으로 보완한다(module0.py 참고). M0(module0.py, LLM 1회) →
+      M1(module1.py, LLM 1회) → M2(module2.py, LLM 1회) 순서로 실행되며, v5_m0_m3 처럼 크롤이
+      비동기일 이유가 없어(httpx 동기 호출 1건) 이 함수 전체가 동기 함수다.
   run_m3(): generation/docs/m3_concept.md 의 발산 기법 7종으로 컨셉 후보를 만들고, 타깃 그룹에
       맞는 페르소나 3명이 각자 순위를 매긴 뒤 코드가 취합한다(LLM 5회, concept_scout.py — 자세한
       흐름은 그 파일 docstring 참고). **M3부터 이 파이프라인의 실행 폴더(output/retrieval_pipeline/
@@ -39,23 +43,36 @@ from __future__ import annotations
 from typing import Any
 
 from generation.retrieval_pipeline import (
-    concept_scout, device_synthesis, query_scout, render_markdown, retrieval, storyline,
+    concept_scout, device_synthesis, module0, module1, module2, query_scout, render_markdown,
+    retrieval, storyline,
 )
 from generation.retrieval_pipeline.context import build_context
 from generation.retrieval_pipeline.schemas import QueryDevice, SearchQuery
-from generation.v5_m0_m3.pipeline import run_m0_m2  # noqa: F401  (재노출 — 사용자 요청)
 
 _CARRY_KEYS = ("concept_line", "ad_length", "context")
 _MAX_ROUNDS_DEFAULT = 2
 
 
-def run_m3(module0: dict, m1: dict, m2: dict) -> dict[str, Any]:
+def run_m0_m2(guideline_text: str, url: str = "") -> dict[str, Any]:
+    """M0~M2 — 가이드라인을 1차 소스로 제품 정보를 확보(M0)하고, 인사이트(M1)·포지셔닝(M2)을
+    도출한다(LLM 3회 + 선택적 크롤 1회). module0.py/module1.py/module2.py 참고."""
+    m0, m0_prompt, crawl = module0.run_module0(guideline_text, url)
+    m1, m1_prompt = module1.run_module1(m0)
+    m2, m2_prompt = module2.run_module2(m0, m1)
+    return {
+        "module0": m0, "m1": m1.model_dump(), "m2": m2.model_dump(),
+        "prompts": {"m0": m0_prompt, "m1": m1_prompt, "m2": m2_prompt},
+        "crawl": crawl,
+    }
+
+
+def run_m3(module0_dict: dict, m1: dict, m2: dict) -> dict[str, Any]:
     """M3 — 발산 기법 7종으로 컨셉 후보를 만들고 페르소나 3명이 매긴 순위를 취합한다(LLM 5회).
 
     module0/m1/m2 는 여기서 context 로 압축되는 데만 쓰이고 반환값에는 실리지 않는다 — 이후
     모든 단계는 이 함수가 만든 `context` 만 이어받는다.
     """
-    context = build_context(module0, m1, m2)
+    context = build_context(module0_dict, m1, m2)
     output, prompts = concept_scout.run_concept_scout(context)
     return {
         "context": context,
@@ -166,14 +183,14 @@ def run_m7(m6_result: dict[str, Any], *, top_k: int = 3, db_path: str = "output/
     }
 
 
-def run_m3_m7(module0: dict, m1: dict, m2: dict, concept_line: str, *,
+def run_m3_m7(module0_dict: dict, m1: dict, m2: dict, concept_line: str, *,
              ad_length: str = "15초", top_k: int = 3, db_path: str = "output/vector_db",
              max_rounds: int = _MAX_ROUNDS_DEFAULT) -> dict[str, Any]:
     """run_m3()~run_m7() 를 이어 붙인 편의 래퍼 — 다섯 단계를 한 번에 실행하고 싶을 때만 쓴다
     (v5_m0_m3.pipeline.run_m0_m3() 와 같은 성격 — CLI는 단계 분리가 목적이라 이 래퍼를 노출하지
     않는다). M3 가 만든 컨셉 순위와 무관하게 `concept_line` 을 그대로 M4 입력으로 쓴다(자동
     선택 로직은 cli_m4.py 의 몫). 반환에 m7 의 모든 필드(`markdown` 포함)를 담는다."""
-    m3 = run_m3(module0, m1, m2)
+    m3 = run_m3(module0_dict, m1, m2)
     m4 = run_m4(m3["context"], concept_line, ad_length=ad_length)
     m5 = run_m5(m4, top_k=top_k, db_path=db_path)
     m6 = run_m6(m5)

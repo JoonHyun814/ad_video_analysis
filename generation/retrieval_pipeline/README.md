@@ -8,9 +8,11 @@
 
 ## v5_m0_m3 와의 관계
 
-- **M0~M2(소재 인제스트→인사이트→포지셔닝)는 `generation/v5_m0_m3` 와 완전히 동일한 로직을
-  그대로 재사용한다** — `cli.py` 는 `generation.v5_m0_m3.pipeline.run_m0_m2()` 를 그대로
-  호출할 뿐, M0~M2 를 이 패키지 안에 다시 구현하지 않는다.
+- **M0~M2(소재 인제스트→인사이트→포지셔닝)는 v5_m0_m3 를 import 하지 않는 이 패키지 전용
+  독립 구현이다**(사용자 요청 — "m0-m2 를 v5_m0_m3 거를 import 하는게 아니라 독립적으로 코드
+  새롭게 만들어서"). v5_m0_m3 는 URL 크롤이 1차 소스이고 브랜드 가이드라인은 M1·M2 프롬프트에
+  끼워 넣는 보조 지시였지만, 이 구현은 반대다 — **브랜드 가이드라인이 1차 소스**이고, 가이드라인
+  에서 확인할 수 없는 정보만 크롤링으로 보완한다. 아래 "M0~M2 — 가이드라인 우선 독립 구현" 참고.
 - **M3(컨셉 발산)는 이 패키지 전용으로 새로 구현했다** — v5_m0_m3 의 M3(렌즈 기반 다수 컨셉
   발산)와는 다른 방식으로, [`../docs/m3_concept.md`](../docs/m3_concept.md) 가 정리한 발산
   기법 7종(경험 은유/리프레이밍/디스럽션/환유·제유/JTBD/PAS/의인화) 각각으로 한 줄 컨셉을 만들고,
@@ -25,6 +27,34 @@
 - LLM 호출 인프라(`chat_json` — claude -p CLI/Anthropic API 선택)는 `generation.v5_m0_m3.llm_adapter`
   를 그대로 재사용한다. 다만 이 파이프라인은 M3/M4~M9 처럼 **LLM이 tool_use 로 검색 여부를
   스스로 판단**하게 하지 않는다 — 아래 "왜 검색을 코드가 직접 실행하는가" 참고.
+
+## M0~M2 — 가이드라인 우선 독립 구현
+
+브랜드 가이드라인(txt/md, `--guideline`, 필수)이 1차 소스이고, 제품 URL(`--url`, 선택)은
+가이드라인이 다루지 않는 정보를 보완하는 2차 소스다.
+
+```
+M0 module0    (LLM 1회, --url 지정 시 크롤 1회 선행)         module0.py
+    브랜드 가이드라인(1차) + 제품 페이지 크롤 결과(2차, 있으면)
+    → product_name/brand/category/usp_candidates/facts/target_hints/tone + ingest_note
+    (가이드라인·크롤 중 어느 쪽에서 왔는지 매 필드에 태깅)
+
+M1 module1    (LLM 1회)                                       module1.py
+    M0 → core_job/human_truth/human_truth_contradiction/target_label
+
+M2 module2    (LLM 1회)                                       module2.py
+    M0 + M1 → positioning_statement/value_proposition/unique_attributes
+```
+
+`product_image_url` 은 LLM에게 맡기지 않는다 — `crawler.py`(httpx+BeautifulSoup, v5_m0_m3 를
+참조하지 않는 독립 구현)가 크롤한 페이지의 `og:image`/`twitter:image`/첫 `<img>` 중 하나를 코드가
+결정적으로 골라 채운다. 존재하지 않는 이미지 경로를 LLM이 지어낼 위험을 원천 차단하기 위해서다
+— 이 파이프라인 전반의 원칙("코드로 결정적으로 구할 수 있는 값은 코드가 채우고, LLM은 판단이
+필요한 것만 한다")과 같은 이유다.
+
+`--url` 을 생략하면 M0는 가이드라인만으로 채울 수 있는 만큼만 채우고, 나머지는 빈 값으로
+남긴다(하드 실패하지 않음) — `ingest_note` 에 그 사실이 남는다. 크롤이 실패해도(차단·타임아웃
+등) 마찬가지로 graceful 하게 빈 크롤 텍스트로 처리하고 `module0.crawl_error` 에 이유를 남긴다.
 
 ## M3 — 발산 기법 7종 컨셉 생성 → 페르소나 3명이 순위 매김 → 취합
 
@@ -129,6 +159,12 @@ LLM 호출·파싱만 한다 — 실제로 모델에 무엇이 어떤 순서로 
 
 | 프롬프트 파일 | 역할 | 채워지는 변수 |
 |------|------|------|
+| `prompts/m0_system.md` | M0 지시문 — 가이드라인 우선 제품 정보 확보 | (없음) |
+| `prompts/m0_user.md` | M0 입력 | `guideline_text`, `crawl_title`, `crawl_text` |
+| `prompts/m1_system.md` | M1 지시문 — 핵심 인사이트 도출 | (없음) |
+| `prompts/m1_user.md` | M1 입력 | `module0_json` |
+| `prompts/m2_system.md` | M2 지시문 — 포지셔닝 수립 | (없음) |
+| `prompts/m2_user.md` | M2 입력 | `module0_json`, `module1_json` |
 | `prompts/m3_concepts_system.md` | M3 1단계 지시문 — 발산 기법 7종 컨셉 생성(순위 없음) | (없음) |
 | `prompts/m3_concepts_user.md` | M3 1단계 입력 | `context_json` |
 | `prompts/m3_personas_system.md` | M3 2단계 지시문 — 타깃 그룹 페르소나 3명 생성 | (없음) |
@@ -147,13 +183,18 @@ LLM 호출·파싱만 한다 — 실제로 모델에 무엇이 어떤 순서로 
 
 | 파일 | 역할 |
 |------|------|
-| `cli.py` | M0~M2 진입점(`--url`, v5_m0_m3.pipeline.run_m0_m2 재호출) |
+| `cli.py` | M0~M2 진입점(`--guideline`(필수) `--url`(선택) `--llm_backend`) |
 | `cli_m3.py` | M3 진입점(`--input <m0_m2.json>` `--title` `--llm_backend` — 실행 폴더를 새로 만드는 단계) |
 | `cli_m4.py` | M4 진입점(`--input <m3.json>` `[--concept \| --select_concept]` `--llm_backend`) |
 | `cli_m5.py` | M5 진입점(`--input <m4.json>` `--top_k` `--db_path`, LLM 호출 없음) |
 | `cli_m6.py` | M6 진입점(`--input <m5.json>` `--llm_backend`) |
 | `cli_m7.py` | M7 진입점(`--input <m6.json>` `--llm_backend` `--top_k` `--db_path` `--max_rounds` `--output`) |
-| `pipeline.py` | `run_m0_m2`(재노출) / `run_m3()` / `run_m4()`~`run_m7()`(자동 재검색 루프 포함) / `run_m3_m7()`(편의 래퍼) 오케스트레이션 |
+| `pipeline.py` | `run_m0_m2()` / `run_m3()` / `run_m4()`~`run_m7()`(자동 재검색 루프 포함) / `run_m3_m7()`(편의 래퍼) 오케스트레이션 |
+| `crawler.py` | M0 부속 — URL 페이지 텍스트·대표 이미지 추출(httpx+BeautifulSoup, 결정적, LLM 아님) |
+| `module0.py` | M0 — LLM 호출, 가이드라인 우선 제품 정보 확보 + 크롤 보완 |
+| `module1.py` | M1 — LLM 호출, 핵심 인사이트(core job/human truth/타깃) 도출 |
+| `module2.py` | M2 — LLM 호출, 포지셔닝 수립 |
+| `module_schemas.py` | `Module0LLM`/`Module1`/`Module2`/`USPCandidate` 등 M0~M2 전용 pydantic 모델 |
 | `context.py` | module0/m1/m2 → 압축 맥락(`build_context`) — M3에서 한 번만 만들어져 이후 `context` 로만 전달됨 |
 | `concept_scout.py` | M3 — LLM 호출 5회(컨셉 후보/페르소나/페르소나별 순위 ×3) + 코드 취합 |
 | `query_scout.py` | M4 — LLM 호출, 문제 진단 + 축별 검색 쿼리 제안 |
@@ -168,10 +209,10 @@ LLM 호출·파싱만 한다 — 실제로 모델에 무엇이 어떤 순서로 
 ## 사용법
 
 ```bash
-# 1) M0~M2 (v5_m0_m3 와 동일 로직)
-python -m generation.retrieval_pipeline.cli --url <제품 상세페이지 URL> \
-    [--producttitle "제품명"] [--llm_backend cli|api] [--output_dir output/retrieval_pipeline] \
-    [--guideline <가이드라인.md>]
+# 1) M0~M2 (가이드라인이 1차 소스, --url 은 보완용 선택)
+python -m generation.retrieval_pipeline.cli \
+    --guideline <가이드라인.md|txt> \
+    [--url <제품 상세페이지 URL>] [--llm_backend cli|api] [--output_dir output/retrieval_pipeline]
 
 # 2) M3 (발산 기법 7종 컨셉 생성 + 페르소나 3명 순위 취합 — 여기서 <날짜>_<제목>/ 실행 폴더가 새로 생긴다)
 python -m generation.retrieval_pipeline.cli_m3 \
@@ -219,9 +260,8 @@ M5~M7 은 `--output_dir`/`--output` 을 생략하면 각각의 `--input` 파일�
 | `--llm_backend` | `cli`, `cli_m3`, `cli_m4`, `cli_m6`, `cli_m7` | `cli` | `cli`(claude -p) \| `api`(Anthropic API, `env/api.env` `ANTHROPIC_API_KEY`) |
 | `--output_dir` | `cli`, `cli_m3`, `cli_m4`, `cli_m5`, `cli_m6` | `cli`/`cli_m3`: `output/retrieval_pipeline`, 나머지: `--input` 과 같은 디렉터리 | 결과 저장 경로 |
 | `--output` | `cli_m7` | `--input` 과 같은 디렉터리의 `creative_reference_ideas.md` | 최종 Markdown 저장 경로 |
-| `--url` | `cli` | (필수) | 제품 상세페이지 URL |
-| `--producttitle` | `cli` | `""` | 크롤 차단 시 web_search 복구에 쓸 제품 제목 힌트 |
-| `--guideline` | `cli` | `None` | 브랜드 가이드라인 md 경로 — 지정 시 M1·M2 시스템 프롬프트에 최우선 지시로 삽입 |
+| `--guideline` | `cli` | (필수) | 브랜드 가이드라인 md/txt 경로 — M0의 1차 소스 |
+| `--url` | `cli` | `""` | 제품 상세페이지 URL(선택) — 가이드라인에 없는 정보(제품 이미지 등)를 크롤로 보완 |
 
 `cli_m5.py` 는 LLM을 호출하지 않으므로 `--llm_backend` 가 없다. `cli_m4`에서 `--concept`도
 `--select_concept`도 없는데 입력 파일의 `m3.concepts`가 비어 있으면(M3를 아직 실행하지 않은
@@ -233,7 +273,7 @@ M5~M7 은 `--output_dir`/`--output` 을 생략하면 각각의 `--input` 파일�
 
 ```
 output/retrieval_pipeline/
-├── <slug>_m0_m2.json                  M0~M2 산출물(cli.py) — module0/m1/m2 원본(수십 KB)
+├── <guideline 파일명>_m0_m2.json       M0~M2 산출물(cli.py) — module0/m1/m2 + prompts + crawl
 └── 20260806_DBH_15초_CTV/             cli_m3.py 가 새로 만드는 실행 폴더
     ├── m3.json                        M3 산출물 — context(압축 요약) + m3.personas[3] + m3.concepts[7](취합 순위)
     ├── m4.json                        M4 산출물 — prompt(실제 모델 입력) + creative_problem + queries(축별)
@@ -266,12 +306,19 @@ python -m evaluation.cli --mode ad_concept_production --video_id <ID> --data_dir
 두 컬렉션에 동시 적재된다.) 컬렉션이 비어 있으면 검색 결과가 항상 0건으로 나오고, M6은
 "레퍼런스 미발견 — 원칙만 적용"으로 devices 를 채운다(하드 실패하지 않음).
 
-그 외 사전 준비(`claude` CLI PATH, `env/api.env` 의 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)는
-[`../v5_m0_m3/README.md`](../v5_m0_m3/README.md) 의 "사전 준비" 절과 동일하다(M0~M2 를 그대로
-재사용하므로).
+LLM 호출은 `generation.v5_m0_m3.llm_adapter` 를 그대로 재사용하므로(M0~M7 전 단계 공통),
+`--llm_backend cli` 를 쓰려면 `claude` CLI가 PATH 에 있어야 하고, `--llm_backend api` 를 쓰려면
+`env/api.env` 의 `ANTHROPIC_API_KEY` 가 있어야 한다. `crawler.py`(M0)는 `httpx`/`beautifulsoup4`
+패키지가 필요하다(이미 v5_m0_m3 가 같은 패키지를 쓰므로 보통 이미 설치돼 있다).
 
 ## 알려진 제약
 
+- M0의 크롤(`crawler.py`)은 v5_m0_m3/v1_bridge.py 와 달리 curl_cffi 폴백·MCP 브라우저 크롤러
+  같은 봇 차단 우회 체인이 없다(httpx 단발 요청만) — 크롤이 차단되면 그냥 빈 값으로 두고
+  가이드라인만으로 M0를 채운다(하드 실패하지 않지만, `--url` 이 있어도 실제로는 못 쓸 수 있다).
+- `product_image_url` 은 `og:image`/`twitter:image`/첫 `<img>` 순으로 코드가 고른 것이라, 페이지
+  구조에 따라 제품과 무관한 이미지(로고 등)가 잡힐 수 있다 — 다트비트 테스트에서도 대표 이미지가
+  없어 로고 이미지가 잡혔다. 필요하면 M0 실행 후 `module0.product_image_url` 을 수동으로 고친다.
 - M3는 v5_m0_m3 M3(렌즈 기반 다수 발산·GATE 재평가)와 달리, 정확히 7개(발산 기법당 1개)만
   만들고 재발산 루프가 없다 — 7개 모두 마음에 안 들면 `cli_m3`를 다시 실행해 새로 뽑는 수밖에
   없다.
@@ -284,8 +331,9 @@ python -m evaluation.cli --mode ad_concept_production --video_id <ID> --data_dir
 - `segment_column`/`segment_value` 필터는 쓰지 않는다(자연어 `query_text` 검색만) — enum 값을
   틀리게 추측해 결과 0건이 되는 실패를 피하기 위한 의도적 단순화다(`evaluation/creative/reference_retrieval.py`
   자체도 "확신 없으면 query_text만 써라"라고 안내한다).
-- `concept_scout.py`(M3)/`query_scout.py`(M4)/`device_synthesis.py`(M6)/`storyline.py`(M7) 는
-  `llm_adapter.chat_json()` 이 `{"error": ...}` 를 반환하면 즉시 `RuntimeError` 를 던진다 —
+- `module0.py`(M0)/`module1.py`(M1)/`module2.py`(M2)/`concept_scout.py`(M3)/`query_scout.py`(M4)/
+  `device_synthesis.py`(M6)/`storyline.py`(M7) 는 `llm_adapter.chat_json()` 이 `{"error": ...}`
+  를 반환하면 즉시 `RuntimeError` 를 던진다 —
   pydantic 의 기본 결측 필드 처리(빈 문자열/빈 배열)가 LLM 호출 실패를 "결과 0개짜리 정상
   결과"로 조용히 둔갑시키는 것을 막기 위해서다. 실행이 실패하면 에러 메시지를 보고 해당
   단계만 재실행하면 된다(앞 단계 파일은 그대로 남아 있다).
