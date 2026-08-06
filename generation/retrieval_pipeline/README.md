@@ -13,10 +13,12 @@
   호출할 뿐, M0~M2 를 이 패키지 안에 다시 구현하지 않는다.
 - **M3(컨셉 발산)는 이 패키지 전용으로 새로 구현했다** — v5_m0_m3 의 M3(렌즈 기반 다수 컨셉
   발산)와는 다른 방식으로, [`../docs/m3_concept.md`](../docs/m3_concept.md) 가 정리한 발산
-  기법 7종(경험 은유/리프레이밍/디스럽션/환유·제유/JTBD/PAS/의인화) 각각으로 한 줄 컨셉을 만들고
-  스스로 적절성을 평가해 순위를 매긴다(LLM 1회, `concept_scout.py`). `cli_m4.py` 는 `--concept`
-  를 생략하면 이 중 rank=1을 자동으로 쓰고, `--select_concept "<technique>"` 로 다른 후보를
-  지정할 수도 있다(v5_m0_m3 의 `cli_m4_m9.py` `--select_concept` 와 같은 패턴).
+  기법 7종(경험 은유/리프레이밍/디스럽션/환유·제유/JTBD/PAS/의인화) 각각으로 한 줄 컨셉을 만들고,
+  타깃 그룹에 맞는 페르소나 3명이 각자 독립적으로 순위를 매긴 뒤 코드가 취합한다(LLM 5회,
+  `concept_scout.py`). `cli_m4.py` 는 `--concept` 를 생략하면 이 중 취합 1위를 자동으로 쓰고,
+  `--select_concept "<technique>"` 로 다른 후보를 지정할 수도 있다(v5_m0_m3 의 `cli_m4_m9.py`
+  `--select_concept` 와 같은 패턴). **이 파이프라인의 실행 폴더(`<날짜>_<제목>/`)도 M3부터
+  만들어진다** — M4가 아니라 M3가 `--title` 을 받는다.
 - **M4~M7(레퍼런스 기반 연출 아이디어)은 이 패키지에서 새로 설계한 단계**다. v5_m0_m3 의
   M4(약한 컨셉 킬)와 이름만 같을 뿐 역할이 다르다 — 컨셉을 평가·킬하는 게 아니라, 눈에 보이지
   않는 원칙을 "보이는 사건"으로 번역할 연출 장치를 레퍼런스와 함께 제안한다.
@@ -24,17 +26,35 @@
   를 그대로 재사용한다. 다만 이 파이프라인은 M3/M4~M9 처럼 **LLM이 tool_use 로 검색 여부를
   스스로 판단**하게 하지 않는다 — 아래 "왜 검색을 코드가 직접 실행하는가" 참고.
 
-## M3 — 발산 기법 7종 컨셉 생성
+## M3 — 발산 기법 7종 컨셉 생성 → 페르소나 3명이 순위 매김 → 취합
 
-M3는 M0~M2 맥락(`context.build_context`)을 입력받아, [`../docs/m3_concept.md`](../docs/m3_concept.md)
-표의 7개 발산 기법 각각으로 **정확히 하나씩** 한 줄 컨셉을 만들고, 그 적절성을 스스로 평가해
-1~7위 순위를 매긴다(LLM 1회). 모든 컨셉은 M4~M7이 그대로 이어받을 수 있도록 "~을 보여주지
-말고, ~을 보여줘라" 형식으로 나온다 — DBH_Creative_Reference_Ideas.md 예시와 같은 형식이다.
+M3는 한 번의 LLM 호출로 끝나지 않는다. "컨셉 순위를 매길 때 target 그룹에 맞는 페르소나를 만들어
+각자 순위를 매기게 한 뒤 취합하라"는 사용자 요청에 따라 `concept_scout.py` 가 네 단계를
+순서대로 실행한다(LLM 호출 총 5회):
 
-`cli_m3.py` 실행 결과(`<slug>_m0_m3.json`)의 `m3.concepts[]` 각 항목은 `technique`(기법명),
-`concept_line`(한 줄 컨셉), `grounding`(M0~M2 근거), `appropriateness_score`(1~5),
-`evaluation_note`(평가 이유), `rank`(1~7, 동점 없음)를 담는다. `cli_m4.py` 가 이 배열을 읽어
-컨셉을 고른다 — 아래 "사용법" 참고.
+```
+1) run_candidates()      LLM 1회 — m3_concept.md 발산 기법 7종 → 컨셉 후보 7개(아직 순위 없음)
+2) run_personas()        LLM 1회 — M0~M2 타깃 정의 안에서 서로 다른 페르소나 3명 생성
+3) run_persona_ranking() LLM 1회 × 3(페르소나마다) — "서브 에이전트": 각 호출은 그 페르소나
+   하나의 시점만 가지고(다른 페르소나의 존재를 모른 채) 7개 컨셉 전부에 독립적으로 순위를 매긴다
+4) _aggregate()          코드, 결정적(LLM 아님) — 3명의 rank/score 를 평균해 최종 순위를 정한다
+```
+
+★ "서브 에이전트"는 Claude Code 의 Agent 툴이 아니라, `generation.v5_m0_m3.llm_adapter` 를 통한
+독립적인 LLM 호출로 구현했다 — 이 파이프라인은 M4~M7 도 전부 같은 방식(무상태·독립 LLM 호출)을
+쓰므로 인프라를 통일했다. 4단계 취합은 M5(retrieval.py)가 "검색 실행은 코드가 결정적으로
+한다"는 원칙과 같은 이유로 LLM 이 아니라 코드가 한다 — 평균 순위 오름차순(동점이면 평균 점수
+내림차순)이라는 규칙이 고정돼 있어 같은 입력이면 항상 같은 결과가 나온다.
+
+모든 컨셉은 M4~M7이 그대로 이어받을 수 있도록 "~을 보여주지 말고, ~을 보여줘라" 형식으로
+나온다 — DBH_Creative_Reference_Ideas.md 예시와 같은 형식이다.
+
+`cli_m3.py` 실행 결과(`<날짜>_<제목>/m3.json`)의 `m3.personas[]` 는 페르소나 3명(`name`/
+`profile`/`priorities`/`grounding`), `m3.concepts[]` 는 컨셉 7개를 담는다 — 각 항목은
+`technique`(기법명), `concept_line`(한 줄 컨셉), `grounding`(M0~M2 근거), `persona_ranks`(페르소나별
+원본 순위·점수·평가 배열), `aggregate_rank`(1~7, 최종 순위, 동점 없음), `average_rank`/
+`average_score`(참고용 평균값)를 담는다. `cli_m4.py` 가 이 배열을 읽어 컨셉을 고른다 — 아래
+"사용법" 참고.
 
 ## M4~M7 — 검색기준 축 기반 재설계
 
@@ -109,8 +129,12 @@ LLM 호출·파싱만 한다 — 실제로 모델에 무엇이 어떤 순서로 
 
 | 프롬프트 파일 | 역할 | 채워지는 변수 |
 |------|------|------|
-| `prompts/m3_system.md` | M3 지시문 — 발산 기법 7종 컨셉 생성 + 자가평가·순위 | (없음) |
-| `prompts/m3_user.md` | M3 입력 | `context_json` |
+| `prompts/m3_concepts_system.md` | M3 1단계 지시문 — 발산 기법 7종 컨셉 생성(순위 없음) | (없음) |
+| `prompts/m3_concepts_user.md` | M3 1단계 입력 | `context_json` |
+| `prompts/m3_personas_system.md` | M3 2단계 지시문 — 타깃 그룹 페르소나 3명 생성 | (없음) |
+| `prompts/m3_personas_user.md` | M3 2단계 입력 | `context_json` |
+| `prompts/m3_persona_rank_system.md` | M3 3단계 지시문 — 페르소나 1명 시점으로 컨셉 7개 순위(서브 에이전트, 페르소나마다 재사용) | (없음) |
+| `prompts/m3_persona_rank_user.md` | M3 3단계 입력 | `persona_json`, `context_json`, `concepts_json` |
 | `prompts/common.md` | M4·M6·M7 세 LLM 호출이 공유하는 페르소나(레퍼런스 리서치 디렉터) | (없음) |
 | `prompts/query_scout_system.md` | M4 지시문 — 문제 진단 + 축별 검색 쿼리 제안 | (없음) |
 | `prompts/query_scout_user.md` | M4 입력 | `concept_line`, `ad_length`, `context_json` |
@@ -124,21 +148,21 @@ LLM 호출·파싱만 한다 — 실제로 모델에 무엇이 어떤 순서로 
 | 파일 | 역할 |
 |------|------|
 | `cli.py` | M0~M2 진입점(`--url`, v5_m0_m3.pipeline.run_m0_m2 재호출) |
-| `cli_m3.py` | M3 진입점(`--input <m0_m2.json>` `--llm_backend`) |
-| `cli_m4.py` | M4 진입점(`--input <m0_m3.json>` `--title` `[--concept \| --select_concept]` — 실행 폴더를 새로 만드는 단계) |
+| `cli_m3.py` | M3 진입점(`--input <m0_m2.json>` `--title` `--llm_backend` — 실행 폴더를 새로 만드는 단계) |
+| `cli_m4.py` | M4 진입점(`--input <m3.json>` `[--concept \| --select_concept]` `--llm_backend`) |
 | `cli_m5.py` | M5 진입점(`--input <m4.json>` `--top_k` `--db_path`, LLM 호출 없음) |
 | `cli_m6.py` | M6 진입점(`--input <m5.json>` `--llm_backend`) |
 | `cli_m7.py` | M7 진입점(`--input <m6.json>` `--llm_backend` `--top_k` `--db_path` `--max_rounds` `--output`) |
-| `pipeline.py` | `run_m0_m2`(재노출) / `run_m3()` / `run_m4()`~`run_m7()`(자동 재검색 루프 포함) / `run_m4_m7()`(편의 래퍼) 오케스트레이션 |
-| `context.py` | module0/m1/m2 → M3·M4·M6·M7 프롬프트용 압축 맥락(`build_context`) |
-| `concept_scout.py` | M3 — LLM 호출, 발산 기법 7종 컨셉 생성 + 자가평가·순위 |
+| `pipeline.py` | `run_m0_m2`(재노출) / `run_m3()` / `run_m4()`~`run_m7()`(자동 재검색 루프 포함) / `run_m3_m7()`(편의 래퍼) 오케스트레이션 |
+| `context.py` | module0/m1/m2 → 압축 맥락(`build_context`) — M3에서 한 번만 만들어져 이후 `context` 로만 전달됨 |
+| `concept_scout.py` | M3 — LLM 호출 5회(컨셉 후보/페르소나/페르소나별 순위 ×3) + 코드 취합 |
 | `query_scout.py` | M4 — LLM 호출, 문제 진단 + 축별 검색 쿼리 제안 |
 | `retrieval.py` | M5 — 결정적 검색 실행, `evaluation.creative.reference_retrieval` 직접 호출(도구 호출 아님) |
 | `device_synthesis.py` | M6 — LLM 호출, 쿼리 1건당 장치 1개 생성 |
 | `storyline.py` | M7 — LLM 호출, 장치 조립 + 자가진단(gap_assessment) |
 | `render_markdown.py` | M7 부속 — 장치 목록 + 스토리라인 출력 → DBH 문서 형식 Markdown 렌더링(LLM 아님) |
 | `prompt_loader.py` | `prompts/*.md` 로더 + `{{변수}}` 치환(md_parser.py 와 같은 방식, 이 패키지 전용) |
-| `schemas.py` | `ConceptCandidate`/`M3Output`/`SearchQuery`/`M4Output`/`QueryDevice`/`M6Output`/`GapAssessment`/`StorylineOutput` 등 pydantic 모델 |
+| `schemas.py` | `ConceptCandidate`/`Persona`/`PersonaConceptRank`/`RankedConcept`/`M3Output`/`SearchQuery`/`M4Output`/`QueryDevice`/`M6Output`/`GapAssessment`/`StorylineOutput` 등 pydantic 모델 |
 | `prompts/` | 위 표 참고 |
 
 ## 사용법
@@ -149,16 +173,15 @@ python -m generation.retrieval_pipeline.cli --url <제품 상세페이지 URL> \
     [--producttitle "제품명"] [--llm_backend cli|api] [--output_dir output/retrieval_pipeline] \
     [--guideline <가이드라인.md>]
 
-# 2) M3 (발산 기법 7종으로 한 줄 컨셉 후보 생성 + 자가평가·순위)
+# 2) M3 (발산 기법 7종 컨셉 생성 + 페르소나 3명 순위 취합 — 여기서 <날짜>_<제목>/ 실행 폴더가 새로 생긴다)
 python -m generation.retrieval_pipeline.cli_m3 \
     --input output/retrieval_pipeline/<slug>_m0_m2.json \
+    --title "DBH_15초_CTV" \
     [--llm_backend cli|api]
 
-# 3) M4 (여기서 <날짜>_<제목>/ 실행 폴더가 새로 생긴다)
-# --concept/--select_concept 를 모두 생략하면 M3의 rank=1 컨셉을 자동으로 쓴다.
+# 3) M4 (--concept/--select_concept 를 모두 생략하면 M3 취합 1위 컨셉을 자동으로 쓴다)
 python -m generation.retrieval_pipeline.cli_m4 \
-    --input output/retrieval_pipeline/<slug>_m0_m3.json \
-    --title "DBH_15초_CTV" \
+    --input output/retrieval_pipeline/<날짜>_<제목>/m3.json \
     [--concept "기기를 보여주지 말고, 집에서 세계와 연결되는 순간을 보여라." | --select_concept "PAS 모델"] \
     [--ad_length 15초] [--llm_backend cli|api]
 
@@ -186,15 +209,15 @@ M5~M7 은 `--output_dir`/`--output` 을 생략하면 각각의 `--input` 파일�
 | 옵션 | 있는 CLI | 기본값 | 설명 |
 |------|----------|--------|------|
 | `--input` | `cli_m3`~`cli_m7` | (필수) | 바로 앞 단계가 저장한 JSON 경로 |
+| `--title` | `cli_m3` | (필수) | 실행 폴더명에 쓸 프로젝트 제목(슬러그화) |
 | `--concept` | `cli_m4` | `""` | 한 줄 크리에이티브 원칙 직접 지정(우선순위 최상 — 지정 시 M3 결과 무시) |
 | `--select_concept` | `cli_m4` | `""` | M3 `concepts[]` 중 이 `technique` 명과 일치하는 후보 사용(`--concept` 없을 때만) |
-| `--title` | `cli_m4` | (필수) | 실행 폴더명에 쓸 프로젝트 제목(슬러그화) |
 | `--ad_length` | `cli_m4` | `15초` | 스토리라인 길이 |
 | `--top_k` | `cli_m5`, `cli_m7` | `3` | 쿼리 1개당 검색해올 참조 광고 수(최대 20, `reference_retrieval._MAX_TOP_K`) — `cli_m7`은 자동 재검색 라운드에만 쓰인다 |
 | `--db_path` | `cli_m5`, `cli_m7` | `output/vector_db` | `evaluation/ad_concept_production` 이 적재한 ChromaDB 경로 |
 | `--max_rounds` | `cli_m7` | `2` | M7 자가진단이 부족하다고 판단할 때 자동 재검색을 허용할 최대 라운드 수(1이면 재시도 없음) |
 | `--llm_backend` | `cli`, `cli_m3`, `cli_m4`, `cli_m6`, `cli_m7` | `cli` | `cli`(claude -p) \| `api`(Anthropic API, `env/api.env` `ANTHROPIC_API_KEY`) |
-| `--output_dir` | `cli`, `cli_m3`, `cli_m4`, `cli_m5`, `cli_m6` | `cli`/`cli_m4`: `output/retrieval_pipeline`, 나머지: `--input` 과 같은 디렉터리 | 결과 저장 경로 |
+| `--output_dir` | `cli`, `cli_m3`, `cli_m4`, `cli_m5`, `cli_m6` | `cli`/`cli_m3`: `output/retrieval_pipeline`, 나머지: `--input` 과 같은 디렉터리 | 결과 저장 경로 |
 | `--output` | `cli_m7` | `--input` 과 같은 디렉터리의 `creative_reference_ideas.md` | 최종 Markdown 저장 경로 |
 | `--url` | `cli` | (필수) | 제품 상세페이지 URL |
 | `--producttitle` | `cli` | `""` | 크롤 차단 시 web_search 복구에 쓸 제품 제목 힌트 |
@@ -206,13 +229,13 @@ M5~M7 은 `--output_dir`/`--output` 을 생략하면 각각의 `--input` 파일�
 
 ## 출력 구조
 
-`--title "DBH_15초_CTV"` 로 오늘(예: 2026-08-06) M4를 실행하면 그 아래 M5~M7 이 이어서 저장한다:
+`--title "DBH_15초_CTV"` 로 오늘(예: 2026-08-06) M3를 실행하면 그 아래 M4~M7 이 이어서 저장한다:
 
 ```
 output/retrieval_pipeline/
-├── <slug>_m0_m2.json                  M0~M2 산출물(cli.py)
-├── <slug>_m0_m3.json                  M3 산출물 포함 계약(cli_m3.py) — m3.concepts[]에 7개 컨셉+순위
-└── 20260806_DBH_15초_CTV/             cli_m4.py 가 새로 만드는 실행 폴더
+├── <slug>_m0_m2.json                  M0~M2 산출물(cli.py) — module0/m1/m2 원본(수십 KB)
+└── 20260806_DBH_15초_CTV/             cli_m3.py 가 새로 만드는 실행 폴더
+    ├── m3.json                        M3 산출물 — context(압축 요약) + m3.personas[3] + m3.concepts[7](취합 순위)
     ├── m4.json                        M4 산출물 — prompt(실제 모델 입력) + creative_problem + queries(축별)
     ├── m5.json                        M5 산출물 — search_queries(입력 쿼리) + search_results(원본 응답) + searches
     ├── m6.json                        M6 산출물 — prompt(실제 모델 입력, 검색결과 반영) + devices(쿼리별 장치)
@@ -221,9 +244,14 @@ output/retrieval_pipeline/
     └── creative_reference_ideas.md    최종 문서(DBH 문서 형식) — 사람이 읽는 산출물
 ```
 
-`m4.json`/`m6.json` 각각의 `prompt` 키, `m7.json` 의 `storyline_prompt` 키에 그 단계가 실제로
-LLM에 보낸 system/user 원문이 그대로 남는다 — "실제 모델에 입력되는 데이터"를 확인하려면 이
-파일들만 보면 된다.
+module0/m1/m2 원본은 `<slug>_m0_m2.json` 에만 있고, M3가 여기서 뽑아낸 `context`(압축 요약)만
+m3.json 부터 m7.json 까지 계속 실려 다닌다 — module0/m1/m2 자체를 모든 산출물에 중복해서 담지
+않는다(사용자 요청).
+
+`m3.json` 의 `m3.prompts` 키(컨셉/페르소나/페르소나별 순위 프롬프트 전부), `m4.json`/`m6.json`
+각각의 `prompt` 키, `m7.json` 의 `storyline_prompt` 키에 그 단계가 실제로 LLM에 보낸
+system/user 원문이 그대로 남는다 — "실제 모델에 입력되는 데이터"를 확인하려면 이 파일들만
+보면 된다.
 
 ## 사전 준비
 
@@ -247,6 +275,10 @@ python -m evaluation.cli --mode ad_concept_production --video_id <ID> --data_dir
 - M3는 v5_m0_m3 M3(렌즈 기반 다수 발산·GATE 재평가)와 달리, 정확히 7개(발산 기법당 1개)만
   만들고 재발산 루프가 없다 — 7개 모두 마음에 안 들면 `cli_m3`를 다시 실행해 새로 뽑는 수밖에
   없다.
+- M3의 페르소나 3명은 매 실행마다 새로 만들어진다(고정 페르소나 목록을 재사용하지 않음) — 같은
+  제품이라도 `cli_m3`를 다시 실행하면 페르소나 구성과 그에 따른 순위가 달라질 수 있다.
+- M3는 LLM 호출을 5회(컨셉 후보 1 + 페르소나 1 + 페르소나별 순위 3) 쓴다 — M4~M7의 개별 LLM
+  호출(각 1회 이상)보다 비용이 크다는 점을 감안한다.
 - `retrieval.py`(M5) 는 쿼리 1건당 검색 1건만 실행한다(v5_m0_m3 M3 의 `_scout_emergent_lenses`
   처럼 "부족하면 재검색" 루프는 M5 자체엔 없음 — 대신 M7 이 자가진단으로 그 역할을 대체한다).
 - `segment_column`/`segment_value` 필터는 쓰지 않는다(자연어 `query_text` 검색만) — enum 값을

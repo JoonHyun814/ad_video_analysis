@@ -1,10 +1,10 @@
 """retrieval_pipeline M3~M7 산출물 스키마 — LLM 응답 검증·다음 단계 전달용 pydantic 모델.
 
-M3(concept_scout, LLM) → M3Output(generation/docs/m3_concept.md 의 7개 발산 기법별 컨셉 후보 +
-자가평가·순위) → M4(query_scout, LLM) → M4Output(creative_problem + queries[]) →
-M5(retrieval, 코드) → 쿼리별 검색 결과 → M6(device_synthesis, LLM) → 쿼리 1건당 QueryDevice 1개 →
-M7(storyline, LLM) → StorylineOutput(스토리라인 조립 + 자가진단 gap_assessment) →
-render_markdown(코드) → 최종 문서.
+M3(concept_scout, LLM 5회 — 컨셉 후보 1 + 페르소나 1 + 페르소나별 순위 3) → M3Output(생성/
+docs/m3_concept.md 의 7개 발산 기법별 컨셉 후보 + 타깃 페르소나 3명이 각자 매긴 순위를 취합한
+최종 순위) → M4(query_scout, LLM) → M4Output(creative_problem + queries[]) → M5(retrieval, 코드)
+→ 쿼리별 검색 결과 → M6(device_synthesis, LLM) → 쿼리 1건당 QueryDevice 1개 → M7(storyline, LLM)
+→ StorylineOutput(스토리라인 조립 + 자가진단 gap_assessment) → render_markdown(코드) → 최종 문서.
 필드 네이밍은 이 파이프라인 전용이라 v5_m0_m3(언더바 금지 컨벤션)과 달리 snake_case 를 쓴다.
 """
 from __future__ import annotations
@@ -15,18 +15,59 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class ConceptCandidate(BaseModel):
-    """generation/docs/m3_concept.md 의 발산 기법 1개로 만든 한 줄 크리에이티브 컨셉 후보."""
+    """generation/docs/m3_concept.md 의 발산 기법 1개로 만든 한 줄 크리에이티브 컨셉 후보
+    (아직 순위 없음 — 순위는 페르소나별 서브 에이전트가 매긴다)."""
     technique: str = ""       # 예: "경험 은유", "PAS 모델" — m3_concept.md 표의 기법명 그대로
     concept_line: str = ""    # "~을 보여주지 말고 ~을 보여줘라" 형식의 한 줄 원칙(M4 입력이 됨)
     grounding: str = ""       # 이 컨셉이 M0~M2 의 어느 근거(타깃/human truth/포지셔닝 등)에서 나왔는지 1문장
-    appropriateness_score: int = 0  # 1~5, 이 제품·타깃에 대한 적절성
-    evaluation_note: str = ""       # 왜 이 점수인지 — 강점/약점을 솔직하게
-    rank: int = 0              # 1이 최우선, 7개가 서로 다른 순위(동점 없음)
+
+
+class ConceptScoutOutput(BaseModel):
+    """concept_scout.run_candidates() 산출물 — 정확히 7개(발산 기법당 1개)."""
+    concepts: list[ConceptCandidate] = Field(default_factory=list)
+
+
+class Persona(BaseModel):
+    """M3가 컨셉 순위를 매기기 위해 만든, 타깃 그룹 안의 서로 다른 관점을 대표하는 페르소나 1명."""
+    name: str = ""       # 짧은 라벨(예: "따라가는 다수파", "손해회피 예민형")
+    profile: str = ""    # 이 페르소나의 상황·특징 요약
+    priorities: str = ""  # 광고를 볼 때 이 페르소나가 중요하게 여기는 것
+    grounding: str = ""   # M1 target/human_truth 등 어느 근거에서 이 페르소나를 뽑았는지
+
+
+class PersonaScoutOutput(BaseModel):
+    """concept_scout.run_personas() 산출물 — 정확히 3명."""
+    personas: list[Persona] = Field(default_factory=list)
+
+
+class PersonaConceptRank(BaseModel):
+    """페르소나 1명이 컨셉 후보 1개(technique 로 식별)에 매긴 순위."""
+    technique: str = ""
+    rank: int = 0                    # 1이 최우선, 7개가 서로 다른 순위(동점 없음)
+    appropriateness_score: int = 0   # 1~5, 이 페르소나에게 얼마나 와닿는가
+    evaluation_note: str = ""        # 이 페르소나 입장에서 왜 이 순위인지
+
+
+class PersonaRankingOutput(BaseModel):
+    """concept_scout.run_persona_ranking() 산출물 — 페르소나 1명이 7개 컨셉 전부에 매긴 순위."""
+    rankings: list[PersonaConceptRank] = Field(default_factory=list)
+
+
+class RankedConcept(BaseModel):
+    """M3 최종 산출물의 컨셉 1개 — 3명의 페르소나 순위를 코드가 평균으로 취합한 결과."""
+    technique: str = ""
+    concept_line: str = ""
+    grounding: str = ""
+    persona_ranks: list[dict[str, Any]] = Field(default_factory=list)  # [{persona,rank,appropriateness_score,evaluation_note}]
+    aggregate_rank: int = 0     # 1이 최우선 — 취합 후 최종 순위(동점 없음)
+    average_rank: float = 0.0   # 페르소나 3명의 rank 평균(낮을수록 좋음, 참고용 원값)
+    average_score: float = 0.0  # 페르소나 3명의 appropriateness_score 평균(참고용 원값)
 
 
 class M3Output(BaseModel):
-    """M3(concept_scout) 산출물 — 7개 발산 컨셉 + 평가·순위. concepts 는 rank 오름차순 정렬."""
-    concepts: list[ConceptCandidate] = Field(default_factory=list)
+    """M3 최종 산출물 — 페르소나 3명 + 컨셉 7개(aggregate_rank 오름차순 정렬)."""
+    personas: list[Persona] = Field(default_factory=list)
+    concepts: list[RankedConcept] = Field(default_factory=list)
 
 
 class SearchQuery(BaseModel):

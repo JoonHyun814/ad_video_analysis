@@ -2,10 +2,17 @@
 
   run_m0_m2(): generation.v5_m0_m3.pipeline.run_m0_m2() 를 그대로 재노출한다(사용자 요청 —
       "M0~M2는 v5_m0_m3과 동일"). 크롤·M1·M2 로직을 이 파이프라인에 다시 구현하지 않는다.
-  run_m3(): generation/docs/m3_concept.md 의 발산 기법 7종으로 한 줄 컨셉 후보를 만들고
-      자가평가·순위를 매긴다(LLM 1회, concept_scout.py). v5_m0_m3 의 <slug>_m0_m3.json 계약과
-      같은 모양({"module0","m1","m2","m3"})을 유지한다 — m3 안의 내용(concepts[])만 실제로
-      채워진다. cli_m4.py 는 `--concept` 를 생략하면 이 중 rank=1을 자동으로 쓴다.
+  run_m3(): generation/docs/m3_concept.md 의 발산 기법 7종으로 컨셉 후보를 만들고, 타깃 그룹에
+      맞는 페르소나 3명이 각자 순위를 매긴 뒤 코드가 취합한다(LLM 5회, concept_scout.py — 자세한
+      흐름은 그 파일 docstring 참고). **M3부터 이 파이프라인의 실행 폴더(output/retrieval_pipeline/
+      <날짜>_<제목>/)를 만든다**(사용자 요청 — "m3 단계 결과도 <날짜>_<제목> 폴더 안에 저장되도록
+      수정") — cli_m3.py 가 `--title` 을 받아 폴더를 만들고 m3.json 을 그 안에 저장하면, 이후
+      cli_m4~cli_m7 은 항상 그 폴더 안에서 이어진다.
+
+  M0~M2 결과(module0/m1/m2, 대개 수십 KB)는 M3 가 context(압축 요약)를 뽑아내는 데만 쓰고,
+  그 뒤로는 어떤 산출물에도 다시 싣지 않는다(사용자 요청 — "모든 산출물에 m0-m2 결과가 있을
+  필요 없음"). M4~M7 은 module0/m1/m2 자체가 아니라 M3 가 이미 압축해 둔 `context` 만 받는다
+  — _CARRY_KEYS 가 이를 강제한다.
 
 M4~M7 는 검색기준.txt/검색기준2.txt 를 반영한 재설계로 각 단계의 책임이 바뀌었다(사용자 요청 —
 "m4: 장치 별이 아니라 검색기준 문서를 참조하여 쿼리 생성", "m5: 쿼리 실행 및 결과 기록",
@@ -24,7 +31,7 @@ M4~M7 는 검색기준.txt/검색기준2.txt 를 반영한 재설계로 각 단�
             정확히 알고 있으므로 그 판단을 그대로 다음 라운드의 쿼리로 쓴다. 재시도로 생긴
             라운드도 `rounds` 에 그대로 남아 cli_m7.py 가 파일로 남긴다(투명성 유지).
 
-각 함수는 바로 앞 함수의 반환 dict 를 그대로 입력받는다 — cli_m4~cli_m7.py 가 이 dict 를
+각 함수는 바로 앞 함수의 반환 dict 를 그대로 입력받는다 — cli_m3~cli_m7.py 가 이 dict 를
 파일로 저장/로드하며 체인을 이어간다.
 """
 from __future__ import annotations
@@ -38,29 +45,33 @@ from generation.retrieval_pipeline.context import build_context
 from generation.retrieval_pipeline.schemas import QueryDevice, SearchQuery
 from generation.v5_m0_m3.pipeline import run_m0_m2  # noqa: F401  (재노출 — 사용자 요청)
 
-_CARRY_KEYS = ("module0", "m1", "m2", "m3", "concept_line", "ad_length", "context")
+_CARRY_KEYS = ("concept_line", "ad_length", "context")
 _MAX_ROUNDS_DEFAULT = 2
 
 
 def run_m3(module0: dict, m1: dict, m2: dict) -> dict[str, Any]:
-    """M3 — 발산 기법 7종으로 한 줄 컨셉 후보를 만들고 자가평가·순위를 매긴다(LLM 1회)."""
+    """M3 — 발산 기법 7종으로 컨셉 후보를 만들고 페르소나 3명이 매긴 순위를 취합한다(LLM 5회).
+
+    module0/m1/m2 는 여기서 context 로 압축되는 데만 쓰이고 반환값에는 실리지 않는다 — 이후
+    모든 단계는 이 함수가 만든 `context` 만 이어받는다.
+    """
     context = build_context(module0, m1, m2)
-    output, prompt = concept_scout.run_concept_scout(context)
+    output, prompts = concept_scout.run_concept_scout(context)
     return {
-        "module0": module0, "m1": m1, "m2": m2,
-        "m3": {"prompt": prompt, "concepts": [c.model_dump() for c in output.concepts]},
+        "context": context,
+        "m3": {
+            "prompts": prompts,
+            "personas": [p.model_dump() for p in output.personas],
+            "concepts": [c.model_dump() for c in output.concepts],
+        },
     }
 
 
-def run_m4(module0: dict, m1: dict, m2: dict, m3: dict, concept_line: str, *,
-          ad_length: str = "15초") -> dict[str, Any]:
+def run_m4(context: dict[str, Any], concept_line: str, *, ad_length: str = "15초") -> dict[str, Any]:
     """M4 — 검색기준 축을 따라 크리에이티브 문제 진단 + 검색 쿼리 제안(LLM 1회, 아직 검색 없음)."""
-    context = build_context(module0, m1, m2)
     scout_output, prompt = query_scout.run_query_scout(concept_line, context, ad_length)
     return {
-        "module0": module0, "m1": m1, "m2": m2, "m3": m3,
-        "concept_line": concept_line, "ad_length": ad_length,
-        "context": context,
+        "concept_line": concept_line, "ad_length": ad_length, "context": context,
         "prompt": prompt,
         "creative_problem": scout_output.creative_problem,
         "queries": [q.model_dump() for q in scout_output.queries],
@@ -155,13 +166,15 @@ def run_m7(m6_result: dict[str, Any], *, top_k: int = 3, db_path: str = "output/
     }
 
 
-def run_m4_m7(module0: dict, m1: dict, m2: dict, m3: dict, concept_line: str, *,
+def run_m3_m7(module0: dict, m1: dict, m2: dict, concept_line: str, *,
              ad_length: str = "15초", top_k: int = 3, db_path: str = "output/vector_db",
              max_rounds: int = _MAX_ROUNDS_DEFAULT) -> dict[str, Any]:
-    """run_m4()~run_m7() 를 이어 붙인 편의 래퍼 — 네 단계를 한 번에 실행하고 싶을 때만 쓴다
+    """run_m3()~run_m7() 를 이어 붙인 편의 래퍼 — 다섯 단계를 한 번에 실행하고 싶을 때만 쓴다
     (v5_m0_m3.pipeline.run_m0_m3() 와 같은 성격 — CLI는 단계 분리가 목적이라 이 래퍼를 노출하지
-    않는다). 반환에 m7 의 모든 필드(`markdown` 포함)를 담는다."""
-    m4 = run_m4(module0, m1, m2, m3, concept_line, ad_length=ad_length)
+    않는다). M3 가 만든 컨셉 순위와 무관하게 `concept_line` 을 그대로 M4 입력으로 쓴다(자동
+    선택 로직은 cli_m4.py 의 몫). 반환에 m7 의 모든 필드(`markdown` 포함)를 담는다."""
+    m3 = run_m3(module0, m1, m2)
+    m4 = run_m4(m3["context"], concept_line, ad_length=ad_length)
     m5 = run_m5(m4, top_k=top_k, db_path=db_path)
     m6 = run_m6(m5)
     return run_m7(m6, top_k=top_k, db_path=db_path, max_rounds=max_rounds)
