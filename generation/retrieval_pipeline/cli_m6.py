@@ -1,8 +1,9 @@
-"""retrieval_pipeline CLI — M6(검색 결과 반영, 최종 문서 JSON 합성, LLM 1회).
+"""retrieval_pipeline CLI — M6(쿼리별 장치 생성, LLM 1회).
 
-M5(cli_m5.py)가 실제로 검색한 결과를 근거로 장치별 레퍼런스 인용·대안 스토리라인·비교/권고·
-공통 체크·다음 단계를 완성한다. 이 호출의 user 프롬프트에 실제로 들어가는 값(검색 결과 포함)이
-"실제 모델에 입력되는 데이터"다 — m6.json 의 `prompt` 키에 system/user 원문이 그대로 남는다.
+M5(cli_m5.py)가 실제로 검색한 쿼리별 결과를 근거로, 쿼리 1건당 연출 장치 1개를 완성한다(각
+장치는 자신의 쿼리가 찾아온 결과에만 근거한다). 이 호출의 user 프롬프트에 실제로 들어가는
+값(쿼리별 검색 결과 포함)이 "실제 모델에 입력되는 데이터"다 — m6.json 의 `prompt` 키에
+system/user 원문이 그대로 남는다.
 
 사용법:
     python -m generation.retrieval_pipeline.cli_m6 --input <run_dir>/m5.json [--llm_backend cli|api]
@@ -18,7 +19,7 @@ from generation.v5_m0_m3 import llm_adapter
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="retrieval_pipeline M6 (검색 결과 반영 최종 문서 JSON)")
+    p = argparse.ArgumentParser(description="retrieval_pipeline M6 (쿼리별 장치 생성)")
     p.add_argument("--input", type=Path, required=True, help="m5.json 경로(searches 포함)")
     p.add_argument("--llm_backend", default="cli", choices=("cli", "api"),
                    help="텍스트 LLM 호출 방식 — cli: claude -p CLI(기본) | api: Anthropic API 직접 호출")
