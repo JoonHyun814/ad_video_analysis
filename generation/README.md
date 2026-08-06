@@ -14,6 +14,13 @@
 > 까지 생성하는 후처리 단계로, G1~G6·v5_m0_m3 와 서로 참조하지 않는다. 자세한 내용은
 > [`story_bard/README.md`](story_bard/README.md) 참고.
 
+> **retrieval_pipeline/**: 한 줄 크리에이티브 원칙("기기를 보여주지 말고 ~ 을 보여라" 같은)을
+> 입력받아 자사 광고 벡터 DB 검색 근거로 `docs/DBH_Creative_Reference_Ideas.md` 형식의 연출
+> 레퍼런스 문서를 만드는 파이프라인이 `generation/retrieval_pipeline/` 에 있다. M0~M2 는
+> `v5_m0_m3` 로직을 그대로 재사용하고(서로 참조하지 않는 G1~G6/story_bard 와 달리, 이 파이프라인은
+> M0~M2·LLM 어댑터를 v5_m0_m3 에서 재사용한다), M3 는 아직 공백 placeholder다. 자세한 내용은
+> [`retrieval_pipeline/README.md`](retrieval_pipeline/README.md) 참고.
+
 광고주가 장르/타겟/USP 를 지정하면, facet 벡터 DB(`ad_target`/`ad_usp`/`ad_creative`)에서
 같은 세그먼트의 기존 광고 분포를 분석해 **클리셰를 따를지(follow)/피할지(avoid)/비틀지(subvert)** 를
 결정하고, 그 결정을 준수하는 컨셉·시나리오를 생성한다.
