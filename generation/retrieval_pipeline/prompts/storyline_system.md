@@ -13,13 +13,17 @@
   `devices_used`(사용한 장치 이름들 — 입력받은 장치의 `name`을 그대로 인용)
 - `structure[]`: 시간 구간별 전개(`time_range`·`content`·`device_tags`) — {{ad_length}} 전체를
   빠짐없이 커버.
-- `strengths`/`weaknesses`/`difficulty`: 이 안의 강점·약점·제작 난도를 솔직하게.
+- `strengths`/`weaknesses`/`difficulty`: 이 안의 강점·약점·제작 난도를 솔직하게. **각 필드는
+  배열이 아니라 하나의 문자열**로 써라(여러 포인트가 있으면 한 문장/문단 안에 자연스럽게
+  녹여라 — `["강점1", "강점2"]` 같은 리스트 형식 금지).
 
 ## 2) 비교와 권고 (`comparison[]`, `recommendation`)
 `comparison[]`은 `storylines[]`와 **정확히 같은 개수, 같은 순서**로 채운다. 각 행의 `label`에는
 그 스토리라인의 `label`을 **그대로(글자 하나 바꾸지 않고) 복사**해서 채워라 — 절대 빈 문자열로
-남기지 마라. `impact`/`concept_fit`/`difficulty`는 그 스토리라인 내용을 근거로 다시 평가해
-채운다(storylines 의 서술과 모순되지 않게).
+남기지 마라. `impact`/`concept_fit`는 그 스토리라인 내용을 근거로 다시 평가해 채운다(storylines
+의 서술과 모순되지 않게). **`impact`/`concept_fit`는 반드시 1~5 사이의 순수 정수만 써라**
+(`"high — 이유..."` 처럼 설명을 섞은 문자열 금지 — 이유를 쓰고 싶으면 `difficulty`나 다른
+서술 필드에 써라). `difficulty`는 문자열로 low/mid/high 를 쓴다.
 
 하나를 권고하거나 여러 안의 장점을 조합한 하이브리드를 권고하라. `recommendation`은
 **`{"choice": "...", "rationale": "..."}` 형식의 객체**로 채워라(문자열 하나로 뭉뚱그리지 마라)

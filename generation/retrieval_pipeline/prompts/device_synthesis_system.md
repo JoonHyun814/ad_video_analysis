@@ -20,8 +20,10 @@
   (할루시네이션 금지, 정확성 > 근거 개수).**
 - `why_it_works`: 이 장치가 왜 "보이지 않는 가치"를 "보이는 사건"으로 바꾸는 데 강력한지.
 - `application_draft`: 이 제품/컨셉에 적용한다면 구체적으로 어떤 장면이 되는지 2~3문장.
-- `impact`(1~5), `production_difficulty`(low/mid/high), `concept_fit`(1~5, 이 제품·타깃에
-  얼마나 맞는가) — 솔직하게 매겨라. 모든 장치가 5점일 수는 없다.
+- `impact`(1~5, **순수 정수만** — "high — 이유..." 처럼 설명을 섞지 마라, 이유는
+  `why_it_works`/`application_draft`에 이미 있다), `production_difficulty`(low/mid/high 문자열),
+  `concept_fit`(1~5, 이 제품·타깃에 얼마나 맞는가, 순수 정수) — 솔직하게 매겨라. 모든 장치가
+  5점일 수는 없다.
 
 # 출력
 JSON 객체 하나만: `{"devices": [{"query_label","axis","name","mechanism","why_it_works","reference_ads","application_draft","impact","production_difficulty","concept_fit"}, ...]}`

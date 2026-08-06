@@ -9,9 +9,48 @@ docs/m3_concept.md 의 7개 발산 기법별 컨셉 후보 + 타깃 페르소나
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+def _coerce_str(v: Any) -> Any:
+    """LLM이 문자열 필드에 리스트(예: `["...", "..."]`)를 넣을 때를 대비한 경계 방어 — 시스템
+    경계(외부 LLM 출력)라 CLAUDE.md 의 "시스템 경계에서만 검증" 원칙에 해당한다. 리스트면 각
+    항목을 " / " 로 이어붙인 문자열로 만든다."""
+    if isinstance(v, list):
+        return " / ".join(str(x) for x in v)
+    return v
+
+
+_SCORE_WORDS = (
+    # 복합 표현(mid-high 등)을 그 부분 문자열(mid/high)보다 먼저 검사해야 한다 — 순서 중요.
+    ("very high", 5), ("highest", 5),
+    ("mid-high", 4), ("medium-high", 4),
+    ("mid-low", 2), ("medium-low", 2),
+    ("very low", 1),
+    ("high", 4),
+    ("medium", 3), ("mid", 3),
+    ("low", 1),
+)
+
+
+def _coerce_score(v: Any) -> Any:
+    """LLM이 1~5(또는 1~7) 정수 점수 필드에 "high — 반전의 감정선이 강하다" 처럼 설명이 섞인
+    문자열을 넣을 때를 대비한 경계 방어(시스템 경계 — CLAUDE.md "시스템 경계에서만 검증" 원칙).
+    문자열 안의 첫 숫자를 우선 쓰고, 숫자가 없으면 high/mid/low 류 표현을 정수로 매핑한다.
+    둘 다 실패하면 원본을 그대로 반환해 pydantic 이 명확한 에러를 내게 둔다(무리한 추측 방지)."""
+    if not isinstance(v, str):
+        return v
+    m = re.search(r"\d+", v)
+    if m:
+        return int(m.group())
+    low = v.lower()
+    for word, val in _SCORE_WORDS:
+        if word in low:
+            return val
+    return v
 
 
 class ConceptCandidate(BaseModel):
@@ -46,6 +85,11 @@ class PersonaConceptRank(BaseModel):
     rank: int = 0                    # 1이 최우선, 7개가 서로 다른 순위(동점 없음)
     appropriateness_score: int = 0   # 1~5, 이 페르소나에게 얼마나 와닿는가
     evaluation_note: str = ""        # 이 페르소나 입장에서 왜 이 순위인지
+
+    @field_validator("rank", "appropriateness_score", mode="before")
+    @classmethod
+    def _coerce_score_field(cls, v: Any) -> Any:
+        return _coerce_score(v)
 
 
 class PersonaRankingOutput(BaseModel):
@@ -107,6 +151,11 @@ class QueryDevice(BaseModel):
     production_difficulty: str = ""  # "low" | "mid" | "high"
     concept_fit: int = 0
 
+    @field_validator("impact", "concept_fit", mode="before")
+    @classmethod
+    def _coerce_score_field(cls, v: Any) -> Any:
+        return _coerce_score(v)
+
 
 class M6Output(BaseModel):
     """M6 산출물 — 입력 쿼리 개수만큼의 장치 목록(순서는 입력 쿼리 순서와 동일)."""
@@ -130,6 +179,11 @@ class Storyline(BaseModel):
     weaknesses: str = ""
     difficulty: str = ""
 
+    @field_validator("strengths", "weaknesses", mode="before")
+    @classmethod
+    def _coerce_list_to_str(cls, v: Any) -> Any:
+        return _coerce_str(v)
+
 
 class ComparisonRow(BaseModel):
     """스토리라인 비교표 1행."""
@@ -137,6 +191,11 @@ class ComparisonRow(BaseModel):
     impact: int = 0
     concept_fit: int = 0
     difficulty: str = ""
+
+    @field_validator("impact", "concept_fit", mode="before")
+    @classmethod
+    def _coerce_score_field(cls, v: Any) -> Any:
+        return _coerce_score(v)
 
 
 class Recommendation(BaseModel):

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from generation.retrieval_pipeline.pipeline import run_m5
@@ -41,4 +42,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Windows 콘솔(cp949)이 LLM 생성 텍스트의 특수문자(em dash 등)를 못 만나 print() 가
+    # UnicodeEncodeError 로 죽는 것을 막는다 — 실제 파이프라인 로직은 이미 끝난 뒤의 요약 출력이
+    # 죽는 것뿐이라 errors="replace" 로 깨진 문자만 대체하고 계속 진행한다.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     main()
