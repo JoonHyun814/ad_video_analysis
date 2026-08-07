@@ -22,6 +22,13 @@ MySQL 조회·CSV 추출 + ChromaDB 벡터 검색·재임베딩 유틸.
 | `cliche_twist_analysis.py` | 검색 결과 세그먼트 클리셰 집계 + 비튼 광고 판별 |
 | `cliche_twist_format.py` | 위 결과를 txt 리포트로 포맷 |
 | `product_cliche_search.py` | 제품명 → 리서치 + 유사광고 검색 + 클리셰 비틀기 분석 CLI 진입점 |
+| `chromadb/connection.py` | `db_path` → PersistentClient / 컬렉션 연결 공용 헬퍼(임베딩 함수 부착 여부 선택) |
+| `chromadb/list_collections.py` | 컬렉션(테이블) 목록 + 레코드 수 출력 |
+| `chromadb/show_schema.py` | 컬렉션 하나 지정 → 메타데이터 스키마(필드·타입·예시) + 데이터 수 출력 |
+| `chromadb/show_by_video_id.py` | 컬렉션 + `video_id` 지정 → 해당 레코드 전체 출력 |
+| `chromadb/search_query.py` | 컬렉션 + 자연어 쿼리 지정 → 유사도 상위 레코드 출력 |
+| `chromadb/import/category.py` | `<data_root>/<video_id>/category_analysis.json` → `data/category` 컬렉션 적재(전체 필드) |
+| `chromadb/import/scenario.py` | `<data_root>/<video_id>/scenario_analysis.json` → `data/scenario` 컬렉션 적재(concept/narrative/key_messages/production_notes + cast·scenes 개수) |
 | `data_schema.md` | DB 테이블 스키마 |
 | `sample.json` | 예시 데이터 |
 
@@ -79,6 +86,89 @@ tables = list_tables()
 columns, rows = fetch_table("video_uploads")
 path = save_to_csv("video_uploads", output_dir=Path("output"))
 ```
+
+## ChromaDB — `db.chromadb.*` (컬렉션 탐색 유틸)
+
+`chromadb_search.py`/`chromadb_show.py`(단일 `video_category` 컬렉션 전용)와 달리, 이 4개는
+**어떤 컬렉션이든** 컬렉션명을 인자로 받아 다룬다. `ad_video_analysis/` 디렉토리에서
+`python -m db.chromadb.<파일명>` 형태로 실행한다(패키지명이 `chromadb` 라이브러리와 같아
+직접 스크립트 실행 시 임포트가 꼬일 수 있으므로 반드시 `-m` 으로 실행한다).
+
+공통 옵션: `--db_path`(기본 `output/vector_db`), `--json`(JSON 출력).
+
+### 1) 컬렉션(테이블) 목록
+
+```bash
+python -m db.chromadb.list_collections
+```
+
+### 2) 컬렉션 스키마 + 데이터 수
+
+```bash
+python -m db.chromadb.show_schema --collection ad_production_reference [--sample_size 500]
+```
+
+ChromaDB 는 고정 스키마가 없으므로, 샘플 레코드의 `metadata` 키를 모아 필드별
+타입·예시값·등장 빈도(`coverage`)를 출력한다(레코드 종류에 따라 필드 구성이 다를 수 있음).
+
+### 3) video_id 로 레코드 조회
+
+```bash
+python -m db.chromadb.show_by_video_id --collection ad_production_reference --video_id 1
+```
+
+`metadata.video_id` 가 일치하는 레코드를 전부 출력한다(한 영상이 여러 레코드로 쪼개져
+있는 컬렉션도 있다 — 예: `ad_production_reference` 의 `record_kind=profile`/`element`).
+
+### 4) 자연어 쿼리 유사도 검색
+
+```bash
+python -m db.chromadb.search_query --collection ad_concept_reference --query "20대 여성 타겟의 감성적인 라이프스타일 광고" --n_results 5
+```
+
+임베딩 모델은 다른 ChromaDB 유틸과 동일한 `BAAI/bge-m3`(`evaluation/category/vector_store.py`
+재사용) — 컬렉션마다 별도 설정이 없다.
+
+## ChromaDB — `db.chromadb.import.*` (category/scenario 적재)
+
+`output/total/<video_id>/category_analysis.json`, `scenario_analysis.json` 을 스캔해
+자연어 검색용 ChromaDB 컬렉션에 적재한다. 다른 ChromaDB 유틸과 달리 **전용 저장 경로**를
+쓴다(공유 `output/vector_db` 가 아님) — `category.py` → `data/category`, `scenario.py` →
+`data/scenario`. 임베딩 모델은 다른 유틸과 동일한 `BAAI/bge-m3`(`evaluation.category.vector_store`
+재사용)라 컬렉션 간 자연어 검색 품질이 일관적이다.
+
+**반드시 `python -m db.chromadb.import.<파일명>` 형태로 실행한다** — `import` 는 Python
+예약어라 소스 코드에서 `from db.chromadb.import.category import ...` 처럼 점(.) 표기로 직접
+임포트할 수 없다(`-m` 실행이나 `importlib` 문자열 임포트는 예약어 제약을 받지 않아 정상
+동작한다). 이 폴더 안의 파일을 다른 모듈에서 재사용해야 한다면 폴더명을 바꿔야 한다.
+
+```bash
+python -m db.chromadb.import.category [--data_root output/total] [--db_path data/category] [--rebuild]
+python -m db.chromadb.import.scenario [--data_root output/total] [--db_path data/scenario] [--rebuild]
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--data_root` | `output/total` | `<data_root>/<video_id>/*.json` 스캔 |
+| `--db_path` | `data/category` \| `data/scenario` | ChromaDB 저장 경로 |
+| `--collection` | `category_analysis` \| `scenario_analysis` | 컬렉션명 |
+| `--rebuild` | off | 기존 컬렉션 삭제 후 재적재 |
+
+### `category.py` — 적재 내용
+
+`_meta` 를 뺀 `category_analysis.json` 전체 필드(industry_category, product_category,
+campaign_objective, placement, target_age_min/max, target_persona, key_message, usp,
+positioning, hook_strategy, creative_style, narrative_structure, role_sequence, key_scenes,
+duration, brand_name 등)를 `key: value` 줄로 직렬화해 문서 텍스트로 임베딩하고, 동일한
+필드를 메타데이터로도 저장한다 — 필드를 고르지 않고 전부 쓰므로 스키마가 늘어나도 코드
+수정이 필요 없다.
+
+### `scenario.py` — 적재 내용
+
+`concept`/`narrative`/`key_messages`/`production_notes`(+ `title`/`brand`)만 문서 텍스트로
+임베딩한다. `cast`/`scenes` 원문은 넣지 않고 **개수만** `cast_count`/`scenes_count`
+메타데이터로 저장한다 — 캐스팅 설명·씬 비트 원문까지 넣으면 문서가 길어져 임베딩 품질이
+흐려지기 때문이다.
 
 ## ChromaDB — `chromadb_search.py`
 
