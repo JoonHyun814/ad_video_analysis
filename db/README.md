@@ -29,6 +29,8 @@ MySQL 조회·CSV 추출 + ChromaDB 벡터 검색·재임베딩 유틸.
 | `chromadb/search_query.py` | 컬렉션 + 자연어 쿼리 지정 → 유사도 상위 레코드 출력 |
 | `chromadb/import/category.py` | `<data_root>/<video_id>/category_analysis.json` → `data/category` 컬렉션 적재(전체 필드) |
 | `chromadb/import/scenario.py` | `<data_root>/<video_id>/scenario_analysis.json` → `data/scenario` 컬렉션 적재(concept/narrative/key_messages/production_notes + cast·scenes 개수) |
+| `chromadb/tool_definitions.py` | 조회 유틸 4종을 Anthropic tool_use 스키마(`TOOL_DEFINITIONS`)+디스패처(`call_tool`)로 감싼 공유 모듈(저장소 자동 탐색 포함) — MCP 서버와 API 백엔드가 공유 |
+| `chromadb/mcp_server.py` | 위 유틸을 MCP 도구로 노출하는 stdio MCP 서버(`chromadb-explorer`, 저장소 루트 `.mcp.json` 등록) |
 | `data_schema.md` | DB 테이블 스키마 |
 | `sample.json` | 예시 데이터 |
 
@@ -169,6 +171,47 @@ duration, brand_name 등)를 `key: value` 줄로 직렬화해 문서 텍스트�
 임베딩한다. `cast`/`scenes` 원문은 넣지 않고 **개수만** `cast_count`/`scenes_count`
 메타데이터로 저장한다 — 캐스팅 설명·씬 비트 원문까지 넣으면 문서가 길어져 임베딩 품질이
 흐려지기 때문이다.
+
+## MCP 서버 / Claude API 도구 — `chromadb-explorer`
+
+`db.chromadb.*` 조회 유틸 4개(list_collections/show_schema/show_by_video_id/search_query)를
+Claude CLI(`claude -p`/대화형 세션)와 Claude API 양쪽에 "도구"로 노출한다.
+`evaluation/creative/mcp_server.py`(`creative-retrieval`)와 완전히 같은 패턴이다 —
+[`../evaluation/creative/README.md`](../evaluation/creative/README.md)의 "MCP 서버" 절 참고.
+`import/category.py`·`import/scenario.py`(컬렉션 삭제·재적재 배치 작업)는 도구로 올리지
+않는다 — 사람이 CLI로 직접 실행한다.
+
+| 도구 | 인자 | 반환 |
+|------|------|------|
+| `list_chromadb_collections` | 없음 | 저장소 3개(`output/vector_db`/`data/category`/`data/scenario`)를 모두 훑은 컬렉션·레코드 수·경로 |
+| `show_chromadb_schema` | `collection`(필수), `sample_size`(기본 500) | 메타데이터 필드·타입·예시값 + 총 레코드 수 |
+| `get_chromadb_record_by_video_id` | `collection`(필수), `video_id`(필수) | 해당 video_id 레코드 전체(원문, 유사도 없음) |
+| `search_chromadb` | `collection`(필수), `query_text`(필수, 자연어), `n_results`(기본 5) | 유사도 상위 레코드 |
+
+`db_path` 를 도구 인자로 받지 않는다 — `collection` 명만 주면 `tool_definitions._resolve_db_path`
+가 알려진 3개 저장소를 훑어 자동으로 찾는다(호출하는 쪽이 내부 폴더 구조를 몰라도 됨). 컬렉션명이
+겹치지 않는 한(현재는 겹치지 않음) 항상 정확히 찾는다.
+
+**Claude CLI(MCP)**: 저장소 루트 `.mcp.json`에 `chromadb-explorer` 로 등록돼 있다.
+
+```bash
+python -m db.chromadb.mcp_server   # 로컬 실행/디버그
+claude -p "..." --mcp-config .mcp.json --allowedTools "mcp__chromadb-explorer__search_chromadb"
+```
+
+`claude -p` 헤드리스 호출로 쓰려면 최초 1회 승인이 필요하다 — 로컬 `.claude/settings.json`
+(개인 상태, `.gitignore` 로 제외)에 `{"enabledMcpjsonServers": ["chromadb-explorer"]}` 를 넣거나
+프로젝트 디렉터리에서 `claude` 를 한 번 대화형으로 실행해 승인한다.
+
+**Claude API(Anthropic tool_use)**: 로컬 stdio MCP 서버에 API 가 직접 붙을 수 없으므로(원격
+HTTP/SSE MCP 커넥터만 지원), `db.chromadb.tool_definitions.TOOL_DEFINITIONS`(도구 스키마)와
+`call_tool(name, arguments)`(디스패처)를 그대로 가져다 `messages.create(..., tools=...)` 호출과
+tool_use 왕복 루프에 쓴다 — `generation/v5_m0_m3/llm_adapter.py::_chat_json_api_with_tools` 가
+`evaluation.creative.reference_retrieval` 에 대해 하는 것과 같은 패턴이다.
+
+**임베딩 모델 예열**: `mcp_server.py` 는 `__main__` 실행 시 `get_embedding_function()` 으로
+bge-m3 를 서버 기동 시점에 미리 로드한다 — 그렇지 않으면 첫 `search_chromadb` 호출이 모델
+로딩 비용까지 떠안아 느려지거나 타임아웃에 걸릴 수 있다.
 
 ## ChromaDB — `chromadb_search.py`
 
