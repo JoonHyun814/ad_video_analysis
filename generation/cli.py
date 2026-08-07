@@ -3,7 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from evaluation.concept.facet_vector_store import GENRE_CHOICES
+from db.chromadb.importers.facets import GENRE_CHOICES
 from generation.pipeline import STAGES, run_pipeline, run_single_stage, save_json
 from utils.gemini_caller import DEFAULT_MODEL as _GEMINI_DEFAULT_MODEL
 from utils.io_checks import is_parse_failed, require_valid_json

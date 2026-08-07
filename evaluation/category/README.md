@@ -7,15 +7,16 @@ ChromaDB `video_category` 컬렉션에 적재한다.
 
 | 파일 | 역할 |
 |------|------|
-| `run.py` | CLI 실행기 (`python -m evaluation.cli --mode category`) |
+| `run.py` | CLI 실행기 (`python -m evaluation.cli --mode category`) — `--load_vector` 는 `db/chromadb/importers/video_category.py::upsert_video` 를 호출 |
 | `category_analysis.py` | 카테고리 추출 프롬프트 빌드 + claude 백엔드 구현 |
 | `category_analysis_codex.py` / `_gemini.py` | 백엔드별 구현 |
-| `vector_store.py` | `video_category` 컬렉션 upsert/query 헬퍼 + **임베딩 모델 정의** (`BAAI/bge-m3`, 1024-dim) |
 
-`vector_store.py` 는 프로젝트 공용 임베딩 기반이기도 하다:
-`db/`(chromadb_search·cluster·reembed·load_facets), `generation/g5_verification`,
-`evaluation/concept` 의 벡터 스토어들이 여기의 `get_embedding_function`/`_get_or_create` 를 사용한다.
-임베딩 모델 변경 시 `EMBEDDING_MODEL` 수정 후 `python db/reembed.py` 로 전체 재적재한다.
+`video_category` 컬렉션 upsert/query 헬퍼와 임베딩 모델 정의(`BAAI/bge-m3`, 1024-dim)는
+[`../../db/README.md`](../../db/README.md)의 `db/chromadb/connection.py`(임베딩 함수)·
+`db/chromadb/importers/video_category.py`(upsert/query)로 이전됐다 — 이 저장소의 다른
+컬렉션(`evaluation/concept`, `generation/g5_verification` 등)도 전부 같은 임베딩 함수를
+공유한다. 임베딩 모델 변경 시 `db/chromadb/connection.py::EMBEDDING_MODEL` 수정 후
+`db.chromadb.importers.video_category.upsert_batch` 로 전체 재적재한다.
 
 ## 실행
 

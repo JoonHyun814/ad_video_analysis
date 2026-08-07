@@ -87,11 +87,11 @@ def run_pipeline(
         production = json.loads(production_path.read_text(encoding="utf-8"))
 
     if "error" not in production:
-        from evaluation.creative.element_vector_store import upsert_analysis
+        from db.chromadb.importers.production_reference import upsert_analysis
         upsert_analysis(video_id=video_id, analysis=production, db_path=db_path)
 
     if "error" not in concept:
-        from evaluation.concept.concept_reference_store import upsert_concept_reference
+        from db.chromadb.importers.concept_reference import upsert_concept_reference
         profile = production.get("profile") or {}
         enrich = {k: profile[k] for k in _ENRICH_KEYS if profile.get(k) is not None} or None
         upsert_concept_reference(video_id=video_id, strategy=concept, db_path=db_path, enrich=enrich)

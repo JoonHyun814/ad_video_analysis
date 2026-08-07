@@ -4,12 +4,16 @@
 생성 파이프라인이 "타겟이 비슷한 광고"와 "연출이 비슷한 광고"를 구분해 조회하고
 세그먼트 내 크리에이티브 분포(클리셰)를 분석할 수 있게 한다.
 메타데이터는 3개 컬렉션에 동일하게 복제되어 어느 facet 에서든 exact 필터가 가능하다.
+
+evaluation/concept/run.py(`--mode concept --load_facets`)가 upsert_facets 를, generation/의
+segment_retrieval.py·cliche_report.py·g1_input_normalization.py·cli.py 가 fetch_members/
+query_facet/GENRE_CHOICES 를 쓴다.
 """
 from pathlib import Path
 
 import chromadb
 
-from evaluation.category.vector_store import _get_or_create
+from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_or_create_collection
 
 FACETS = ("target", "usp", "creative")
 COLLECTIONS: dict[str, str] = {"target": "ad_target", "usp": "ad_usp", "creative": "ad_creative"}
@@ -96,18 +100,18 @@ def _facet_id(video_id: int, facet: str) -> str:
 
 
 def _collection(facet: str, db_path: str | Path) -> chromadb.Collection:
-    client = chromadb.PersistentClient(path=str(db_path))
-    return _get_or_create(client, COLLECTIONS[facet])
+    client = get_client(db_path)
+    return get_or_create_collection(client, COLLECTIONS[facet])
 
 
-def upsert_facets(video_id: int, concept: dict, db_path: str | Path = "output/vector_db") -> None:
+def upsert_facets(video_id: int, concept: dict, db_path: str | Path = DEFAULT_DB_PATH) -> None:
     """concept_evaluation 결과 1건을 3개 facet 컬렉션에 upsert 한다."""
     upsert_facet_batch([(video_id, concept)], db_path=db_path)
 
 
 def upsert_facet_batch(
     records: list[tuple[int, dict]],
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path = DEFAULT_DB_PATH,
 ) -> None:
     """복수 concept_evaluation 결과를 facet 별로 모아 일괄 upsert 한다."""
     for facet in FACETS:
@@ -122,7 +126,7 @@ def upsert_facet_batch(
         if not ids:
             continue
         _collection(facet, db_path).upsert(ids=ids, documents=docs, metadatas=metas)
-        print(f"  [facet_vector_store] {COLLECTIONS[facet]}: {len(ids)}건 upsert")
+        print(f"  [facets] {COLLECTIONS[facet]}: {len(ids)}건 upsert")
 
 
 # ── 검색 ───────────────────────────────────────────────────────────────────────
@@ -132,7 +136,7 @@ def query_facet(
     text: str,
     n_results: int = 10,
     where: dict | None = None,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path = DEFAULT_DB_PATH,
 ) -> list[dict]:
     """facet 컬렉션에서 임베딩 유사도 상위 n_results 를 반환한다."""
     col = _collection(facet, db_path)
@@ -155,7 +159,7 @@ def fetch_members(
     where: dict | None = None,
     video_ids: list[int] | None = None,
     include_embeddings: bool = False,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path = DEFAULT_DB_PATH,
 ) -> list[dict]:
     """facet 컬렉션 멤버를 필터/ID 로 조회한다 (세그먼트 분포 분석용)."""
     col = _collection(facet, db_path)

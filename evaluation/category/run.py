@@ -51,7 +51,7 @@ def _run_load_vector(args: argparse.Namespace, video_dir: Path) -> None:
         print(f"[오류] category_analysis.json 에 에러 있음: {category.get('error')}", file=sys.stderr)
         sys.exit(1)
 
-    from evaluation.category.vector_store import upsert_video
+    from db.chromadb.importers.video_category import upsert_video
     upsert_video(
         video_id=args.video_id,
         category=category,

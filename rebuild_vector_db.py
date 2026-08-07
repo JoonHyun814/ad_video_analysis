@@ -57,9 +57,9 @@ def _log(log_path: Path, msg: str) -> None:
 
 def _already_loaded(video_id: int) -> bool:
     """ad_concept_reference/ad_production_reference 양쪽에 이미 적재돼 있으면 True(재실행 스킵용)."""
-    import chromadb
+    from db.chromadb.connection import get_client
 
-    client = chromadb.PersistentClient(path=str(_DB_PATH))
+    client = get_client(_DB_PATH)
     try:
         concept_col = client.get_collection("ad_concept_reference")
         has_concept = len(concept_col.get(ids=[f"ad:{video_id}:concept"])["ids"]) > 0

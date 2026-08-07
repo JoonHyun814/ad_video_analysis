@@ -44,7 +44,7 @@ M4는 LLM을 정확히 두 번 부른다:
     → 크리에이티브 문제 진단 + 연출 장치 후보 5~8개 + 장치별 검색 쿼리 제안
 
 2단계 retrieval       (코드, 결정적 — LLM 아님)
-    evaluation.creative.reference_retrieval.search_production_reference /
+    db.chromadb.creative_search.search_production_reference /
     search_concept_reference 를 장치마다 1회씩 그대로 호출(evaluation/ad_concept_production 이
     output/vector_db 에 적재한 ad_production_reference / ad_concept_reference 컬렉션)
 
@@ -80,7 +80,7 @@ LLM 호출·파싱만 한다 — 실제로 모델에 무엇이 어떤 순서로 
 | `pipeline.py` | `run_m0_m2`(재노출) / `run_m3_blank()` / `run_m4()` 오케스트레이션 |
 | `context.py` | module0/m1/m2 → M4 프롬프트용 압축 맥락(`build_context`) |
 | `device_scout.py` | 1단계 LLM 호출 — 문제 진단 + 장치 후보·검색 쿼리 제안 |
-| `retrieval.py` | 2단계 결정적 검색 실행 — `evaluation.creative.reference_retrieval` 직접 호출(도구 호출 아님) |
+| `retrieval.py` | 2단계 결정적 검색 실행 — `db.chromadb.creative_search` 직접 호출(도구 호출 아님) |
 | `synthesis.py` | 3단계 LLM 호출 — 검색 결과 반영 최종 문서 JSON |
 | `render_markdown.py` | 구조화 출력 → DBH 문서 형식 Markdown 렌더링 |
 | `prompt_loader.py` | `prompts/*.md` 로더 + `{{변수}}` 치환(md_parser.py 와 같은 방식, 이 패키지 전용) |
@@ -111,7 +111,7 @@ python -m generation.retrieval_pipeline.cli_m4 \
 | `--concept` | (필수) | 한 줄 크리에이티브 원칙 |
 | `--title` | (필수) | 출력 폴더명에 쓸 프로젝트 제목(슬러그화) |
 | `--ad_length` | `15초` | 스토리라인 길이 |
-| `--top_k` | `3` | 장치 1개당 검색해올 참조 광고 수(최대 20, `reference_retrieval._MAX_TOP_K`) |
+| `--top_k` | `3` | 장치 1개당 검색해올 참조 광고 수(최대 20, `creative_search._MAX_TOP_K`) |
 | `--llm_backend` | `cli` | `cli`(claude -p) \| `api`(Anthropic API, `env/api.env` `ANTHROPIC_API_KEY`) |
 | `--db_path` | `output/vector_db` | `evaluation/ad_concept_production` 이 적재한 ChromaDB 경로 |
 | `--output_dir` | `output/retrieval_pipeline` | 이 아래 `<날짜>_<제목>/` 폴더가 생긴다 |
@@ -158,5 +158,5 @@ python -m evaluation.cli --mode ad_concept_production --video_id <ID> --data_dir
   "부족하면 재검색" 루프는 없음) — 검색 결과가 부실하면 `--top_k` 를 올리거나 `device_scout`
   프롬프트(`prompts/m4_scout_system.md`)의 쿼리 설계 지시를 조정한다.
 - `segment_column`/`segment_value` 필터는 쓰지 않는다(자연어 `query_text` 검색만) — enum 값을
-  틀리게 추측해 결과 0건이 되는 실패를 피하기 위한 의도적 단순화다(`evaluation/creative/reference_retrieval.py`
+  틀리게 추측해 결과 0건이 되는 실패를 피하기 위한 의도적 단순화다(`db/chromadb/creative_search.py`
   자체도 "확신 없으면 query_text만 써라"라고 안내한다).

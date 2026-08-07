@@ -13,15 +13,15 @@ claude -p 도 Anthropic API 도 이 어댑터에서는 이미지 입력 경로�
 vision_json 호출부인 page_section_ocr 하나뿐이고, Anthropic API 로 옮기려면 별도 검증이
 필요해 범위를 좁혔다).
 
-[신규] set_retrieval(True) — evaluation/creative 참조 벡터 DB를 MCP 서버로 노출한
-`creative-retrieval`(저장소 루트 `.mcp.json`, evaluation/creative/mcp_server.py)의 도구를
+[신규] set_retrieval(True) — 참조 벡터 DB를 MCP 서버로 노출한
+`chromadb-explorer`(저장소 루트 `.mcp.json`, db/chromadb/mcp_server.py)의 도구를
 텍스트 LLM 호출에 연결한다. 두 백엔드에서 서로 다른 방식으로 "같은 도구"를 제공한다:
   - "cli" : call_claude 에 --mcp-config(.mcp.json)+--allowedTools 를 넘긴다. claude -p 프로세스
             자체가 MCP 클라이언트 역할을 해서 도구 호출~응답 루프를 내부적으로 처리한다.
   - "api" : Anthropic API 는 로컬 stdio MCP 서버에 직접 붙을 수 없어(원격 HTTP/SSE MCP 커넥터만
-            지원), evaluation.creative.reference_retrieval 의 같은 함수를 Anthropic 네이티브
+            지원), db.chromadb.creative_search 의 같은 함수를 Anthropic 네이티브
             tool_use 스키마로 직접 노출하고 이 파일이 도구 호출~응답 루프를 수동으로 돈다
-            (evaluation/creative/reference_retrieval.py 의 TOOL_DEFINITIONS_*/call_tool 재사용 —
+            (db/chromadb/creative_search.py 의 TOOL_DEFINITIONS_*/call_tool 재사용 —
             검색 로직 자체는 두 백엔드가 완전히 동일하고 전송 방식만 다르다).
 
 도구는 stage 별로 정확히 한 종류만 노출한다(_STAGE_TOOL_KIND) — M3·M3_LENS_SCOUT(M3 발산
@@ -53,12 +53,12 @@ _retrieval_log: contextvars.ContextVar[str | None] = contextvars.ContextVar("v5_
 _self_video_id: contextvars.ContextVar[int | None] = contextvars.ContextVar("v5_m0_m3_self_video_id", default=None)
 _self_mode: contextvars.ContextVar[str] = contextvars.ContextVar("v5_m0_m3_self_mode", default="")
 
-# evaluation.creative.reference_retrieval 이 읽는 환경변수 이름과 반드시 일치해야 한다 — 그 모듈이
+# db.chromadb.creative_search 이 읽는 환경변수 이름과 반드시 일치해야 한다 — 그 모듈이
 # "어떤 단계가 호출했는지" 로그에 남기는 유일한 통로다(MCP 서브프로세스 경유든 API 인프로세스
 # 툴콜이든 이 두 환경변수만 셋업하면 동일하게 동작). generation/v5_m0_m3/README.md 참고.
 _RR_LOG_PATH_ENV = "REFERENCE_RETRIEVAL_LOG_PATH"
 _RR_LOG_STAGE_ENV = "REFERENCE_RETRIEVAL_LOG_STAGE"
-# evaluation.creative.reference_retrieval 의 self-reference 정책(restore/exclude) 환경변수 이름과
+# db.chromadb.creative_search 의 self-reference 정책(restore/exclude) 환경변수 이름과
 # 반드시 일치해야 한다 — 기존 방영 광고를 M3 로 재추출해 M4~M9 를 돌릴 때만 쓰는 옵션(위 모듈
 # docstring, generation/v5_m0_m3/existing_ad_adapter.py 참고). 일반 URL 소재 파이프라인은 이
 # 두 값을 설정하지 않으므로 동작이 전혀 바뀌지 않는다.
@@ -90,7 +90,7 @@ _JSON_FORCE_INSTRUCTION = (
 
 # .mcp.json 은 저장소 루트에 있다 — 이 파일은 generation/v5_m0_m3/ 아래라 parents[2].
 _MCP_CONFIG_PATH = str(Path(__file__).resolve().parents[2] / ".mcp.json")
-_MCP_SERVER_NAME = "creative-retrieval"
+_MCP_SERVER_NAME = "chromadb-explorer"
 _MCP_ALLOWED_TOOLS_BY_KIND: dict[str, list[str]] = {
     "concept": [
         f"mcp__{_MCP_SERVER_NAME}__search_concept_reference",
@@ -151,7 +151,7 @@ def set_retrieval_log(path: str | Path | None) -> None:
     """참조 광고 검색 도구 호출 기록(JSONL)을 남길 경로. None 이면 로깅하지 않는다(기본).
 
     cli.py 가 --retrieval 일 때 output_dir/<slug>_retrieval.jsonl 로 설정한다. 실제 기록은
-    evaluation.creative.reference_retrieval 이 담당 — 이 함수는 그 모듈이 읽는 환경변수를
+    db.chromadb.creative_search 이 담당 — 이 함수는 그 모듈이 읽는 환경변수를
     셋업할 뿐이다(cli/api 백엔드 모두 같은 방식으로 동작하게 하는 단일 지점, 모듈 docstring 참고).
     """
     _retrieval_log.set(str(path) if path else None)
@@ -163,7 +163,7 @@ def set_self_reference(video_id: int | None, mode: str = "restore") -> None:
     기존 방영 광고를 M3 로 재추출해 M4~M9 를 돌리는 실험(generation/v5_m0_m3/
     existing_ad_adapter.py) 전용 — video_id 를 안 주면(None) 기본 동작 그대로라 일반 URL 소재
     파이프라인에는 영향 없다.
-      mode="restore": 자기 자신이 검색되면 evaluation.creative.reference_retrieval 이 실제
+      mode="restore": 자기 자신이 검색되면 db.chromadb.creative_search 이 실제
         scenario_analysis/production_analysis 원본(cast/scenes/elements)을 결과에 덧붙이고
         "새로 창작하지 말고 그대로 재현하라"는 지시를 함께 반환한다 — self-reference 가 원본
         복원 수준까지 도달할 수 있는지 검증하는 용도.
@@ -241,14 +241,14 @@ def _chat_json_api(system: str, user: str, stage: str) -> dict:
 
 
 def _chat_json_api_with_tools(system: str, user: str, kind: str) -> dict:
-    """retrieval 활성 시의 Anthropic tool_use 루프 — creative-retrieval 도구(kind 별 1종)를
+    """retrieval 활성 시의 Anthropic tool_use 루프 — chromadb-explorer 도구(kind 별 1종)를
     네이티브 함수콜로 제공한다.
 
-    MCP 프로토콜을 타지 않고 evaluation.creative.reference_retrieval 을 직접 호출한다(같은 검색
+    MCP 프로토콜을 타지 않고 db.chromadb.creative_search 를 직접 호출한다(같은 검색
     로직, 다른 전송 방식 — 모듈 docstring 참고). 모델이 tool_use 를 멈추고 텍스트로 답할 때까지
     최대 _API_TOOL_ROUNDS 회 왕복한다.
     """
-    from evaluation.creative.reference_retrieval import (
+    from db.chromadb.creative_search import (
         TOOL_DEFINITIONS_CONCEPT, TOOL_DEFINITIONS_PRODUCTION, call_tool,
     )
 

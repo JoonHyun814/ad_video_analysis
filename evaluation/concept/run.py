@@ -113,7 +113,7 @@ def _load_concept_eval_optional(video_dir: Path) -> dict | None:
 
 
 def _run_load_vector(args: argparse.Namespace, video_dir: Path) -> None:
-    from evaluation.concept.concept_reference_store import upsert_concept_reference
+    from db.chromadb.importers.concept_reference import upsert_concept_reference
     upsert_concept_reference(
         video_id=int(args.video_id),
         strategy=_load_strategy(video_dir),
@@ -124,7 +124,7 @@ def _run_load_vector(args: argparse.Namespace, video_dir: Path) -> None:
 
 
 def _run_load_facets(args: argparse.Namespace, video_dir: Path) -> None:
-    from evaluation.concept.facet_vector_store import upsert_facets
+    from db.chromadb.importers.facets import upsert_facets
     upsert_facets(
         video_id=int(args.video_id),
         concept=_load_concept(args, video_dir),

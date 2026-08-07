@@ -6,7 +6,7 @@ exact 필터(장르+산업)로 시작해 세그먼트가 작으면 산업 → �
 """
 from pathlib import Path
 
-from evaluation.concept.facet_vector_store import fetch_members, query_facet
+from db.chromadb.importers.facets import fetch_members, query_facet
 
 _RELAX_LEVELS: tuple[tuple[str, bool, bool], ...] = (
     ("genre+industry", True, True),

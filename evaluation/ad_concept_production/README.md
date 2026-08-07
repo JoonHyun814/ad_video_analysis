@@ -14,15 +14,15 @@ enum 사전(29KB 설계 문서)까지 아우르므로 다시 베끼는 게 오�
   13종·subtype enum 사전(단일 출처)
 - `evaluation/creative/element_analysis.py::compute_duration` — 시나리오 길이 계산 순수 함수
 - `evaluation/creative/run.py::_industry_for` — `category_analysis.json` 기반 산업 판별
-- `evaluation/concept/concept_reference_store.py::upsert_concept_reference` — `ad_concept_reference` 적재
-- `evaluation/creative/element_vector_store.py::upsert_analysis` — `ad_production_reference` 적재
+- `db/chromadb/importers/concept_reference.py::upsert_concept_reference` — `ad_concept_reference` 적재
+- `db/chromadb/importers/production_reference.py::upsert_analysis` — `ad_production_reference` 적재
 
 ## 파일 구성
 
 | 파일 | 역할 |
 |------|------|
-| `concept_prompt.py` | concept 추출 프롬프트(1회 호출) — `{"m1":{corejob,humantruth},"m2":{valueproposition},"m3":{concepts:[{lens,claimtag,bigidea,provingwhy,job,differentiation,risk}]}}` 반환. `concept_reference_store.upsert_concept_reference` 가 그대로 소비하는 모양 |
-| `production_prompt.py` | production 추출 프롬프트(1회 호출) — `{"profile":{...},"casting":{...},"elements":[...]}` 반환. `element_vector_store.upsert_analysis` 가 그대로 소비하는 모양 |
+| `concept_prompt.py` | concept 추출 프롬프트(1회 호출) — `{"m1":{corejob,humantruth},"m2":{valueproposition},"m3":{concepts:[{lens,claimtag,bigidea,provingwhy,job,differentiation,risk}]}}` 반환. `db/chromadb/importers/concept_reference.py::upsert_concept_reference` 가 그대로 소비하는 모양 |
+| `production_prompt.py` | production 추출 프롬프트(1회 호출) — `{"profile":{...},"casting":{...},"elements":[...]}` 반환. `db/chromadb/importers/production_reference.py::upsert_analysis` 가 그대로 소비하는 모양 |
 | `pipeline.py` | `run_pipeline()` — scenario 로드 → 산업 판별 → 두 프롬프트 호출 → 결과 JSON 저장 → 두 컬렉션 upsert |
 | `run.py` | CLI 실행기 (`python -m evaluation.cli --mode ad_concept_production`) |
 

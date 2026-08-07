@@ -4,7 +4,7 @@ Claude CLI(MCP, `mcp_server.py`)와 Claude API(Anthropic 네이티브 tool_use) 
 
 `evaluation/creative/reference_retrieval.py` 의 `TOOL_DEFINITIONS_*`/`call_tool` 과 같은
 역할이다 — 검색 로직은 각 CLI 스크립트에 그대로 두고, 두 전송 경로(MCP stdio / Anthropic
-tool_use)가 이 파일의 스키마와 디스패처를 공유한다. `import/category.py`·`import/scenario.py`
+tool_use)가 이 파일의 스키마와 디스패처를 공유한다. `importers/category.py`·`importers/scenario.py`
 (컬렉션을 지우고 재적재하는 배치 작업)는 도구로 올리지 않는다 — 사람이 CLI로 직접 실행한다.
 
 이 프로젝트는 컬렉션이 물리적으로 3개 저장소에 나뉘어 있어(`output/vector_db`,

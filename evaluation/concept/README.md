@@ -11,19 +11,25 @@
 
 `concept_evaluation.json`(이 폴더의 구 추출 스키마 — flat 카테고리 라벨만 있고 "왜 이
 컨셉인가" 인과가 없음)은 더 이상 `ad_concept_reference` 문서 본문에 쓰이지 않는다. 있으면
-`concept_reference_store.py` 가 세그먼트 필터 보조 카테고리 메타데이터로만 선택적으로
-흡수한다(둘 다 없어도 `--load_vector` 는 동작하며, `strategy_analysis.json` 만 필수다).
+`db/chromadb/importers/concept_reference.py` 가 세그먼트 필터 보조 카테고리 메타데이터로만
+선택적으로 흡수한다(둘 다 없어도 `--load_vector` 는 동작하며, `strategy_analysis.json` 만 필수다).
 
 ## 파일 구성
 
 | 파일 | 역할 |
 |------|------|
-| `run.py` | CLI 실행기 (`python -m evaluation.cli --mode concept`) |
+| `run.py` | CLI 실행기 (`python -m evaluation.cli --mode concept`) — `--load_vector` 는 `db/chromadb/importers/concept_reference.py::upsert_concept_reference` 를, `--load_facets` 는 `db/chromadb/importers/facets.py::upsert_facets` 를 호출 |
 | `concept_evaluation.py` | 컨셉 추출 프롬프트 빌드 + claude 백엔드 구현 |
 | `concept_evaluation_codex.py` / `_gemini.py` / `_qwen.py` | 백엔드별 구현 |
-| `concept_reference_store.py` | `ad_concept_reference` 컬렉션 upsert/query — `strategy_analysis.json` 이 소스, M3 가 참고하는 현재 경로 |
-| `concept_vector_store.py` | [레거시] 구 `video_concept` 컬렉션 upsert/query — `generation/g4_concept_generation.py`/`cliche_report.py` 가 enum(`APPEAL_TYPE_CHOICES`/`EXECUTION_STYLE_CHOICES`)만 재사용한다. `--load_vector` 는 더 이상 이 파일을 쓰지 않는다 |
-| `facet_vector_store.py` | [레거시] facet 컬렉션 3개(`ad_target`/`ad_usp`/`ad_creative`) upsert/query — `generation/segment_retrieval.py`(레거시 G1~G6 파이프라인) 전용. `ad_concept_reference` 와는 무관하며 새 스키마로 대체되지 않았다 |
+
+`ad_concept_reference` 컬렉션(upsert/query)과 facet 컬렉션 3개(`ad_target`/`ad_usp`/
+`ad_creative`, [`../README.md`](../README.md) 참고 — `generation/segment_retrieval.py` 등
+레거시 G1~G6 파이프라인 전용, `ad_concept_reference` 와는 무관)의 실제 로직은
+`db/chromadb/importers/concept_reference.py`·`db/chromadb/importers/facets.py` 로 이전됐다
+([`../../db/README.md`](../../db/README.md) 참고). 구 `video_concept` 컬렉션
+(`concept_vector_store.py`)은 실제 DB 호출 사용처가 없어 삭제됐다 —
+`APPEAL_TYPE_CHOICES`/`EXECUTION_STYLE_CHOICES` enum 만 `generation/cliche_report.py`·
+`generation/g4_concept_generation.py` 에 인라인으로 남아 있다.
 
 ## 출력 스키마 (`concept_evaluation.json`)
 
@@ -33,7 +39,7 @@
   `message_strategy` / `execution_style`
 - category enum 상세는 `concept_evaluation.py` 및 [`../creative/element_schema.py`](../creative/element_schema.py)(`CONCEPT_INDUSTRY_CATEGORY`/`TARGET_PERSONA_CATEGORY`/`APPEAL_TYPE`/`PERCEIVED_VALUE_CATEGORY`/`MESSAGE_STRATEGY_CATEGORY`/`EXECUTION_STYLE`) 참고
 
-## `ad_concept_reference` 컬렉션 (`concept_reference_store.py`)
+## `ad_concept_reference` 컬렉션 (`db/chromadb/importers/concept_reference.py`)
 
 - **입력**: `<data_dir>/<video_id>/strategy_analysis.json` (필수 — 없으면 `--load_vector` 가 에러로 중단된다. `python -m evaluation.cli --mode strategy` 로 먼저 만든다).
 - **문서(임베딩 텍스트)**: m1 `corejob`/`humantruth.truth`/`humantruth.contradiction`, m2 `valueproposition`, m3 선택된 컨셉의 `lens`/`bigidea`/`provingwhy`/`job`/`differentiation`/`risk` 를 라벨과 함께 결합 — "USP/인간 진실이 무엇이기 때문에 이 컨셉·렌즈를 썼는가"의 인과를 그대로 담는다.

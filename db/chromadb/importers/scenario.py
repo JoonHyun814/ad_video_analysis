@@ -12,8 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from db.chromadb.connection import get_client, get_or_create_collection
-from evaluation.category.vector_store import get_embedding_function
+from db.chromadb.connection import get_client, get_embedding_function, get_or_create_collection
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _DEFAULT_DATA_ROOT = _PROJECT_ROOT / "output" / "total"

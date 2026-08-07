@@ -2,9 +2,10 @@
 
 MCP 서버(mcp_server.py)와 generation/v5_m0_m3 의 Anthropic 툴콜 경로(llm_adapter.py) 양쪽이
 이 모듈의 순수 함수를 그대로 호출한다 — 전송 계층(MCP stdio vs Anthropic tool_use)만 다르고
-검색 로직은 하나다.
+검색 로직은 하나다. generation/retrieval_pipeline/retrieval.py 도 결정적 검색 실행 단계(M5)에서
+이 모듈을 직접 호출한다.
 
-용도별로 컬렉션과 툴을 분리한다(evaluation/README.md 스키마 통합 계획):
+용도별로 컬렉션과 툴을 분리한다:
 - search_concept_reference : ad_concept_reference — M3(컨셉 발산)이 전략적으로 비슷한
   기존 광고의 소구·포지셔닝·타겟을 참고할 때.
 - search_production_reference: ad_production_reference — 컨셉 확정 후 M5(스크립트)~M9(콘티)·
@@ -24,12 +25,11 @@ from typing import Any
 
 import chromadb
 
-from evaluation.category.vector_store import _get_or_create
-from evaluation.concept.concept_reference_store import CONCEPT_COLLECTION
+from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_or_create_collection
+from db.chromadb.importers.concept_reference import CONCEPT_COLLECTION
+from db.chromadb.importers.production_reference import PRODUCTION_COLLECTION
 from evaluation.creative import element_schema as es
-from evaluation.creative.element_vector_store import PRODUCTION_COLLECTION
 
-_DEFAULT_DB = Path("output/vector_db")
 _MAX_TOP_K = 20
 
 # 호출 로깅(선택) — 환경변수로만 켜진다. 호출측(예: generation/v5_m0_m3)이 REFERENCE_RETRIEVAL_LOG_PATH
@@ -52,7 +52,8 @@ _LOG_STAGE_ENV = "REFERENCE_RETRIEVAL_LOG_STAGE"
 #     없이 순수 타 광고 레퍼런스만으로 돌렸을 때를 보기 위한 ablation.
 _SELF_VIDEO_ID_ENV = "REFERENCE_RETRIEVAL_SELF_VIDEO_ID"
 _SELF_MODE_ENV = "REFERENCE_RETRIEVAL_SELF_MODE"
-_EXISTING_AD_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "ad_concept_production"
+_EXISTING_AD_DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data" / "ad_concept_production"
+
 
 def _beats_text(scene: dict[str, Any], types: tuple[str, ...]) -> str:
     beats = [b for b in (scene.get("beats") or []) if isinstance(b, dict) and b.get("type") in types]
@@ -187,7 +188,7 @@ _clients: dict[str, "chromadb.ClientAPI"] = {}
 def _client(db_path: str | Path):
     key = str(db_path)
     if key not in _clients:
-        _clients[key] = chromadb.PersistentClient(path=key)
+        _clients[key] = get_client(db_path)
     return _clients[key]
 
 
@@ -217,7 +218,7 @@ PRODUCTION_SEGMENT_COLUMNS: dict[str, tuple[str, ...]] = {
 
 # search_concept_reference 의 segment_column — concept_evaluation.json 어휘(evaluation/concept/
 # concept_evaluation.py) 기준. target_gender/duration_bucket/price_tier 는 creative 쪽에서
-# 크로스 적재된 값이라 있는 영상만 걸린다(evaluation/concept/concept_reference_store.py 참고).
+# 크로스 적재된 값이라 있는 영상만 걸린다(db/chromadb/importers/concept_reference.py 참고).
 CONCEPT_SEGMENT_COLUMNS: dict[str, tuple[str, ...]] = {
     "industry_category": es.CONCEPT_INDUSTRY_CATEGORY,
     "target_persona_category": es.TARGET_PERSONA_CATEGORY,
@@ -281,12 +282,12 @@ def _validate_segment(tool: str, columns: dict[str, tuple[str, ...]], list_tool:
     return {segment_column: {"$eq": segment_value}}, None
 
 
-def warm_up(db_path: str | Path = _DEFAULT_DB) -> None:
+def warm_up(db_path: str | Path = DEFAULT_DB_PATH) -> None:
     """임베딩 모델(bge-m3)을 미리 로드한다 — 첫 검색 호출이 모델 로딩까지 떠안아 느려지는 대신,
     MCP 서버 기동 시점에 그 비용을 미리 치른다(mcp_server.py 가 호출)."""
     client = _client(db_path)
-    _get_or_create(client, CONCEPT_COLLECTION)
-    _get_or_create(client, PRODUCTION_COLLECTION)
+    get_or_create_collection(client, CONCEPT_COLLECTION)
+    get_or_create_collection(client, PRODUCTION_COLLECTION)
 
 
 def search_concept_reference(
@@ -294,7 +295,7 @@ def search_concept_reference(
     segment_column: str | None = None,
     segment_value: str | None = None,
     top_k: int = 5,
-    db_path: str | Path = _DEFAULT_DB,
+    db_path: str | Path = DEFAULT_DB_PATH,
 ) -> dict[str, Any]:
     """query_text 의미 유사도로 전략적으로 비슷한 참조 광고를 ad_concept_reference 에서 top_k 건 검색한다.
 
@@ -317,7 +318,7 @@ def search_concept_reference(
         return err
 
     client = _client(db_path)
-    col = _get_or_create(client, CONCEPT_COLLECTION)
+    col = get_or_create_collection(client, CONCEPT_COLLECTION)
     if col.count() == 0:
         out = {"results": [], "count": 0, "note": "ad_concept_reference 컬렉션이 비어 있습니다."}
         _log_call("search_concept_reference", _args, out)
@@ -369,7 +370,7 @@ def search_production_reference(
     segment_value: str | None = None,
     top_k: int = 5,
     elements_per_ad: int = 4,
-    db_path: str | Path = _DEFAULT_DB,
+    db_path: str | Path = DEFAULT_DB_PATH,
 ) -> dict[str, Any]:
     """query_text 의미 유사도로 연출이 비슷한 참조 광고를 ad_production_reference 에서 top_k 건
     검색하고, 각 광고의 대표 크리에이티브 요소(elements_per_ad 건)를 함께 반환한다.
@@ -394,7 +395,7 @@ def search_production_reference(
         return err
 
     client = _client(db_path)
-    col = _get_or_create(client, PRODUCTION_COLLECTION)
+    col = get_or_create_collection(client, PRODUCTION_COLLECTION)
     if col.count() == 0:
         out = {"results": [], "count": 0, "note": "ad_production_reference 컬렉션이 비어 있습니다."}
         _log_call("search_production_reference", _args, out)

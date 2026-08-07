@@ -6,7 +6,7 @@ avoid/subvert 로 결정된 클러스터에 threshold 이내로 근접한 컨셉
 """
 import numpy as np
 
-from evaluation.category.vector_store import get_embedding_function
+from db.chromadb.connection import get_embedding_function
 
 _AVOID_DECISIONS = ("avoid", "subvert")
 

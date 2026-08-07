@@ -1,23 +1,18 @@
-"""category_analysis.json 결과를 ChromaDB 벡터 DB에 적재하고 검색한다."""
+"""category_analysis.json 결과를 video_category 컬렉션에 적재하고 검색한다.
+
+evaluation/category/vector_store.py 를 그대로 흡수한 모듈이다 — evaluation/category/run.py
+(`--mode category --load_vector`)가 upsert_video 를, db/chromadb/mcp_server.py 계열이 아닌
+과거 db/chromadb_search.py·db/cluster.py·db/reembed.py 가 query/build_query_text/build_where 를
+썼다(세 파일은 이제 삭제되고 기능은 db/chromadb 도구로 대체됨).
+"""
+from __future__ import annotations
+
 from pathlib import Path
 
-import chromadb
-from chromadb.utils import embedding_functions
+from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_or_create_collection
 
 _COLLECTION = "video_category"
-EMBEDDING_MODEL = "BAAI/bge-m3"  # 한/영 cross-lingual 임베딩
 
-_ef_cache: embedding_functions.SentenceTransformerEmbeddingFunction | None = None
-
-
-def get_embedding_function() -> embedding_functions.SentenceTransformerEmbeddingFunction:
-    """프로세스 단위로 임베딩 모델을 1회만 로드한다."""
-    global _ef_cache
-    if _ef_cache is None:
-        _ef_cache = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=EMBEDDING_MODEL
-        )
-    return _ef_cache
 # 벡터화할 필드: 앞 두 항목(industry_category, product_category)은 메타데이터에도 동시 저장
 _TEXT_FIELDS = (
     "industry_category", "product_category",
@@ -64,53 +59,38 @@ def _build_metadata(video_id: int, category: dict) -> dict:
     return meta
 
 
-# ── ChromaDB 헬퍼 ──────────────────────────────────────────────────────────────
-
-def _get_or_create(client, name: str) -> chromadb.Collection:
-    """컬렉션이 있으면 그대로 가져오고, 없으면 cosine 유사도로 새로 생성한다.
-    get_or_create_collection 에 metadata= 를 넘기면 기존 데이터가 초기화되는
-    ChromaDB 1.5.x 버그를 피하기 위해 두 단계로 나눈다."""
-    ef = get_embedding_function()
-    try:
-        return client.get_collection(name, embedding_function=ef)
-    except Exception:
-        return client.create_collection(
-            name, embedding_function=ef, metadata={"hnsw:space": "cosine"}
-        )
-
-
 # ── 적재 ───────────────────────────────────────────────────────────────────────
 
 def upsert_video(
     video_id: int,
     category: dict,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path = DEFAULT_DB_PATH,
     collection_name: str = _COLLECTION,
 ) -> None:
     """category_analysis 결과를 ChromaDB에 upsert 한다."""
-    client = chromadb.PersistentClient(path=str(db_path))
-    col = _get_or_create(client, collection_name)
+    client = get_client(db_path)
+    col = get_or_create_collection(client, collection_name)
     col.upsert(
         ids=[f"ad:{video_id}:category"],
         documents=[_build_document(category)],
         metadatas=[_build_metadata(video_id, category)],
     )
-    print(f"  [vector_store] upsert 완료: ad:{video_id}:category (collection={collection_name})")
+    print(f"  [video_category] upsert 완료: ad:{video_id}:category (collection={collection_name})")
 
 
 def upsert_batch(
     records: list[tuple[int, dict]],
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path = DEFAULT_DB_PATH,
     collection_name: str = _COLLECTION,
 ) -> None:
     """복수 category_analysis 결과를 한 번에 upsert 한다."""
-    client = chromadb.PersistentClient(path=str(db_path))
-    col = _get_or_create(client, collection_name)
+    client = get_client(db_path)
+    col = get_or_create_collection(client, collection_name)
     ids = [f"ad:{vid}:category" for vid, _ in records]
     docs = [_build_document(cat) for _, cat in records]
     metas = [_build_metadata(vid, cat) for vid, cat in records]
     col.upsert(ids=ids, documents=docs, metadatas=metas)
-    print(f"  [vector_store] {len(ids)}건 upsert 완료 (collection={collection_name})")
+    print(f"  [video_category] {len(ids)}건 upsert 완료 (collection={collection_name})")
 
 
 # ── 쿼리 빌더 ─────────────────────────────────────────────────────────────────
@@ -210,7 +190,7 @@ def query(
     # 검색 제어
     text: str | None = None,
     n_results: int = 5,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path = DEFAULT_DB_PATH,
     collection_name: str = _COLLECTION,
 ) -> list[dict]:
     """필드별 인자로 유사도 검색한다.
@@ -242,8 +222,8 @@ def query(
         duration_max=filter_duration_max,
     )
 
-    client = chromadb.PersistentClient(path=str(db_path))
-    col = _get_or_create(client, collection_name)
+    client = get_client(db_path)
+    col = get_or_create_collection(client, collection_name)
 
     if not query_text:
         raise ValueError("검색할 텍스트 필드를 하나 이상 제공해야 한다.")

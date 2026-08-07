@@ -3,8 +3,7 @@
 M3(컨셉 발산)이 "이 브리프(M0~M2)와 전략적으로 비슷한 기존 광고는 어떤 인간 진실·가치
 제안에서 출발해 어떤 전략 렌즈로 컨셉을 만들고 그 why 를 어떻게 증명했는가"를 참고하는
 전용 컬렉션이다 — 연출/촬영 디테일은 다루지 않는다(그건 컨셉 확정 후 M5~M9·스토리보드가
-참고하는 evaluation/creative/element_vector_store.py 의 ad_production_reference 몫).
-evaluation/README.md 스키마 통합 계획 참고.
+참고하는 db/chromadb/importers/production_reference.py 의 ad_production_reference 몫).
 
 evaluation/strategy/run.py(evaluation/strategy/strategy_extraction.py)가 scenario_analysis.json
 에서 역추출한 m1(corejob·humantruth)/m2(valueproposition)/m3(lens·bigidea·provingwhy·job·
@@ -12,15 +11,14 @@ differentiation·claimtag·risk)를 문서·메타데이터로 쓴다 — concep
 flat 카테고리 라벨만 있고 "왜 이 컨셉인가"의 인과가 없음)은 더 이상 문서 본문에 쓰지 않고,
 있으면 세그먼트 필터용 카테고리 메타데이터(industry_category 등)로만 보조 사용한다.
 
-레거시 evaluation/concept/concept_vector_store.py(video_concept)·facet_vector_store.py
-(ad_target/ad_usp/ad_creative)를 대체한다 — 두 파일은 legacy G1~G6 파이프라인이 여전히
-참조하므로 삭제하지 않고 그대로 두되, 이 모듈은 그것들을 재사용하지 않는다.
+evaluation/concept/run.py(`--mode concept --load_vector`)가 upsert_concept_reference 를,
+db/chromadb/creative_search.py 가 fetch_concepts 를 쓴다.
 """
 from pathlib import Path
 
 import chromadb
 
-from evaluation.category.vector_store import _get_or_create
+from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_or_create_collection
 
 CONCEPT_COLLECTION = "ad_concept_reference"
 
@@ -80,8 +78,8 @@ def _select_concept(m3: dict) -> dict:
 
 
 def _collection(db_path: str | Path) -> chromadb.Collection:
-    client = chromadb.PersistentClient(path=str(db_path))
-    return _get_or_create(client, CONCEPT_COLLECTION)
+    client = get_client(db_path)
+    return get_or_create_collection(client, CONCEPT_COLLECTION)
 
 
 def _document(strategy: dict) -> str:
@@ -142,7 +140,7 @@ def _metadata(video_id: int, strategy: dict, enrich: dict | None, concept_eval: 
 def upsert_concept_reference(
     video_id: int,
     strategy: dict,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path = DEFAULT_DB_PATH,
     enrich: dict | None = None,
     concept_eval: dict | None = None,
 ) -> None:
@@ -158,10 +156,10 @@ def upsert_concept_reference(
         documents=[_document(strategy)],
         metadatas=[_metadata(video_id, strategy, enrich, concept_eval)],
     )
-    print(f"  [concept_reference_store] video_id={video_id}: concept 1건 upsert")
+    print(f"  [concept_reference] video_id={video_id}: concept 1건 upsert")
 
 
-def fetch_concepts(where: dict | None = None, db_path: str | Path = "output/vector_db") -> list[dict]:
+def fetch_concepts(where: dict | None = None, db_path: str | Path = DEFAULT_DB_PATH) -> list[dict]:
     """세그먼트에 속한 concept 레코드를 조회한다."""
     res = _collection(db_path).get(**({"where": where} if where else {}), include=["documents", "metadatas"])
     return [

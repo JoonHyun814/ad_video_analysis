@@ -2,7 +2,7 @@
 
 device_scout.py 가 제안한 query_text/target_collection 을 그대로 evaluation/ad_concept_production
 이 적재한 벡터 DB(output/vector_db 의 ad_concept_reference·ad_production_reference 컬렉션,
-evaluation/creative/reference_retrieval.py 가 소유)에 쏜다. v5_m0_m3 의 --retrieval(M3/M4~M9)은
+db/chromadb/creative_search.py 가 소유)에 쏜다. v5_m0_m3 의 --retrieval(M3/M4~M9)은
 "검색할지·언제·몇 건" 을 LLM 이 tool_use 로 그때그때 판단하지만, 이 파이프라인은 반대로
 **검색 실행 자체를 코드가 결정적으로 수행**한다 — 그래야 "서칭에 입력된 쿼리"와 "서칭 결과"를
 LLM 응답과 무관하게 그대로 파일로 남길 수 있다(사용자 요청: 쿼리/검색결과/모델입력 투명성).
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from evaluation.creative.reference_retrieval import (
+from db.chromadb.creative_search import (
     search_concept_reference,
     search_production_reference,
 )

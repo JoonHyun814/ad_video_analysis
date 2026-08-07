@@ -1,6 +1,6 @@
 """retrieval_pipeline CLI — M5(장치별 벡터 DB 검색 실행, 결정적·LLM 아님).
 
-M4(cli_m4.py)가 제안한 장치 후보·검색 쿼리를 evaluation.creative.reference_retrieval 로 그대로
+M4(cli_m4.py)가 제안한 장치 후보·검색 쿼리를 db.chromadb.creative_search 로 그대로
 실행한다(evaluation/ad_concept_production 이 output/vector_db 에 적재한 ad_production_reference/
 ad_concept_reference 컬렉션). M4 를 다시 태우지 않고 --top_k 만 바꿔 재검색하고 싶을 때 이
 단계만 다시 돌리면 된다.
