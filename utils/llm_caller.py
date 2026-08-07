@@ -27,6 +27,12 @@ def call_claude(prompt: str, timeout: int = 300, allowed_tools: list[str] | None
     텍스트에 "529"/"Overloaded" 가 있는지만 보는 방식은 모델이 도중에 끊겨도
     감지하지 못해 잘린 JSON이 그대로 parse_failed 로 빠지는 문제가 있었다.
 
+    prompt 는 CLI 위치 인자가 아니라 stdin 으로 넘긴다 — call_codex() 와 동일한 이유(Windows
+    CreateProcess 의 명령줄 길이 제한)다. 검색 결과를 통째로 프롬프트에 싣는 호출(예:
+    generation/retrieval_pipeline 의 M6)처럼 프롬프트가 커지면 위치 인자로는
+    `FileNotFoundError: [WinError 206] 파일 이름이나 확장명이 너무 깁니다` 로 조용히 실패한다.
+    `claude -p` 는 위치 인자 prompt 가 없으면 stdin 에서 읽는다(`echo "..." | claude -p` 와 동일).
+
     allowed_tools: 예) ["WebSearch"] — 헤드리스 -p 모드는 기본적으로 WebSearch 등
     권한이 필요한 툴을 자동 거부(permission_denials)한다. 실제 웹 검색이 필요하면 지정한다.
     mcp_config: MCP 서버 설정 파일 경로(예: 프로젝트 루트의 `.mcp.json`). 헤드리스 -p 모드는
@@ -34,7 +40,7 @@ def call_claude(prompt: str, timeout: int = 300, allowed_tools: list[str] | None
     명시적으로 지정해야 한다. allowed_tools 에 그 서버의 도구명(`mcp__<server>__<tool>`)도
     함께 넣어야 실제로 호출을 허용한다.
     """
-    cmd = ["claude", "-p", prompt, "--output-format", "json"]
+    cmd = ["claude", "-p", "--output-format", "json"]
     if mcp_config:
         cmd += ["--mcp-config", mcp_config]
     if allowed_tools:
@@ -45,7 +51,8 @@ def call_claude(prompt: str, timeout: int = 300, allowed_tools: list[str] | None
     for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
         try:
             with open(out_path, "w", encoding="utf-8") as out_f:
-                subprocess.run(cmd, stdout=out_f, stderr=subprocess.DEVNULL, timeout=timeout)
+                subprocess.run(cmd, input=prompt, text=True, encoding="utf-8",
+                               stdout=out_f, stderr=subprocess.DEVNULL, timeout=timeout)
             raw = out_path.read_text(encoding="utf-8")
             result_text, retry_needed = _unwrap_envelope(raw)
         except subprocess.TimeoutExpired:
