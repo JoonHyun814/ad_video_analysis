@@ -65,7 +65,7 @@ python -m evaluation.cli --mode concept --video_id <ID> --data_dir <dir> --load_
 | `--concept_evaluation` | off | [레거시] `concept_evaluation.json` 추출 — `--load_vector` 문서 본문에는 더 이상 쓰이지 않고, 있으면 세그먼트 필터 보조로만 흡수됨 |
 | `--load_vector` | off | `strategy_analysis.json`(필수) + `concept_evaluation.json`/`creative_element_analysis.json`(있으면)을 `ad_concept_reference` 에 upsert |
 | `--load_facets` | off | [레거시] facet 컬렉션 3개에 분리 upsert — `ad_concept_reference` 와 무관 |
-| `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--db_path` | (미지정 시 자동) | ChromaDB 저장 경로 — 안 주면 `--load_vector` 는 `data/ad_concept_reference/`, `--load_facets` 는 facet 마다 `data/ad_target|ad_usp|ad_creative/` 로 자동 결정된다 |
 | `--llm_backend` | `claude` | (`--concept_evaluation`/`--load_facets` 전용) `claude` \| `codex` \| `qwen` \| `gemini` |
 | `--codex_model` / `--qwen_model` / `--gemini_model` | — | 백엔드별 모델명 |
 

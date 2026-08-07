@@ -22,7 +22,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--load_vector", action="store_true",
                    help=f"{_ANALYSIS_FILE} 을 profile/element 컬렉션에 upsert")
     p.add_argument("--report", action="store_true", help="세그먼트 클리셰 리포트 생성")
-    p.add_argument("--db_path", type=Path, default=Path("output/vector_db"), help="ChromaDB 저장 경로")
+    p.add_argument("--db_path", type=Path, default=None,
+                   help="ChromaDB 저장 경로 (기본: data/ad_production_reference/ 자동 결정)")
     # report 세그먼트 필터
     p.add_argument("--industry", default=None, help="[report] industry_category 필터 (예: beauty)")
     p.add_argument("--product_category", default=None, help="[report] product_category_norm 필터 (예: skincare)")

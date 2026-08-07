@@ -16,7 +16,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--video_id", required=True, help="대상 영상 ID(쉼표 구분 복수 허용)")
     p.add_argument("--data_dir", type=Path, default=Path("output/total"),
                    help="데이터 루트(기본: output/total). 경로: <data_dir>/<video_id>/")
-    p.add_argument("--db_path", type=Path, default=Path("output/vector_db"), help="ChromaDB 저장 경로")
+    p.add_argument("--db_path", type=Path, default=None,
+                   help="ChromaDB 저장 경로 (기본: 컬렉션별 data/<collection>/ 자동 결정)")
     p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default="claude",
                    help="LLM 백엔드(기본: claude) — claude: claude -p CLI(로그인 세션 필요) | "
                         "claude_api: Anthropic API 직접 호출(env/api.env ANTHROPIC_API_KEY 필요) | "

@@ -25,10 +25,13 @@ from typing import Any
 
 import chromadb
 
-from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_or_create_collection
+from db.chromadb.connection import db_path_for, get_client, get_or_create_collection
 from db.chromadb.importers.concept_reference import CONCEPT_COLLECTION
 from db.chromadb.importers.production_reference import PRODUCTION_COLLECTION
 from evaluation.creative import element_schema as es
+
+_CONCEPT_DB_PATH = db_path_for(CONCEPT_COLLECTION)
+_PRODUCTION_DB_PATH = db_path_for(PRODUCTION_COLLECTION)
 
 _MAX_TOP_K = 20
 
@@ -282,12 +285,12 @@ def _validate_segment(tool: str, columns: dict[str, tuple[str, ...]], list_tool:
     return {segment_column: {"$eq": segment_value}}, None
 
 
-def warm_up(db_path: str | Path = DEFAULT_DB_PATH) -> None:
+def warm_up() -> None:
     """임베딩 모델(bge-m3)을 미리 로드한다 — 첫 검색 호출이 모델 로딩까지 떠안아 느려지는 대신,
-    MCP 서버 기동 시점에 그 비용을 미리 치른다(mcp_server.py 가 호출)."""
-    client = _client(db_path)
-    get_or_create_collection(client, CONCEPT_COLLECTION)
-    get_or_create_collection(client, PRODUCTION_COLLECTION)
+    MCP 서버 기동 시점에 그 비용을 미리 치른다(mcp_server.py 가 호출). 두 컬렉션은 서로 다른
+    저장소(data/ad_concept_reference/, data/ad_production_reference/)라 각각 예열한다."""
+    get_or_create_collection(_client(_CONCEPT_DB_PATH), CONCEPT_COLLECTION)
+    get_or_create_collection(_client(_PRODUCTION_DB_PATH), PRODUCTION_COLLECTION)
 
 
 def search_concept_reference(
@@ -295,9 +298,10 @@ def search_concept_reference(
     segment_column: str | None = None,
     segment_value: str | None = None,
     top_k: int = 5,
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """query_text 의미 유사도로 전략적으로 비슷한 참조 광고를 ad_concept_reference 에서 top_k 건 검색한다.
+    db_path 를 안 주면(None) `data/ad_concept_reference/` 를 쓴다.
 
     M3(컨셉 발산)이 "이 브리프와 비슷한 상황에서 어떤 소구·포지셔닝·타겟이 쓰였는지" 참고할 때
     쓴다 — 연출/촬영 디테일은 search_production_reference 몫이다.
@@ -317,7 +321,7 @@ def search_concept_reference(
         _log_call("search_concept_reference", _args, err)
         return err
 
-    client = _client(db_path)
+    client = _client(db_path or _CONCEPT_DB_PATH)
     col = get_or_create_collection(client, CONCEPT_COLLECTION)
     if col.count() == 0:
         out = {"results": [], "count": 0, "note": "ad_concept_reference 컬렉션이 비어 있습니다."}
@@ -370,10 +374,11 @@ def search_production_reference(
     segment_value: str | None = None,
     top_k: int = 5,
     elements_per_ad: int = 4,
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """query_text 의미 유사도로 연출이 비슷한 참조 광고를 ad_production_reference 에서 top_k 건
     검색하고, 각 광고의 대표 크리에이티브 요소(elements_per_ad 건)를 함께 반환한다.
+    db_path 를 안 주면(None) `data/ad_production_reference/` 를 쓴다.
 
     컨셉이 확정된 뒤 M5(스크립트)~M9(콘티)·스토리보드 HTML 이 훅·카피 장치·구도·카메라워크·
     캐스팅 같은 연출 기법을 참고할 때 쓴다. video_ids 로 특정 영상들만 좁힐 필요는 없다 —
@@ -394,7 +399,7 @@ def search_production_reference(
         _log_call("search_production_reference", _args, err)
         return err
 
-    client = _client(db_path)
+    client = _client(db_path or _PRODUCTION_DB_PATH)
     col = get_or_create_collection(client, PRODUCTION_COLLECTION)
     if col.count() == 0:
         out = {"results": [], "count": 0, "note": "ad_production_reference 컬렉션이 비어 있습니다."}

@@ -1,4 +1,5 @@
-"""output/vector_db 를 evaluation/ad_concept_production 통합 파이프라인으로 재구축한다.
+"""ad_concept_reference/ad_production_reference 컬렉션(각 data/<collection>/)을
+evaluation/ad_concept_production 통합 파이프라인으로 재구축한다.
 
 video_id 별로 output/total/<id>/(레포 바깥 원본, 읽기 전용 — 절대 쓰지 않는다)에서
 scenario_analysis.json·category_analysis.json 을 data/ad_concept_production/<id>/ 로 복사한
@@ -30,7 +31,6 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).parent
 _SOURCE_ROOT = Path(r"C:\Analysis_workspace\ad_video_analysis\output\total")  # 읽기 전용, 절대 쓰지 않음
 _DATA_DIR = _REPO_ROOT / "data" / "ad_concept_production"
-_DB_PATH = _REPO_ROOT / "output" / "vector_db"
 
 _CONCEPT_OUT = "concept_analysis.json"
 _PRODUCTION_OUT = "production_analysis.json"
@@ -56,17 +56,18 @@ def _log(log_path: Path, msg: str) -> None:
 
 
 def _already_loaded(video_id: int) -> bool:
-    """ad_concept_reference/ad_production_reference 양쪽에 이미 적재돼 있으면 True(재실행 스킵용)."""
-    from db.chromadb.connection import get_client
+    """ad_concept_reference/ad_production_reference 양쪽에 이미 적재돼 있으면 True(재실행 스킵용).
 
-    client = get_client(_DB_PATH)
+    두 컬렉션은 각자의 data/<collection>/ 에 따로 산다(db_path_for)."""
+    from db.chromadb.connection import db_path_for, get_client
+
     try:
-        concept_col = client.get_collection("ad_concept_reference")
+        concept_col = get_client(db_path_for("ad_concept_reference")).get_collection("ad_concept_reference")
         has_concept = len(concept_col.get(ids=[f"ad:{video_id}:concept"])["ids"]) > 0
     except Exception:
         has_concept = False
     try:
-        prod_col = client.get_collection("ad_production_reference")
+        prod_col = get_client(db_path_for("ad_production_reference")).get_collection("ad_production_reference")
         has_prod = len(prod_col.get(ids=[f"ad:{video_id}:profile"])["ids"]) > 0
     except Exception:
         has_prod = False
@@ -95,9 +96,11 @@ def _process_one(video_id: int, backend: str, log_path: Path) -> tuple[bool, boo
     extracted = not ((video_dir / _CONCEPT_OUT).exists() and (video_dir / _PRODUCTION_OUT).exists())
     _log(log_path, f"[{video_id}] {'추출+적재 실행' if extracted else '분석 파일 이미 있음 -> 추출 스킵, 바로 적재'}")
 
+    # --db_path 를 안 준다 — ad_concept_production/run.py 기본값이 두 컬렉션을 각자의
+    # data/<collection>/ 에 자동으로 나눠 적재한다(db_path_for).
     cmd = [sys.executable, "-m", "evaluation.cli", "--mode", "ad_concept_production",
            "--video_id", str(video_id), "--data_dir", str(_DATA_DIR),
-           "--db_path", str(_DB_PATH), "--llm_backend", backend]
+           "--llm_backend", backend]
     _log(log_path, f"  $ {' '.join(cmd[2:])}")
     result = subprocess.run(cmd, cwd=_REPO_ROOT, capture_output=True, text=True, encoding="utf-8")
     if result.stdout:

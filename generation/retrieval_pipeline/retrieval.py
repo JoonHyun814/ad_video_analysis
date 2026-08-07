@@ -1,7 +1,7 @@
 """M5 — 장치별 검색을 실제로 실행한다(결정적, LLM 도구 호출이 아니라 순수 함수 호출).
 
 device_scout.py 가 제안한 query_text/target_collection 을 그대로 evaluation/ad_concept_production
-이 적재한 벡터 DB(output/vector_db 의 ad_concept_reference·ad_production_reference 컬렉션,
+이 적재한 벡터 DB(각 컬렉션의 data/<collection>/, ad_concept_reference·ad_production_reference,
 db/chromadb/creative_search.py 가 소유)에 쏜다. v5_m0_m3 의 --retrieval(M3/M4~M9)은
 "검색할지·언제·몇 건" 을 LLM 이 tool_use 로 그때그때 판단하지만, 이 파이프라인은 반대로
 **검색 실행 자체를 코드가 결정적으로 수행**한다 — 그래야 "서칭에 입력된 쿼리"와 "서칭 결과"를
@@ -21,7 +21,7 @@ _DEFAULT_TOP_K = 3
 _DEFAULT_ELEMENTS_PER_AD = 3
 
 
-def _search_one(device: DeviceQuery, *, top_k: int, elements_per_ad: int, db_path: str) -> dict[str, Any]:
+def _search_one(device: DeviceQuery, *, top_k: int, elements_per_ad: int, db_path: str | None) -> dict[str, Any]:
     collection = device.target_collection if device.target_collection == "concept" else "production"
     if collection == "concept":
         result = search_concept_reference(device.query_text, top_k=top_k, db_path=db_path)
@@ -43,8 +43,11 @@ def _search_one(device: DeviceQuery, *, top_k: int, elements_per_ad: int, db_pat
 
 def run_searches(devices: list[DeviceQuery], *, top_k: int = _DEFAULT_TOP_K,
                  elements_per_ad: int = _DEFAULT_ELEMENTS_PER_AD,
-                 db_path: str = "output/vector_db") -> list[dict[str, Any]]:
-    """장치 후보마다 검색 1건씩 실행해 (쿼리+결과)를 묶어 반환한다 — 순서는 devices 순서 그대로."""
+                 db_path: str | None = None) -> list[dict[str, Any]]:
+    """장치 후보마다 검색 1건씩 실행해 (쿼리+결과)를 묶어 반환한다 — 순서는 devices 순서 그대로.
+
+    db_path 를 안 주면(None, 기본) concept/production 컬렉션이 각자의 data/<collection>/ 를 쓴다.
+    """
     return [_search_one(d, top_k=top_k, elements_per_ad=elements_per_ad, db_path=db_path) for d in devices]
 
 

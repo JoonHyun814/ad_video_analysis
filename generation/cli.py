@@ -28,8 +28,8 @@ def _add_advertiser_args(p: argparse.ArgumentParser) -> None:
 
 def _add_vector_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("세그먼트/클리셰 분석 (G2·G5)")
-    g.add_argument("--vector_db_path", type=Path, default=Path("output/vector_db"),
-                   help="ChromaDB 저장 경로 (기본: output/vector_db)")
+    g.add_argument("--vector_db_path", type=Path, default=None,
+                   help="ChromaDB 저장 경로 (기본: facet 마다 data/ad_target|ad_usp|ad_creative/ 자동 결정)")
     g.add_argument("--min_segment", type=int, default=15,
                    help="[G2] 세그먼트 최소 표본 수 — 미달 시 필터 계층 완화 (기본: 15)")
     g.add_argument("--segment_cap", type=int, default=60,

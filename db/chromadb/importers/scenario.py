@@ -12,12 +12,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from db.chromadb.connection import get_client, get_embedding_function, get_or_create_collection
+from db.chromadb.connection import db_path_for, get_client, get_embedding_function, get_or_create_collection
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _DEFAULT_DATA_ROOT = _PROJECT_ROOT / "output" / "total"
-_DEFAULT_DB_PATH = _PROJECT_ROOT / "data" / "scenario"
 _COLLECTION = "scenario_analysis"
+_DEFAULT_DB_PATH = db_path_for(_COLLECTION)
 
 
 def _collect_records(data_root: Path) -> list[tuple[int, dict]]:

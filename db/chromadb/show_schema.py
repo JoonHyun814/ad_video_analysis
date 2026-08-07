@@ -11,13 +11,16 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from db.chromadb.connection import DEFAULT_DB_PATH, get_client
+from db.chromadb.connection import db_path_for, get_client
 
 
-def inspect_schema(collection_name: str, db_path: Path | str = DEFAULT_DB_PATH,
+def inspect_schema(collection_name: str, db_path: Path | str | None = None,
                     sample_size: int = 500) -> dict[str, Any]:
-    """count 와, 샘플 기준 메타데이터 필드별 타입/예시값/등장 빈도를 반환한다."""
-    client = get_client(db_path)
+    """count 와, 샘플 기준 메타데이터 필드별 타입/예시값/등장 빈도를 반환한다.
+
+    db_path 를 안 주면 `data/<collection_name>/` 를 쓴다.
+    """
+    client = get_client(db_path if db_path is not None else db_path_for(collection_name))
     col = client.get_collection(collection_name)
     total = col.count()
     if total == 0:
@@ -58,7 +61,8 @@ def _print_schema(info: dict[str, Any]) -> None:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="ChromaDB 컬렉션 스키마 + 데이터 수 출력")
     p.add_argument("--collection", required=True, help="조회할 컬렉션명")
-    p.add_argument("--db_path", type=Path, default=DEFAULT_DB_PATH, help="ChromaDB 저장 경로")
+    p.add_argument("--db_path", type=Path, default=None,
+                   help="ChromaDB 저장 경로(미지정 시 data/<collection>/)")
     p.add_argument("--sample_size", type=int, default=500, help="스키마 추론에 쓸 샘플 크기")
     p.add_argument("--json", action="store_true", dest="as_json", help="결과를 JSON으로 출력")
     return p

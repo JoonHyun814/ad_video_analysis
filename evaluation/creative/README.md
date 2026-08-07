@@ -45,8 +45,10 @@ enum 으로 추출해 벡터 DB 에 적재하고, 세그먼트(예: beauty×스�
 참조 광고 의미 검색(`search_concept_reference`/`search_production_reference` + `list_*_segment_columns`,
 구 `reference_retrieval.py`)은 [`../../db/README.md`](../../db/README.md)의
 `db/chromadb/importers/production_reference.py`·`db/chromadb/creative_search.py` 로 이전됐다 —
-MCP 서버(`chromadb-explorer`)와 `generation/v5_m0_m3` 의 Anthropic tool_use 경로가 그 모듈을
-공유한다.
+`generation/retrieval_pipeline`(M5 결정적 검색)과 `generation/v5_m0_m3 --retrieval
+--llm_backend api`(Anthropic 네이티브 tool_use)가 그 모듈을 직접 호출한다. MCP 서버
+(`chromadb-explorer`)는 이 함수들을 도구로 노출하지 않는다 — 범용 `search_chromadb` 하나만
+노출하므로 `--llm_backend cli` 는 segment 필터·self-reference 없이 자연어 검색만 쓴다.
 
 ## 컬렉션
 
@@ -91,7 +93,7 @@ python -m evaluation.cli --mode creative [--extract] [--load_vector] [--report] 
 | `--industry_secondary` | — | [extract] 부산업 강제 지정 (예: `entertainment`). 배치 전체 동일 적용. 미지정 시 `category_analysis.json` 의 `industry_category` 가 리스트면 2번째 값을 자동 사용 |
 | `--load_vector` | off | 추출 결과를 `ad_production_reference` 에 upsert (v1 파일 자동 변환) |
 | `--report` | off | 세그먼트 클리셰 리포트 출력 |
-| `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--db_path` | (미지정 시 자동) | ChromaDB 저장 경로 — 안 주면 `data/ad_production_reference/` 로 자동 결정된다 |
 | `--industry` | — | [report] `industry_category` 필터 (예: `beauty`, `tech_electronics`) |
 | `--product_category` | — | [report] `product_category_norm` 필터 (예: `skincare`) |
 | `--product_subtype` / `--target_gender` / `--duration_bucket` | — | [report] 추가 세그먼트 필터 |

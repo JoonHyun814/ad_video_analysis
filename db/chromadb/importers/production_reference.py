@@ -17,10 +17,11 @@ from pathlib import Path
 
 import chromadb
 
-from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_or_create_collection
+from db.chromadb.connection import db_path_for, get_client, get_or_create_collection
 from evaluation.creative import element_schema as es
 
 PRODUCTION_COLLECTION = "ad_production_reference"
+_DEFAULT_DB_PATH = db_path_for(PRODUCTION_COLLECTION)
 
 # 요소 레코드에 복제되는 세그먼트 필터 키
 _SEGMENT_KEYS = ("industry_category", "industry_secondary", "product_category_norm", "product_subtype",
@@ -47,8 +48,9 @@ def _normalize_legacy(analysis: dict) -> dict:
     return analysis
 
 
-def _collection(db_path: str | Path) -> chromadb.Collection:
-    client = get_client(db_path)
+def _collection(db_path: str | Path | None) -> chromadb.Collection:
+    """db_path 를 안 주면(None) `data/ad_production_reference/` 를 쓴다."""
+    client = get_client(db_path or _DEFAULT_DB_PATH)
     return get_or_create_collection(client, PRODUCTION_COLLECTION)
 
 
@@ -113,7 +115,7 @@ def _element_metadata(video_id: int, elem: dict, profile_meta: dict) -> dict:
 def upsert_analysis(
     video_id: int,
     analysis: dict,
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
 ) -> None:
     """분석 결과 1건을 profile 1레코드 + element N레코드로 upsert 한다 (v1 파일 흡수)."""
     analysis = _normalize_legacy(analysis)
@@ -180,7 +182,7 @@ def build_segment_where(
     return conditions[0] if len(conditions) == 1 else {"$and": conditions}
 
 
-def fetch_profiles(where: dict | None = None, db_path: str | Path = DEFAULT_DB_PATH) -> list[dict]:
+def fetch_profiles(where: dict | None = None, db_path: str | Path | None = None) -> list[dict]:
     """세그먼트에 속한 profile 레코드를 조회한다."""
     res = _collection(db_path).get(where=_with_kind(where, "profile"), include=["documents", "metadatas"])
     return [
@@ -189,7 +191,7 @@ def fetch_profiles(where: dict | None = None, db_path: str | Path = DEFAULT_DB_P
     ]
 
 
-def fetch_elements(where: dict | None = None, db_path: str | Path = DEFAULT_DB_PATH) -> list[dict]:
+def fetch_elements(where: dict | None = None, db_path: str | Path | None = None) -> list[dict]:
     """세그먼트에 속한 요소 레코드를 조회한다 (클리셰 집계 입력)."""
     res = _collection(db_path).get(where=_with_kind(where, "element"), include=["documents", "metadatas"])
     return [

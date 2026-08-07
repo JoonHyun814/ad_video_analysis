@@ -53,13 +53,16 @@ def _save(video_dir: Path, filename: str, data: dict) -> None:
 def run_pipeline(
     video_id: int,
     video_dir: Path,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path | None = None,
     backend: str = "claude",
     timeout: int = 600,
     force: bool = False,
 ) -> dict:
     """<video_dir>/scenario_analysis.json 을 읽어 concept_analysis.json·production_analysis.json
     으로 저장하고, 성공한 쪽만 각각 ad_concept_reference/ad_production_reference 에 upsert 한다.
+
+    db_path 를 안 주면(None, 기본) 두 컬렉션이 각자의 `data/<collection>/` 에 자동으로
+    저장된다 — 명시적으로 주면(예: 테스트용 스크래치 경로) 두 upsert 모두 그 경로 하나를 쓴다.
 
     force=False(기본)면 concept_analysis.json/production_analysis.json 이 이미 있을 때 LLM 재호출
     없이 그 파일을 그대로 적재만 한다(재실행 안전 — 중단 후 이어서 돌려도 중복 과금 없음).

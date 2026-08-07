@@ -30,7 +30,7 @@ python -m evaluation.cli --mode category --video_id <ID> [--category_analysis] [
 | `--data_dir` | `output/product_plan/claude` | `<data_dir>/<video_id>/scenario_analysis.json` 입력 |
 | `--category_analysis` | off | 카테고리 메타데이터 추출 → `category_analysis.json` |
 | `--load_vector` | off | `category_analysis.json` 을 ChromaDB 에 upsert |
-| `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--db_path` | (미지정 시 자동) | ChromaDB 저장 경로 — 안 주면 `data/video_category/` 로 자동 결정된다 |
 | `--collection` | `video_category` | 컬렉션명 |
 | `--llm_backend` | `claude` | `claude` \| `codex` \| `gemini` |
 | `--codex_model` / `--gemini_model` | — | 백엔드별 모델명 |

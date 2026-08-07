@@ -5,6 +5,11 @@ EMBEDDING_MODEL/get_embedding_function 은 원래 evaluation/category/vector_sto
 통합되므로, 어떤 컬렉션을 적재/검색하든(video_category, category_analysis, scenario_analysis,
 ad_concept_reference, ad_production_reference, ad_target/ad_usp/ad_creative) 이 한 곳의
 임베딩 함수를 재사용한다.
+
+저장 경로는 컬렉션명 하나로 통일한다 — 컬렉션마다 별도 물리 저장소를 두지 않고
+`data/<collection>/` 에 1:1로 대응시킨다(`db_path_for`). 예전에는 `output/vector_db`
+하나가 여러 컬렉션을 같이 담고 `data/category`처럼 컬렉션명과 다른 폴더명을 쓰기도
+했는데, 폴더명만 보고 바로 컬렉션을 찾을 수 있도록 통일했다.
 """
 from __future__ import annotations
 
@@ -13,7 +18,7 @@ from pathlib import Path
 import chromadb
 from chromadb.utils import embedding_functions
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent.parent / "output" / "vector_db"
+DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
 
 EMBEDDING_MODEL = "BAAI/bge-m3"  # 한/영 cross-lingual 임베딩
 
@@ -28,7 +33,12 @@ def get_embedding_function() -> embedding_functions.SentenceTransformerEmbedding
     return _ef_cache
 
 
-def get_client(db_path: Path | str = DEFAULT_DB_PATH) -> chromadb.ClientAPI:
+def db_path_for(collection: str) -> Path:
+    """컬렉션명 → 저장 경로. `data/<collection>/` 하나로 통일한다."""
+    return DATA_ROOT / collection
+
+
+def get_client(db_path: Path | str) -> chromadb.ClientAPI:
     """db_path 의 PersistentClient 를 연다."""
     return chromadb.PersistentClient(path=str(db_path))
 

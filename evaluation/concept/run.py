@@ -27,7 +27,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="[레거시, generation/segment_retrieval.py 전용] concept_evaluation.json 을 "
                         "facet 컬렉션 3개(ad_target/ad_usp/ad_creative)에 적재. ad_concept_reference "
                         "와는 무관하다")
-    p.add_argument("--db_path", type=Path, default=Path("output/vector_db"), help="ChromaDB 저장 경로 (기본: output/vector_db)")
+    p.add_argument("--db_path", type=Path, default=None,
+                   help="ChromaDB 저장 경로 (기본: data/<collection>/ 자동 결정)")
     p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default="claude", help="LLM 백엔드 (기본: claude)")
     p.add_argument("--qwen_model", default=_QWEN_DEFAULT_MODEL, help="[qwen] 베이스 모델명/경로")
     p.add_argument("--codex_model", default=None, help="[codex] 사용할 모델명")

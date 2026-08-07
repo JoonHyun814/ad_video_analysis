@@ -5,13 +5,16 @@ import argparse
 import json
 from pathlib import Path
 
-from db.chromadb.connection import DEFAULT_DB_PATH, get_client
+from db.chromadb.connection import db_path_for, get_client
 
 
 def fetch_by_video_id(collection_name: str, video_id: int,
-                       db_path: Path | str = DEFAULT_DB_PATH) -> list[dict]:
-    """collection_name 에서 metadata.video_id == video_id 인 레코드를 전부 반환한다."""
-    client = get_client(db_path)
+                       db_path: Path | str | None = None) -> list[dict]:
+    """collection_name 에서 metadata.video_id == video_id 인 레코드를 전부 반환한다.
+
+    db_path 를 안 주면 `data/<collection_name>/` 를 쓴다.
+    """
+    client = get_client(db_path if db_path is not None else db_path_for(collection_name))
     col = client.get_collection(collection_name)
     data = col.get(where={"video_id": video_id}, include=["documents", "metadatas"])
     return [
@@ -35,7 +38,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="ChromaDB 컬렉션에서 video_id 로 레코드 조회")
     p.add_argument("--collection", required=True, help="조회할 컬렉션명")
     p.add_argument("--video_id", required=True, type=int, help="조회할 video_id")
-    p.add_argument("--db_path", type=Path, default=DEFAULT_DB_PATH, help="ChromaDB 저장 경로")
+    p.add_argument("--db_path", type=Path, default=None,
+                   help="ChromaDB 저장 경로(미지정 시 data/<collection>/)")
     p.add_argument("--json", action="store_true", dest="as_json", help="결과를 JSON으로 출력")
     return p
 

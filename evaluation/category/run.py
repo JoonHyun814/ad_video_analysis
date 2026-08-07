@@ -17,7 +17,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="데이터 루트 (기본: output/product_plan/claude). 경로: <data_dir>/<video_id>/")
     p.add_argument("--category_analysis", action="store_true", help="시나리오에서 카테고리 메타데이터 추출")
     p.add_argument("--load_vector", action="store_true", help="category_analysis.json 을 벡터 DB에 적재")
-    p.add_argument("--db_path", type=Path, default=Path("output/vector_db"), help="ChromaDB 저장 경로 (기본: output/vector_db)")
+    p.add_argument("--db_path", type=Path, default=None,
+                   help="ChromaDB 저장 경로 (기본: data/<collection>/ 자동 결정)")
     p.add_argument("--collection", default="video_category", help="ChromaDB 컬렉션명 (기본: video_category)")
     p.add_argument("--llm_backend", choices=_LLM_BACKENDS, default="claude", help="LLM 백엔드 (기본: claude)")
     p.add_argument("--codex_model", default=None, help="[codex] 모델명")

@@ -30,7 +30,7 @@ def _build_where(use_genre: bool, use_industry: bool, genre: str, industry: str)
 
 
 def _find_candidates(
-    genre: str, industry: str, min_n: int, db_path: str | Path,
+    genre: str, industry: str, min_n: int, db_path: str | Path | None,
 ) -> tuple[str, dict | None, list[dict]]:
     """min_n 을 만족하는 첫 완화 수준의 (level, where, 후보 rows)를 반환한다."""
     fallback: tuple[str, dict | None, list[dict]] = ("global", None, [])
@@ -50,7 +50,7 @@ def _rrf_scores(
     candidate_ids: set[int],
     queries: dict[str, str],
     where: dict | None,
-    db_path: str | Path,
+    db_path: str | Path | None,
 ) -> dict[int, float]:
     """facet 별 유사도 순위를 RRF 로 병합한 video_id → score 맵을 만든다."""
     scores: dict[int, float] = {vid: 0.0 for vid in candidate_ids}
@@ -72,7 +72,7 @@ def retrieve_segment(
     usp_text: str,
     min_n: int = 15,
     cap: int = 60,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path | None = None,
 ) -> dict:
     """세그먼트 멤버(video_id + 유사도 점수)와 완화 수준을 반환한다."""
     level, where, candidates = _find_candidates(genre, industry, min_n, db_path)

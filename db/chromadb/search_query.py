@@ -5,13 +5,16 @@ import argparse
 import json
 from pathlib import Path
 
-from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_collection
+from db.chromadb.connection import db_path_for, get_client, get_collection
 
 
 def search(collection_name: str, query_text: str, n_results: int = 5,
-           db_path: Path | str = DEFAULT_DB_PATH) -> list[dict]:
-    """query_text 와 유사도가 높은 순으로 최대 n_results 건을 반환한다."""
-    client = get_client(db_path)
+           db_path: Path | str | None = None) -> list[dict]:
+    """query_text 와 유사도가 높은 순으로 최대 n_results 건을 반환한다.
+
+    db_path 를 안 주면 `data/<collection_name>/` 를 쓴다.
+    """
+    client = get_client(db_path if db_path is not None else db_path_for(collection_name))
     col = get_collection(client, collection_name, with_embeddings=True)
     n = min(n_results, col.count())
     if n == 0:
@@ -41,7 +44,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--collection", required=True, help="검색할 컬렉션명")
     p.add_argument("--query", required=True, help="자연어 검색 쿼리")
     p.add_argument("--n_results", type=int, default=5, help="반환 결과 수 (기본: 5)")
-    p.add_argument("--db_path", type=Path, default=DEFAULT_DB_PATH, help="ChromaDB 저장 경로")
+    p.add_argument("--db_path", type=Path, default=None,
+                   help="ChromaDB 저장 경로(미지정 시 data/<collection>/)")
     p.add_argument("--json", action="store_true", dest="as_json", help="결과를 JSON으로 출력")
     return p
 

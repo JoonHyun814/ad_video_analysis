@@ -108,7 +108,7 @@ def build_report(
     code_share: float = 0.75,
     cliche_share: float = 0.40,
     seed: int = 42,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path | None = None,
 ) -> dict:
     """세그먼트 멤버의 분포·군집을 분석한 클리셰 리포트를 만든다."""
     video_ids = [m["video_id"] for m in segment.get("members", [])]

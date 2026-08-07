@@ -13,7 +13,7 @@ from pathlib import Path
 
 import chromadb
 
-from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_or_create_collection
+from db.chromadb.connection import db_path_for, get_client, get_or_create_collection
 
 FACETS = ("target", "usp", "creative")
 COLLECTIONS: dict[str, str] = {"target": "ad_target", "usp": "ad_usp", "creative": "ad_creative"}
@@ -99,19 +99,21 @@ def _facet_id(video_id: int, facet: str) -> str:
     return f"ad:{video_id}:{facet}"
 
 
-def _collection(facet: str, db_path: str | Path) -> chromadb.Collection:
-    client = get_client(db_path)
+def _collection(facet: str, db_path: str | Path | None) -> chromadb.Collection:
+    """db_path 를 안 주면 facet 별 전용 경로(`data/<컬렉션명>/`)를 쓴다 — 3개 facet 이
+    각자 다른 물리 저장소이므로 공유 기본값 하나로 표현할 수 없어 여기서 매번 계산한다."""
+    client = get_client(db_path if db_path is not None else db_path_for(COLLECTIONS[facet]))
     return get_or_create_collection(client, COLLECTIONS[facet])
 
 
-def upsert_facets(video_id: int, concept: dict, db_path: str | Path = DEFAULT_DB_PATH) -> None:
+def upsert_facets(video_id: int, concept: dict, db_path: str | Path | None = None) -> None:
     """concept_evaluation 결과 1건을 3개 facet 컬렉션에 upsert 한다."""
     upsert_facet_batch([(video_id, concept)], db_path=db_path)
 
 
 def upsert_facet_batch(
     records: list[tuple[int, dict]],
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
 ) -> None:
     """복수 concept_evaluation 결과를 facet 별로 모아 일괄 upsert 한다."""
     for facet in FACETS:
@@ -136,7 +138,7 @@ def query_facet(
     text: str,
     n_results: int = 10,
     where: dict | None = None,
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
 ) -> list[dict]:
     """facet 컬렉션에서 임베딩 유사도 상위 n_results 를 반환한다."""
     col = _collection(facet, db_path)
@@ -159,7 +161,7 @@ def fetch_members(
     where: dict | None = None,
     video_ids: list[int] | None = None,
     include_embeddings: bool = False,
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
 ) -> list[dict]:
     """facet 컬렉션 멤버를 필터/ID 로 조회한다 (세그먼트 분포 분석용)."""
     col = _collection(facet, db_path)

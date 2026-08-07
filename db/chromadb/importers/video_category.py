@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_or_create_collection
+from db.chromadb.connection import db_path_for, get_client, get_or_create_collection
 
 _COLLECTION = "video_category"
+_DEFAULT_DB_PATH = db_path_for(_COLLECTION)
 
 # 벡터화할 필드: 앞 두 항목(industry_category, product_category)은 메타데이터에도 동시 저장
 _TEXT_FIELDS = (
@@ -64,11 +65,11 @@ def _build_metadata(video_id: int, category: dict) -> dict:
 def upsert_video(
     video_id: int,
     category: dict,
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
     collection_name: str = _COLLECTION,
 ) -> None:
-    """category_analysis 결과를 ChromaDB에 upsert 한다."""
-    client = get_client(db_path)
+    """category_analysis 결과를 ChromaDB에 upsert 한다. db_path 를 안 주면(None) `data/<collection_name>/` 를 쓴다."""
+    client = get_client(db_path or _DEFAULT_DB_PATH)
     col = get_or_create_collection(client, collection_name)
     col.upsert(
         ids=[f"ad:{video_id}:category"],
@@ -80,11 +81,11 @@ def upsert_video(
 
 def upsert_batch(
     records: list[tuple[int, dict]],
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
     collection_name: str = _COLLECTION,
 ) -> None:
-    """복수 category_analysis 결과를 한 번에 upsert 한다."""
-    client = get_client(db_path)
+    """복수 category_analysis 결과를 한 번에 upsert 한다. db_path 를 안 주면(None) `data/<collection_name>/` 를 쓴다."""
+    client = get_client(db_path or _DEFAULT_DB_PATH)
     col = get_or_create_collection(client, collection_name)
     ids = [f"ad:{vid}:category" for vid, _ in records]
     docs = [_build_document(cat) for _, cat in records]
@@ -190,7 +191,7 @@ def query(
     # 검색 제어
     text: str | None = None,
     n_results: int = 5,
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
     collection_name: str = _COLLECTION,
 ) -> list[dict]:
     """필드별 인자로 유사도 검색한다.
@@ -222,7 +223,7 @@ def query(
         duration_max=filter_duration_max,
     )
 
-    client = get_client(db_path)
+    client = get_client(db_path or _DEFAULT_DB_PATH)
     col = get_or_create_collection(client, collection_name)
 
     if not query_text:

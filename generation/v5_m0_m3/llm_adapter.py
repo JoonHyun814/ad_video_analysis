@@ -13,16 +13,22 @@ claude -p 도 Anthropic API 도 이 어댑터에서는 이미지 입력 경로�
 vision_json 호출부인 page_section_ocr 하나뿐이고, Anthropic API 로 옮기려면 별도 검증이
 필요해 범위를 좁혔다).
 
-[신규] set_retrieval(True) — 참조 벡터 DB를 MCP 서버로 노출한
-`chromadb-explorer`(저장소 루트 `.mcp.json`, db/chromadb/mcp_server.py)의 도구를
-텍스트 LLM 호출에 연결한다. 두 백엔드에서 서로 다른 방식으로 "같은 도구"를 제공한다:
-  - "cli" : call_claude 에 --mcp-config(.mcp.json)+--allowedTools 를 넘긴다. claude -p 프로세스
-            자체가 MCP 클라이언트 역할을 해서 도구 호출~응답 루프를 내부적으로 처리한다.
+[신규] set_retrieval(True) — 참조 벡터 DB 검색을 텍스트 LLM 호출에 연결한다. **두 백엔드가
+더 이상 완전히 같은 기능을 제공하지 않는다**(chromadb-explorer MCP 서버가 범용 도구
+`search_chromadb` 하나만 노출하도록 축소된 이후):
+  - "cli" : call_claude 에 --mcp-config(.mcp.json)+--allowedTools 를 넘겨 `chromadb-explorer`
+            MCP 서버(db/chromadb/mcp_server.py)의 `search_chromadb(collection, query_text,
+            n_results, log_prefix)` 하나만 연다. 이 도구는 segment_column 필터·
+            self-reference 정책·notable_elements 를 모르는 순수 자연어 검색이라, kind 에
+            맞는 컬렉션명(`_MCP_COLLECTION_BY_KIND`)을 프롬프트에 안내문으로 덧붙여 알려준다
+            (`_chat_json_cli`). claude -p 프로세스 자체가 MCP 클라이언트 역할을 한다.
   - "api" : Anthropic API 는 로컬 stdio MCP 서버에 직접 붙을 수 없어(원격 HTTP/SSE MCP 커넥터만
-            지원), db.chromadb.creative_search 의 같은 함수를 Anthropic 네이티브
-            tool_use 스키마로 직접 노출하고 이 파일이 도구 호출~응답 루프를 수동으로 돈다
-            (db/chromadb/creative_search.py 의 TOOL_DEFINITIONS_*/call_tool 재사용 —
-            검색 로직 자체는 두 백엔드가 완전히 동일하고 전송 방식만 다르다).
+            지원), db.chromadb.creative_search 의 `search_concept_reference`/
+            `search_production_reference`(segment 필터·self-reference 정책·notable_elements
+            포함, MCP 축소와 무관하게 그대로 유지됨)를 Anthropic 네이티브 tool_use 스키마로
+            직접 노출하고 이 파일이 도구 호출~응답 루프를 수동으로 돈다(db/chromadb/
+            creative_search.py 의 TOOL_DEFINITIONS_*/call_tool 재사용) — **api 백엔드가 cli
+            백엔드보다 더 풍부한 검색 기능을 쓴다.**
 
 도구는 stage 별로 정확히 한 종류만 노출한다(_STAGE_TOOL_KIND) — M3·M3_LENS_SCOUT(M3 발산
 직전 사전 조사, modules_runner._scout_emergent_lenses 참고)는 ad_concept_reference 검색
@@ -91,15 +97,16 @@ _JSON_FORCE_INSTRUCTION = (
 # .mcp.json 은 저장소 루트에 있다 — 이 파일은 generation/v5_m0_m3/ 아래라 parents[2].
 _MCP_CONFIG_PATH = str(Path(__file__).resolve().parents[2] / ".mcp.json")
 _MCP_SERVER_NAME = "chromadb-explorer"
+# chromadb-explorer 는 이제 도구가 search_chromadb 하나뿐이라(collection 인자로 컬렉션을
+# 직접 지정) kind 별로 다른 도구를 열어줄 필요가 없다 — 대신 kind 에 맞는 컬렉션명을
+# _chat_json_cli 가 프롬프트에 안내문으로 덧붙인다(_MCP_COLLECTION_BY_KIND).
 _MCP_ALLOWED_TOOLS_BY_KIND: dict[str, list[str]] = {
-    "concept": [
-        f"mcp__{_MCP_SERVER_NAME}__search_concept_reference",
-        f"mcp__{_MCP_SERVER_NAME}__list_concept_segment_columns",
-    ],
-    "production": [
-        f"mcp__{_MCP_SERVER_NAME}__search_production_reference",
-        f"mcp__{_MCP_SERVER_NAME}__list_production_segment_columns",
-    ],
+    "concept": [f"mcp__{_MCP_SERVER_NAME}__search_chromadb"],
+    "production": [f"mcp__{_MCP_SERVER_NAME}__search_chromadb"],
+}
+_MCP_COLLECTION_BY_KIND: dict[str, str] = {
+    "concept": "ad_concept_reference",
+    "production": "ad_production_reference",
 }
 
 # stage(chat_json 호출자가 넘기는 "M3" 등 라벨) → 노출할 검색 도구 종류. 없는 stage(M1/M2 등)는
@@ -292,6 +299,13 @@ def _chat_json_cli(system: str, user: str, *, timeout: int, stage: str) -> dict:
     if kind:
         kwargs["mcp_config"] = _MCP_CONFIG_PATH
         kwargs["allowed_tools"] = _MCP_ALLOWED_TOOLS_BY_KIND[kind]
+        # search_chromadb 는 컬렉션명을 직접 받으므로(도구 자체는 어떤 kind 인지 모른다)
+        # 이 stage 가 검색해야 할 컬렉션을 프롬프트로 명시한다. log_prefix=stage 로 지정해
+        # logs/search_chromadb/<stage>.jsonl 에 단계별로 호출 로그가 쌓이게 한다.
+        prompt += (
+            f"\n\n[검색 도구 안내] search_chromadb 도구를 쓸 때는 collection=\"{_MCP_COLLECTION_BY_KIND[kind]}\""
+            f", log_prefix=\"{stage}\" 로 지정하라."
+        )
     return call_claude(prompt, **kwargs)
 
 

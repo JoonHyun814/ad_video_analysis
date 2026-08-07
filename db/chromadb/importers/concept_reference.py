@@ -18,9 +18,10 @@ from pathlib import Path
 
 import chromadb
 
-from db.chromadb.connection import DEFAULT_DB_PATH, get_client, get_or_create_collection
+from db.chromadb.connection import db_path_for, get_client, get_or_create_collection
 
 CONCEPT_COLLECTION = "ad_concept_reference"
+_DEFAULT_DB_PATH = db_path_for(CONCEPT_COLLECTION)
 
 # creative_element_analysis.json(production reference)의 profile 에서 가져올 수 있으면
 # 같이 심어두는 크로스 세그먼트 필드 — M3 가 길이/가격대로도 좁혀 검색할 수 있게 한다.
@@ -77,8 +78,9 @@ def _select_concept(m3: dict) -> dict:
     return concepts[0]
 
 
-def _collection(db_path: str | Path) -> chromadb.Collection:
-    client = get_client(db_path)
+def _collection(db_path: str | Path | None) -> chromadb.Collection:
+    """db_path 를 안 주면(None) `data/ad_concept_reference/` 를 쓴다."""
+    client = get_client(db_path or _DEFAULT_DB_PATH)
     return get_or_create_collection(client, CONCEPT_COLLECTION)
 
 
@@ -140,7 +142,7 @@ def _metadata(video_id: int, strategy: dict, enrich: dict | None, concept_eval: 
 def upsert_concept_reference(
     video_id: int,
     strategy: dict,
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
     enrich: dict | None = None,
     concept_eval: dict | None = None,
 ) -> None:
@@ -159,7 +161,7 @@ def upsert_concept_reference(
     print(f"  [concept_reference] video_id={video_id}: concept 1건 upsert")
 
 
-def fetch_concepts(where: dict | None = None, db_path: str | Path = DEFAULT_DB_PATH) -> list[dict]:
+def fetch_concepts(where: dict | None = None, db_path: str | Path | None = None) -> list[dict]:
     """세그먼트에 속한 concept 레코드를 조회한다."""
     res = _collection(db_path).get(**({"where": where} if where else {}), include=["documents", "metadatas"])
     return [

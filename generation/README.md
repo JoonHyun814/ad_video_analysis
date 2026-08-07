@@ -80,7 +80,7 @@ python -m generation.cli --brand <브랜드> --product <제품> [모드] [옵션
 
 | 세그먼트/클리셰 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `--vector_db_path` | `output/vector_db` | ChromaDB 경로 (facet 컬렉션 3개 필요) |
+| `--vector_db_path` | (미지정 시 자동) | ChromaDB 경로 — 안 주면 facet 마다 `data/ad_target|ad_usp|ad_creative/` 로 자동 결정된다 |
 | `--min_segment` | `15` | [G2] 세그먼트 최소 표본 — 미달 시 필터 계층 완화 |
 | `--segment_cap` | `60` | [G2] 세그먼트 최대 멤버 수 |
 | `--code_share` | `0.75` | [G2] category_code 분류 점유율 컷 |

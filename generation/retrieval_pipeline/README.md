@@ -46,7 +46,8 @@ M4는 LLM을 정확히 두 번 부른다:
 2단계 retrieval       (코드, 결정적 — LLM 아님)
     db.chromadb.creative_search.search_production_reference /
     search_concept_reference 를 장치마다 1회씩 그대로 호출(evaluation/ad_concept_production 이
-    output/vector_db 에 적재한 ad_production_reference / ad_concept_reference 컬렉션)
+    적재한 ad_production_reference / ad_concept_reference 컬렉션, 각각 data/ad_production_reference/·
+    data/ad_concept_reference/)
 
 3단계 synthesis       (LLM 호출 1회, 검색 결과 반영)
     한 줄 원칙 + M0~M2 맥락 + 크리에이티브 문제 + (장치, 실제 검색 결과)
@@ -102,7 +103,11 @@ python -m generation.retrieval_pipeline.cli_m4 \
     --input output/retrieval_pipeline/<slug>_m0_m3.json \
     --concept "기기를 보여주지 말고, 집에서 세계와 연결되는 순간을 보여라." \
     --title "DBH_15초_CTV" \
-    [--ad_length 15초] [--top_k 3] [--llm_backend cli|api] [--db_path output/vector_db]
+    [--ad_length 15초] [--llm_backend cli|api]
+
+# M5(장치별 벡터 DB 검색, cli_m4 실행 시 이어서 자동 수행됨 — --top_k 만 바꿔 재검색하고
+# 싶을 때만 따로 돌린다)
+python -m generation.retrieval_pipeline.cli_m5 --input <run_dir>/m4.json [--top_k 3] [--db_path ...]
 ```
 
 | 옵션(`cli_m4.py`) | 기본값 | 설명 |
@@ -111,10 +116,15 @@ python -m generation.retrieval_pipeline.cli_m4 \
 | `--concept` | (필수) | 한 줄 크리에이티브 원칙 |
 | `--title` | (필수) | 출력 폴더명에 쓸 프로젝트 제목(슬러그화) |
 | `--ad_length` | `15초` | 스토리라인 길이 |
-| `--top_k` | `3` | 장치 1개당 검색해올 참조 광고 수(최대 20, `creative_search._MAX_TOP_K`) |
 | `--llm_backend` | `cli` | `cli`(claude -p) \| `api`(Anthropic API, `env/api.env` `ANTHROPIC_API_KEY`) |
-| `--db_path` | `output/vector_db` | `evaluation/ad_concept_production` 이 적재한 ChromaDB 경로 |
 | `--output_dir` | `output/retrieval_pipeline` | 이 아래 `<날짜>_<제목>/` 폴더가 생긴다 |
+
+| 옵션(`cli_m5.py`) | 기본값 | 설명 |
+|------|--------|------|
+| `--input` | (필수) | `m4.json` 경로(creative_problem/device_candidates 포함) |
+| `--top_k` | `3` | 장치 1개당 검색해올 참조 광고 수(최대 20, `creative_search._MAX_TOP_K`) |
+| `--db_path` | (미지정 시 자동) | ChromaDB 경로 — 안 주면 concept/production 컬렉션이 각자 `data/ad_concept_reference/`·`data/ad_production_reference/` 로 자동 결정된다 |
+| `--output_dir` | `--input` 과 같은 디렉터리 | 결과(`m5.json`) 저장 경로 |
 
 ## 출력 구조
 
@@ -135,7 +145,8 @@ output/retrieval_pipeline/20260805_DBH_15초_CTV/
 ## 사전 준비
 
 `--retrieval` 이 항상 켜져 있는 파이프라인이므로(M4는 검색 없이 실행할 수 없다),
-`output/vector_db` 에 두 컬렉션이 이미 적재돼 있어야 한다:
+`data/ad_concept_reference/`·`data/ad_production_reference/` 에 두 컬렉션이 이미 적재돼
+있어야 한다:
 
 ```bash
 python -m evaluation.cli --mode strategy --video_id <ID> --data_dir <dir>

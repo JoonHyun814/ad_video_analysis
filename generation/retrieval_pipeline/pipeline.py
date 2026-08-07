@@ -59,7 +59,7 @@ def run_m4(module0: dict, m1: dict, m2: dict, m3: dict, concept_line: str, *,
 
 
 def run_m5(m4_result: dict[str, Any], *, top_k: int = 3,
-          db_path: str = "output/vector_db") -> dict[str, Any]:
+          db_path: str | None = None) -> dict[str, Any]:
     """M5 — M4가 제안한 장치별 검색 쿼리를 벡터 DB에 실제로 실행한다(결정적, LLM 아님)."""
     devices = [DeviceQuery.model_validate(d) for d in m4_result.get("device_candidates", [])]
     searches = retrieval.run_searches(devices, top_k=top_k, db_path=db_path)
@@ -97,7 +97,7 @@ def run_m7(m6_result: dict[str, Any]) -> str:
 
 
 def run_m4_m7(module0: dict, m1: dict, m2: dict, m3: dict, concept_line: str, *,
-             ad_length: str = "15초", top_k: int = 3, db_path: str = "output/vector_db"
+             ad_length: str = "15초", top_k: int = 3, db_path: str | None = None
              ) -> dict[str, Any]:
     """run_m4()~run_m7() 를 이어 붙인 편의 래퍼 — 네 단계를 한 번에 실행하고 싶을 때만 쓴다
     (v5_m0_m3.pipeline.run_m0_m3() 와 같은 성격 — CLI는 단계 분리가 목적이라 이 래퍼를 노출하지
