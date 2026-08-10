@@ -1,5 +1,9 @@
 """retrieval_pipeline 오케스트레이터.
 
+  run_m1(): 제품명/URL/가이드 문서/참조 이미지로 제품·브랜드 인사이트(제품 종류/외관/사용법/
+      기능/재료/브랜드 이미지/타겟)를 완성한다(LLM 1회, 크롤링·웹 검색·이미지 분석은 코드가
+      먼저 결정적으로 수행, product_insight.py). v5_m0_m3 의 MODULE 1(JTBD 인사이트)과는
+      무관한 이 파이프라인 전용 새 설계다 — run_m0_m2() 의 M0~M2 재사용 원칙과 별개.
   run_m0_m2(): generation.v5_m0_m3.pipeline.run_m0_m2() 를 그대로 재노출한다(사용자 요청 —
       "M0~M2는 v5_m0_m3과 동일"). 크롤·M1·M2 로직을 이 파이프라인에 다시 구현하지 않는다.
   run_m3(): M0~M2 맥락을 입력받아 search_chromadb 도구를 자율 호출하며 연출 장치 8개를
@@ -20,9 +24,30 @@ from __future__ import annotations
 
 from typing import Any
 
-from generation.retrieval_pipeline import device_generation, scenario_generation, storyboard_generation
+from generation.retrieval_pipeline import device_generation, product_insight, scenario_generation, storyboard_generation
 from generation.retrieval_pipeline.context import build_context
 from generation.v5_m0_m3.pipeline import run_m0_m2  # noqa: F401  (재노출 — 사용자 요청)
+
+
+async def run_m1(product_name: str, url: str, *, guideline_md: str = "",
+                 reference_dir: str | None = None, backend: str = "cli",
+                 log_prefix: str = "default", log_dir: str | None = None) -> dict[str, Any]:
+    """M1 — 제품명/URL/가이드 문서/참조 이미지로 제품·브랜드 인사이트를 완성한다.
+
+    반환에 product_name/url/guideline_md 를 함께 담는다 — 다음 단계(아직 미배선)가 이 dict
+    하나만으로 이어받을 수 있도록, 이 파이프라인의 기존 관례(run_m3 등)를 그대로 따른다.
+    crawled_images 는 크롤링 중 발견해 log_dir/crawled_images/ 에 저장한 로고·제품 이미지
+    목록({"type","url","path"}[]) — 아무것도 못 찾았거나 log_dir 이 없으면 빈 리스트.
+    """
+    output, prompt, crawled_images = await product_insight.run(
+        product_name, url, guideline_md=guideline_md, reference_dir=reference_dir,
+        backend=backend, log_prefix=log_prefix, log_dir=log_dir,
+    )
+    return {
+        "product_name": product_name, "url": url, "guideline_md": guideline_md,
+        "prompt": prompt, "crawled_images": crawled_images,
+        **output.model_dump(),
+    }
 
 
 def run_m3(module0: dict, m1: dict, m2: dict, *, concept_line: str = "",

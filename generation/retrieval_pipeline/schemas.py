@@ -1,11 +1,12 @@
-"""retrieval_pipeline M3(장치 생성)·M4(시나리오 완성)·M5(스토리보드 이미지 생성 계획) 산출물
-스키마 — LLM 응답 검증·다음 단계 전달용 pydantic 모델.
+"""retrieval_pipeline M1(제품·브랜드 인사이트 조사)·M3(장치 생성)·M4(시나리오 완성)·
+M5(스토리보드 이미지 생성 계획) 산출물 스키마 — LLM 응답 검증·다음 단계 전달용 pydantic 모델.
 
-M3(device_generation, LLM 1회 — 자체적으로 search_chromadb 도구를 여러 번 호출해 근거를 모은 뒤
-장치 8개를 완성), M4(scenario_generation, LLM 1회 — M3 장치 중 골라 조합해 광고 전체 시나리오를
-완성), M5(storyboard_generation, LLM 1회 — M4 시나리오를 스토리보드 이미지 슬롯마다 채울 생성
-프롬프트로 전환) 셋의 출력을 다룬다. 필드 네이밍은 이 파이프라인 전용이라 v5_m0_m3(언더바
-금지 컨벤션)과 달리 snake_case 를 쓴다.
+M1(product_insight, LLM 1회 — 크롤링/웹 검색/참조 이미지 분석 결과를 종합해 제품 종류·외관·
+사용법·기능·재료·브랜드 이미지·타겟을 완성), M3(device_generation, LLM 1회 — 자체적으로
+search_chromadb 도구를 여러 번 호출해 근거를 모은 뒤 장치 8개를 완성), M4(scenario_generation,
+LLM 1회 — M3 장치 중 골라 조합해 광고 전체 시나리오를 완성), M5(storyboard_generation, LLM 1회 —
+M4 시나리오를 스토리보드 이미지 슬롯마다 채울 생성 프롬프트로 전환) 넷의 출력을 다룬다. 필드
+네이밍은 이 파이프라인 전용이라 v5_m0_m3(언더바 금지 컨벤션)과 달리 snake_case 를 쓴다.
 
 AdScenarioOutput 은 output/total/*/scenario_analysis.json (기존 분석 산출물) 과 같은 구조
 (title/brand/concept/narrative/cast/scenes/key_messages/production_notes)를 그대로 따른다 —
@@ -35,6 +36,25 @@ storyboard_codex.py 가 Codex CLI 호출 프롬프트에 그대로 박아 넣는
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
+
+
+class ProductInsight(BaseModel):
+    """M1 산출물 — 제품명/URL/가이드 문서/참조 이미지로 조사한 제품·브랜드 인사이트.
+
+    features/materials 는 객관적 사실만 담는다는 전제다(product_insight.py의 프롬프트가
+    근거 없는 값 생성을 금지) — 근거가 없으면 빈 배열이 정상이다."""
+    product_type: str = ""
+    appearance: str = ""
+    usage_scenarios: list[str] = Field(default_factory=list)
+    features: list[str] = Field(default_factory=list)
+    materials: list[str] = Field(default_factory=list)
+    current_brand_image: str = ""
+    aspirational_brand_image: str = ""
+    target_group: str = ""
+    misc_notes: list[str] = Field(default_factory=list)
+    # 위 7개 필드에 안 들어가는 그 외 객관적 특이사항(예: "추석 기획전", "모델이 출현하지
+    # 않음") — 캠페인/시즌 맥락, 참조 자료의 모델 유무 등 뒤 단계(연출 장치·시나리오)가
+    # 알아야 할 사실을 캐치올로 담는다.
 
 
 class ReferenceAdCitation(BaseModel):

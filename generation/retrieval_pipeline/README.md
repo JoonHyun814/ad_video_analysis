@@ -5,9 +5,10 @@
 제안하는 파이프라인이다.
 
 > **개편 중(진행형)**: 기존 M3~M7(장치 후보 제안 → 코드가 검색 실행 → 결과 반영 합성 →
-> Markdown 렌더링) 설계를 걷어내고 처음부터 다시 설계하고 있다. 지금은 M3(장치 8개 생성)~
-> M5(스토리보드 이미지 슬롯 계획 + Seedance 영상 프롬프트)까지 있다 — 여러 시나리오 비교/
-> 권고·Markdown 렌더링 같은 뒷단계는 아직 없다(사용자 요청 — "다 지우고 한단계씩 개발").
+> Markdown 렌더링) 설계를 걷어내고 처음부터 다시 설계하고 있다. 지금은 M1(제품·브랜드
+> 인사이트 조사)과 M3(장치 8개 생성)~M5(스토리보드 이미지 슬롯 계획 + Seedance 영상
+> 프롬프트)까지 있다 — M1은 아직 M2/M3 로 배선되지 않은 별개 경로이고, 여러 시나리오
+> 비교/권고·Markdown 렌더링 같은 뒷단계도 아직 없다(사용자 요청 — "다 지우고 한단계씩 개발").
 >
 > M5의 최종 목적은 Seedance(이미지→영상 생성 모델)에 "스토리보드(이미지)"와 "프롬프트
 > (텍스트)"를 함께 넣어 실제 광고 영상을 만드는 것이다(사용자 요청). 이미지 소싱/생성 자체는
@@ -17,12 +18,39 @@
 
 ## v5_m0_m3 와의 관계
 
-- **M0~M2(소재 인제스트→인사이트→포지셔닝)는 `generation/v5_m0_m3` 와 완전히 동일한 로직을
-  그대로 재사용한다** — `cli.py` 는 `generation.v5_m0_m3.pipeline.run_m0_m2()` 를 그대로
-  호출할 뿐, M0~M2 를 이 패키지 안에 다시 구현하지 않는다.
+- **M1(제품·브랜드 인사이트 조사)은 이 패키지에서 새로 설계한 단계**다(`product_insight.py`).
+  v5_m0_m3 의 MODULE 1(JTBD 인사이트)과는 무관한 별개 설계이며, `cli.py`(M0~M2 경로)와는
+  독립적으로 실행된다 — 현재는 두 경로가 함께 존재한다(아래 "알려진 제약" 참고). URL
+  크롤링만 `generation.v5_m0_m3.v1_bridge.parse_url()`(검증된 크롤러)을 유틸리티로
+  재사용하고, 그 위의 ProductInfoCard/material_extractor 같은 무거운 레이어는 가져오지
+  않는다.
+- **M0~M2(소재 인제스트→인사이트→포지셔닝, `cli.py` 경로)는 `generation/v5_m0_m3` 와 완전히
+  동일한 로직을 그대로 재사용한다** — `cli.py` 는 `generation.v5_m0_m3.pipeline.run_m0_m2()`
+  를 그대로 호출할 뿐, M0~M2 를 이 패키지 안에 다시 구현하지 않는다.
 - **M3(장치 8개 생성)는 이 패키지에서 새로 설계한 단계**다. LLM 호출 인프라는 v5_m0_m3 와
   달리 이 패키지 전용 `tool_chat.py` 를 쓴다(아래 "왜 v5_m0_m3.llm_adapter 를 그대로 안
   쓰는가" 참고) — M0~M2(`cli.py`)만 v5_m0_m3 의 `run_m0_m2()`/LLM 어댑터를 재사용한다.
+
+## M1 실행 흐름 — 크롤링·웹 검색·이미지 분석을 코드가 모은 뒤 LLM이 한 번에 종합
+
+```
+M1 product_insight   (LLM 호출 1회 — 도구 없음, 근거 수집은 그 앞에 코드가 결정적으로 수행)
+    제품명 + URL + 가이드 문서(선택) + 참조 이미지 폴더(선택)
+    → URL 크롤링(v1_bridge.parse_url 재사용)
+      → 크롤 html에서 로고(brandlogourl)·제품 이미지(og:image + <img> 후보) 발견 시
+        <run_dir>/crawled_images/ 에 저장(logo.*, product_1.* …) — 실패해도 그레이스풀
+    → 제품 스펙·사용법·소재 웹 검색(DuckDuckGo)
+    → 댓글·리뷰·브랜드 평판 웹 검색(DuckDuckGo)
+    → 참조 이미지 외관 분석(OpenAI Vision, call_openai_with_images)
+    → 위 네 소스 + 가이드 문서를 "가이드 문서 최우선 → 크롤링/검색 → 추론([가설])" 순서로
+      종합해 9개 필드 완성: product_type/appearance/usage_scenarios/features/materials/
+      current_brand_image/aspirational_brand_image/target_group/misc_notes
+```
+
+`cli_m1.py`가 이 파이프라인의 새 첫 단계다 — 실행 폴더(`output/retrieval_pipeline/<날짜>_
+<제목>/`)를 새로 만드는 책임이 `cli_m3.py`에서 이쪽으로 옮겨왔다(`cli_m3.py`는 손대지
+않았다 — 여전히 `--input`(m0_m2.json)만 있으면 독립적으로 실행 가능). M1 산출물(`m1.json`)은
+아직 M2/M3 입력 포맷으로 배선돼 있지 않다(다음 요청에서 다룬다).
 
 ## M3 실행 흐름 — LLM이 스스로 검색하며 장치를 완성한다
 
@@ -124,6 +152,9 @@ kind 배정이 필요 없다.
 
 | 프롬프트 파일 | 역할 | 채워지는 변수 |
 |------|------|------|
+| `prompts/m1_common.md` | 페르소나(제품·브랜드 리서치 애널리스트) + 근거 우선순위 원칙 | (없음) |
+| `prompts/m1_system.md` | 지시문 — 9개 필드(product_type/appearance/usage_scenarios/features/materials/current_brand_image/aspirational_brand_image/target_group/misc_notes) 정의 | (없음) |
+| `prompts/m1_user.md` | 입력 | `product_name`, `url`, `guideline_md`, `crawled_title`, `crawled_text`, `product_research`, `comment_research`, `image_notes` |
 | `prompts/m3_common.md` | 페르소나(레퍼런스 리서치 디렉터) | (없음) |
 | `prompts/m3_system.md` | 지시문 — 문제 진단 + 도구로 근거 수집 + 장치 8개 완성 | (없음) |
 | `prompts/m3_user.md` | 입력 | `concept_line`, `ad_length`, `context_json` |
@@ -138,7 +169,9 @@ kind 배정이 필요 없다.
 
 | 파일 | 역할 |
 |------|------|
-| `cli.py` | M0~M2 진입점(`--url`, v5_m0_m3.pipeline.run_m0_m2 재호출) |
+| `cli.py` | M0~M2 진입점(`--url`, v5_m0_m3.pipeline.run_m0_m2 재호출) — M1과 별개 경로 |
+| `cli_m1.py` | M1 진입점(`--product_name` `--url` `--title` `--guideline`(선택) `--reference_dir`(선택) `--llm_backend` `--output_dir`) — 날짜 폴더를 새로 만드는 이 파이프라인의 첫 단계 |
+| `product_insight.py` | M1 — 크롤링(`v1_bridge.parse_url` 재사용, 발견한 로고·제품 이미지는 `crawled_images/`에 저장)+DuckDuckGo 웹 검색(제품 스펙/댓글·평판 2종)+참조 이미지 분석(`utils.openai_caller.call_openai_with_images`) + 프롬프트 조립 + `tool_chat.run()` 호출 + `ProductInsight` 파싱 |
 | `cli_m3.py` | M3 진입점(`--input <m0_m2.json>` `--title` `--concept`(선택) `--ad_length` `--llm_backend` `--output_dir`) |
 | `cli_m4.py` | M4 진입점(`--input <m3.json>` `--llm_backend`, `--input`과 같은 폴더에 저장) |
 | `cli_m5.py` | M5 진입점(`--input <m4.json>` `--llm_backend`) — `m5.json` + `storyboard.html` 생성 |
@@ -152,14 +185,20 @@ kind 배정이 필요 없다.
 | `storyboard_image_layout.py` | M5 뒷단계 — 슬롯이 카테고리별 비율을 따르게 만드는 적응형 레이아웃 도구(story_board에서 그대로 복사, stdlib+ffmpeg만 사용) |
 | `tool_chat.py` | LLM이 `search_chromadb` 를 tool_use 로 자율 호출하는 왕복 루프(cli: MCP, api: Anthropic 네이티브 tool_use) — M3·M4가 공유(M5는 검색을 쓰지 않지만 같은 호출 인프라를 재사용) |
 | `prompt_loader.py` | `prompts/*.md` 로더 + `{{변수}}` 치환(이 패키지 전용) |
-| `schemas.py` | `DeviceGenerationOutput`/`Device`/`ReferenceAdCitation`(M3) + `AdScenarioOutput`/`CastMember`/`Scene`/`SceneBeat`/`DeviceUsage`(M4) + `StoryboardShotPlan`/`CharacterShotPrompts`/`ProductShotBriefs`/`EnvironmentShotPrompt`/`CutShotPlan`(M5) pydantic 모델 |
+| `schemas.py` | `ProductInsight`(M1) + `DeviceGenerationOutput`/`Device`/`ReferenceAdCitation`(M3) + `AdScenarioOutput`/`CastMember`/`Scene`/`SceneBeat`/`DeviceUsage`(M4) + `StoryboardShotPlan`/`CharacterShotPrompts`/`ProductShotBriefs`/`EnvironmentShotPrompt`/`CutShotPlan`(M5) pydantic 모델 |
 | `prompts/` | 위 표 참고 |
 | `../../generation/AITIVE_스토리보드_틀.html` | M5가 인스턴스화하는 빈 이미지 슬롯 틀(원본, 사람이 직접 보고 확인용) |
 
 ## 사용법
 
 ```bash
-# 1) M0~M2 (v5_m0_m3 와 동일 로직)
+# 0) M1 (제품·브랜드 인사이트 조사 — 이 파이프라인의 새 첫 단계, M0~M2와 별개 경로)
+python -m generation.retrieval_pipeline.cli_m1 \
+    --product_name "제품명" --url <제품 상세페이지 URL> --title "DBH_15초_CTV" \
+    [--guideline <가이드라인.md>] [--reference_dir <참조 이미지 폴더>] \
+    [--llm_backend cli|api] [--output_dir output/retrieval_pipeline]
+
+# 1) M0~M2 (v5_m0_m3 와 동일 로직 — 현재는 M1과 별개로 존재하는 경로)
 python -m generation.retrieval_pipeline.cli --url <제품 상세페이지 URL> \
     [--producttitle "제품명"] [--llm_backend cli|api] [--output_dir output/retrieval_pipeline]
 
@@ -187,6 +226,16 @@ python -m generation.retrieval_pipeline.storyboard_codex \
     --output_dir output/retrieval_pipeline/<날짜>_DBH_15초_CTV/codex_output \
     [--reference_dir <사용자 제품 사진 폴더>] [--dry_run]
 ```
+
+| 옵션(`cli_m1.py`) | 기본값 | 설명 |
+|------|--------|------|
+| `--product_name` | (필수) | 제품명 |
+| `--url` | (필수) | 제품 상세페이지 URL |
+| `--title` | (필수) | 출력 폴더명에 쓸 프로젝트 제목(슬러그화) |
+| `--guideline` | (없음, 선택) | 브랜드 가이드라인 md 경로 — 최우선 근거로 프롬프트에 삽입 |
+| `--reference_dir` | (없음, 선택) | 참조 이미지 폴더(여러 장) — OpenAI Vision으로 외관 분석 |
+| `--llm_backend` | `cli` | `cli`(claude -p) \| `api`(Anthropic API, `env/api.env` `ANTHROPIC_API_KEY`) |
+| `--output_dir` | `output/retrieval_pipeline` | 이 아래 `<날짜>_<제목>/` 폴더가 생긴다(이 파이프라인의 새 첫 단계라 여기서 폴더를 만든다) |
 
 | 옵션(`cli_m3.py`) | 기본값 | 설명 |
 |------|--------|------|
@@ -235,6 +284,11 @@ python -m generation.retrieval_pipeline.storyboard_codex \
 
 ```
 output/retrieval_pipeline/20260807_DBH_15초_CTV/
+├── m1.json                  {product_name, url, guideline_md, prompt, crawled_images[], product_type,
+│                             appearance, usage_scenarios[], features[], materials[], current_brand_image,
+│                             aspirational_brand_image, target_group, misc_notes[]}
+│                             ※ 아직 M2/M3 입력으로 배선 안 됨
+├── crawled_images/          크롤링 중 발견한 로고·제품 이미지(logo.*, product_1.* …) — 아무것도 못 찾았으면 폴더 자체가 안 생긴다
 ├── m3.json                  {module0, m1, m2, concept_line, ad_length, context, prompt, creative_problem, devices[]}
 ├── DBH_15초_CTV.jsonl       search_chromadb 호출 로그(M3, 쿼리·컬렉션·검색 결과 원본, 호출마다 한 줄)
 ├── m4.json                  {…m3.json 필드 그대로 + prompt(M4), title, brand, concept, narrative,
@@ -313,6 +367,11 @@ scenario_analysis.json` 과 동일한 구조에 `devices_applied[]` 만 추가�
 
 ## 사전 준비
 
+M1은 `--reference_dir`로 참조 이미지를 넘기면 `utils.openai_caller.call_openai_with_images()`
+(OpenAI Vision)를 호출하므로 `env/api.env`의 `OPENAI_API_KEY`가 필요하다(v5_m0_m3 의
+M0가 이미 요구하는 것과 동일한 키 — 새 의존성 아님). `--reference_dir`를 안 주면 이미지
+분석 단계 자체를 건너뛴다. 웹 검색(DuckDuckGo)은 별도 API 키가 필요 없다.
+
 M3는 검색 없이 실행할 수 없으므로, `data/category_analysis/`·`data/scenario_analysis/` 에 두
 컬렉션이 이미 적재돼 있어야 한다:
 
@@ -367,6 +426,17 @@ python -m db.chromadb.importers.scenario [--data_root output/total]
 
 ## 알려진 제약
 
+- M1(`cli_m1.py`, `m1.json`)은 아직 M2/M3 입력 포맷으로 배선되지 않았다 — `cli.py`(M0~M2,
+  v5_m0_m3 재사용 경로)와 당분간 별개로 공존한다("한단계씩 개발" 방침, 다음 요청에서 배선).
+- M1의 크롤링·제품 스펙 검색·댓글 검색·이미지 분석은 순차 실행이다(병렬화 안 함) — 참조
+  이미지가 많거나 검색이 느리면 그만큼 M1 전체 실행 시간이 늘어난다.
+- M1의 댓글/평판 조사는 DuckDuckGo 텍스트 검색으로 근사한 것이다 — 유튜브·인스타그램 등
+  실제 소셜 댓글 API 연동은 없다(이 저장소에 그런 연동이 없다).
+- M1의 크롤 이미지 저장(`crawled_images/`)은 og:image + `<img>` 태그 마커(logo/icon/sprite
+  등 제외) 기반 휴리스틱이다 — JS로 렌더링되는 갤러리(예: 이미지가 script로 늦게 주입되는
+  SPA형 상세페이지)는 못 잡을 수 있고, 반대로 배너·프로모션 이미지가 제품 사진으로 잘못
+  섞여 들어올 수 있다. 저장된 이미지는 참고용이지 M1 프롬프트(LLM 입력)에 자동으로
+  얹히지 않는다 — 외관 서술에 반영하려면 `--reference_dir`로 직접 넘겨야 한다.
 - 여러 시나리오 비교/권고·Markdown 렌더링 뒷단계는 아직 없다 — M3(장치 8개)~M5(스토리보드
   이미지 계획)까지만 구현됐고, 다음 단계(Seedance 실제 호출 등)는 별도 요청으로 이어
   붙인다("한단계씩 개발").
