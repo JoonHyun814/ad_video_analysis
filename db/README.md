@@ -44,8 +44,8 @@ MySQL 조회·CSV 추출 + ChromaDB(벡터 DB) 유틸. **이 저장소의 Chroma
 | `show_schema.py` | 컬렉션 하나 지정 → 메타데이터 스키마(필드·타입·예시) + 데이터 수 출력 |
 | `show_by_video_id.py` | 컬렉션 + `video_id` 지정 → 해당 레코드 전체 출력 |
 | `search_query.py` | 컬렉션 + 자연어 쿼리 지정 → 유사도 상위 레코드 출력(범용) — `tool_definitions.search_chromadb` 가 재사용하는 실제 검색 구현 |
-| `tool_definitions.py` | MCP/Anthropic tool_use 공유 도구 정의. **`search_chromadb` 하나뿐** — 호출마다 `logs/search_chromadb/<log_prefix>.jsonl` 에 로그를 남긴다 |
-| `creative_search.py` | `ad_concept_reference`/`ad_production_reference` 의미 검색(세그먼트 필터·self-reference 정책·검색 로그 포함) — RAG 백엔드. `generation/retrieval_pipeline`·`generation/v5_m0_m3 --retrieval`가 이걸 쓴다(도구로는 노출되지 않음, 아래 참고) |
+| `tool_definitions.py` | MCP/Anthropic tool_use 공유 도구 정의. **`search_chromadb` 하나뿐** — 호출마다 `<log_prefix>.jsonl` 에 로그를 남긴다(기본 `logs/search_chromadb/<날짜>/`, `SEARCH_CHROMADB_LOG_DIR` 환경변수로 재지정 가능) |
+| `creative_search.py` | `ad_concept_reference`/`ad_production_reference` 의미 검색(세그먼트 필터·self-reference 정책·검색 로그 포함) — RAG 백엔드. `generation/v5_m0_m3 --retrieval`가 이걸 쓴다(도구로는 노출되지 않음, 아래 참고) |
 | `mcp_server.py` | `search_chromadb` 하나만 노출하는 stdio MCP 서버(`chromadb-explorer`, 저장소 루트 `.mcp.json` 등록) |
 | `importers/category.py` | `<data_root>/<video_id>/category_analysis.json` → `category_analysis` 컬렉션 적재(전체 필드) — 독립 CLI |
 | `importers/scenario.py` | `<data_root>/<video_id>/scenario_analysis.json` → `scenario_analysis` 컬렉션 적재(concept/narrative/key_messages/production_notes + cast·scenes 개수) — 독립 CLI |
@@ -229,9 +229,11 @@ CLI가 아니라, 평가 파이프라인이 분석 직후 바로 벡터 DB에 �
 동작은 모듈 docstring 참고.
 
 **이 모듈의 함수는 MCP 도구로 노출되지 않는다**(아래 "MCP 서버" 절 참고 — `chromadb-explorer`
-는 범용 `search_chromadb` 하나만 노출한다). 대신 두 곳이 코드에서 직접 호출한다:
+는 범용 `search_chromadb` 하나만 노출한다). 대신 아래가 코드에서 직접 호출한다(`generation/
+retrieval_pipeline` 는 `category_analysis`/`scenario_analysis` 를 LLM 이 자율 판단으로
+검색하므로 이 모듈이 아니라 `db.chromadb.tool_definitions`의 범용 `search_chromadb` 도구를
+쓴다 — `generation/retrieval_pipeline/tool_chat.py`, 해당 모듈 README 참고):
 
-- `generation/retrieval_pipeline/retrieval.py` — M5(결정적 검색 실행)가 직접 호출
 - `generation/v5_m0_m3/llm_adapter.py --retrieval --llm_backend api` — Anthropic 네이티브
   tool_use 로 `TOOL_DEFINITIONS_CONCEPT`/`TOOL_DEFINITIONS_PRODUCTION`/`call_tool` 을 그대로
   노출(로컬 stdio MCP 서버에 API 가 못 붙어서 MCP 를 거치지 않는 경로). `--llm_backend cli` 는
@@ -253,11 +255,18 @@ CLI가 아니라, 평가 파이프라인이 분석 직후 바로 벡터 DB에 �
 `db_path` 를 도구 인자로 받지 않는다 — `collection` 명만 주면 `data/<collection>/` 로 자동
 결정된다(호출하는 쪽이 내부 폴더 구조를 몰라도 됨).
 
-**호출 로깅(항상 켜짐)**: 호출마다 `logs/search_chromadb/<log_prefix>.jsonl` 에 한 줄씩
-append 된다(`{"timestamp","collection","query_text","n_results","result_count"}`). `log_prefix`
-로 호출 맥락(프로젝트/단계명 등)을 구분해서 기록한다 — 미지정 시 `logs/search_chromadb/default.jsonl`
-로 몰린다. `generation/v5_m0_m3/llm_adapter.py` 는 stage 명(`M3`/`M4`.../`STORYBOARD_HTML`)을
-`log_prefix` 로 자동 지정해 단계별로 로그 파일이 나뉜다.
+**호출 로깅(항상 켜짐)**: 호출마다 `<log_root>/<log_prefix>.jsonl` 에 한 줄씩 append 된다
+(`{"timestamp","collection","query_text","n_results","result_count","results"}` — 검색 결과
+원본도 함께 남는다). `log_prefix` 로 호출 맥락(프로젝트/단계명 등)을 구분해서 기록한다 —
+미지정 시 `default.jsonl` 로 몰린다. `log_root` 는 기본 `logs/search_chromadb/<날짜>/`
+(하루 단위 폴더 — 한 파일에 로그가 무한정 쌓이지 않도록)지만 `SEARCH_CHROMADB_LOG_DIR`
+환경변수로 호출측이 재지정할 수 있다(도구 스키마에는 없다 — LLM 이 저장 위치를 결정하지
+않도록). 재지정 시에는 그 경로를 그대로 쓰고 날짜 폴더를 추가로 끼워 넣지 않는다(재지정한
+경로에 이미 날짜가 있다고 간주). `generation/v5_m0_m3/llm_adapter.py` 는 stage 명
+(`M3`/`M4`.../`STORYBOARD_HTML`)을 `log_prefix` 로 자동 지정해 단계별로 로그 파일이 나뉘고
+(`log_root` 는 기본값 그대로 씀), `generation/retrieval_pipeline`(`tool_chat.py`)는
+`log_prefix` 를 프로젝트 제목으로, `log_root` 를 그 실행의 출력 폴더로 지정한다
+([`../generation/retrieval_pipeline/README.md`](../generation/retrieval_pipeline/README.md) 참고).
 
 **Claude CLI(MCP)**: 저장소 루트 `.mcp.json`에 `chromadb-explorer` 로 등록돼 있다.
 
