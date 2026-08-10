@@ -30,8 +30,10 @@
 M3 device_generation   (LLM 호출 1회 — 그 안에서 도구 왕복은 여러 번)
     m0~m2 맥락(+선택적 한 줄 원칙)
     → 크리에이티브 문제 진단
-    → search_chromadb(collection="category_analysis"|"scenario_analysis", query_text=...) 를
-      장치 후보마다 필요한 만큼 자율 호출해 근거 수집
+    → 1단계: search_chromadb 를 USP·타깃·제품 카테고리 중심 쿼리로 몇 차례 호출해
+      이 시장/카테고리에서 이미 쓰인 소구·연출을 넓게 훑어봄
+    → 2단계: 그 결과를 보고 장치 후보를 구체화하면서, 더 디테일한 연출 근거가 필요한
+      장치마다 구체적인 시각적·구조적 특징을 담은 쿼리로 search_chromadb 를 다시 호출
     → 정확히 장치 8개(근거 인용 포함) 완성
 ```
 
