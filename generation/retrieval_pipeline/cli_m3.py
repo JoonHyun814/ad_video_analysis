@@ -6,10 +6,16 @@ M0~M2(cli.py) 다음 단계이자, 이 파이프라인이 처음으로 자체 LL
 <제목>/)를 새로 만드는 단계이기도 하다 — 이후 단계는 --input 파일과 같은 디렉터리에 이어서
 저장한다.
 
+--m1_input(선택)으로 cli_m1.py 가 만든 m1.json(제품 종류/외관/사용법/기능/재료/브랜드 이미지/
+타겟/기타사항 — legacy m1(JTBD 인사이트)과는 별개)을 넘기면, M3가 그 사실적 근거를
+연출 장치 생성에 함께 참고한다(context.product_insight, pipeline.run_m3()의 m1_insight 인자).
+안 주면 기존과 동일하게 동작한다.
+
 사용법:
     python -m generation.retrieval_pipeline.cli_m3 \\
         --input output/retrieval_pipeline/<slug>_m0_m2.json \\
-        --title "DBH_15초_CTV" [--concept "..."] [--ad_length 15초] [--llm_backend cli|api]
+        --title "DBH_15초_CTV" [--m1_input <m1.json>] [--concept "..."] \\
+        [--ad_length 15초] [--llm_backend cli|api]
 """
 from __future__ import annotations
 
@@ -29,6 +35,9 @@ def _slug(text: str) -> str:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="retrieval_pipeline M3 (분석 + 도구 호출로 연출 장치 8개 완성)")
     p.add_argument("--input", type=Path, required=True, help="<slug>_m0_m2.json 경로(module0/m1/m2 포함)")
+    p.add_argument("--m1_input", type=Path, default=None,
+                   help="cli_m1.py 가 만든 m1.json 경로(선택) — 제품 종류/외관/사용법/기능/재료/"
+                        "브랜드 이미지/타겟/기타사항을 M3 근거로 함께 참고한다")
     p.add_argument("--concept", default="",
                    help='한 줄 크리에이티브 원칙(선택 — 안 주면 m0~m2 맥락에서 직접 도출)')
     p.add_argument("--title", required=True, help="출력 폴더명에 쓸 프로젝트 제목(슬러그화됨)")
@@ -47,12 +56,19 @@ def main() -> None:
     if data.get("error"):
         raise SystemExit(f"[오류] 입력 파일에 error 있음 — M0~M2 부터 다시 확인: {data['error']}")
 
+    m1_insight = None
+    if args.m1_input:
+        if not args.m1_input.exists():
+            raise SystemExit(f"[오류] --m1_input 파일 없음: {args.m1_input}")
+        m1_insight = json.loads(args.m1_input.read_text(encoding="utf-8"))
+        print(f"  M1 인사이트 적용: {args.m1_input}")
+
     title_slug = _slug(args.title)
     run_dir = args.output_dir / f"{date.today():%Y%m%d}_{title_slug}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    result = run_m3(data["module0"], data["m1"], data["m2"], concept_line=args.concept,
-                    ad_length=args.ad_length, backend=args.llm_backend,
+    result = run_m3(data["module0"], data["m1"], data["m2"], m1_insight=m1_insight,
+                    concept_line=args.concept, ad_length=args.ad_length, backend=args.llm_backend,
                     log_prefix=title_slug, log_dir=str(run_dir))
 
     out_path = run_dir / "m3.json"

@@ -50,10 +50,16 @@ async def run_m1(product_name: str, url: str, *, guideline_md: str = "",
     }
 
 
-def run_m3(module0: dict, m1: dict, m2: dict, *, concept_line: str = "",
-          ad_length: str = "15초", backend: str = "cli", log_prefix: str = "default",
-          log_dir: str | None = None) -> dict[str, Any]:
+def run_m3(module0: dict, m1: dict, m2: dict, *, m1_insight: dict | None = None,
+          concept_line: str = "", ad_length: str = "15초", backend: str = "cli",
+          log_prefix: str = "default", log_dir: str | None = None) -> dict[str, Any]:
     """M3 — m0~m2 맥락을 분석하고 도구 호출로 근거를 모아 연출 장치 8개를 완성한다.
+
+    m1_insight: 새 M1(product_insight.py, run_m1() 이 만드는 m1.json)의 산출물(선택) —
+    legacy m1(위 인자, JTBD 인사이트)과는 별개다. 지정하면 context.build_context() 가
+    context.product_insight 로 얹어 M3 가 제품 외관/사용법/기능/재료/브랜드 이미지 같은
+    구체적 사실 근거를 연출 장치(mechanism/application_draft)에 반영할 수 있게 한다. 안 주면
+    기존과 동일하게 동작한다(하위호환 — cli_m3.py 의 --m1_input 이 없으면 None).
 
     log_prefix: search_chromadb 호출 로그 파일명(<log_prefix>.jsonl) — cli_m3.py 는
     --title(슬러그)을 그대로 넘긴다(사용자 요청 — 프로젝트 제목별로 로그 분리).
@@ -61,17 +67,17 @@ def run_m3(module0: dict, m1: dict, m2: dict, *, concept_line: str = "",
     (output/retrieval_pipeline/<날짜>_<제목>/)를 그대로 넘긴다(사용자 요청 — 날짜 폴더 하위에
     저장). 안 주면 tool_chat.py 기본값(logs/search_chromadb/)을 쓴다.
 
-    반환에 module0~m2/concept_line/ad_length/context 를 함께 담는다 — 다음 단계가 이 dict
-    하나만으로 이어받을 수 있도록(각 단계 출력 파일이 독립적으로 다음 단계의 유일한 입력이
-    될 수 있도록 하는 이 파이프라인의 기존 관례를 그대로 따른다).
+    반환에 module0~m2/m1_insight/concept_line/ad_length/context 를 함께 담는다 — 다음
+    단계가 이 dict 하나만으로 이어받을 수 있도록(각 단계 출력 파일이 독립적으로 다음 단계의
+    유일한 입력이 될 수 있도록 하는 이 파이프라인의 기존 관례를 그대로 따른다).
     """
-    context = build_context(module0, m1, m2)
+    context = build_context(module0, m1, m2, m1_insight=m1_insight)
     output, prompt = device_generation.run_device_generation(
         context, ad_length=ad_length, concept_line=concept_line, backend=backend,
         log_prefix=log_prefix, log_dir=log_dir,
     )
     return {
-        "module0": module0, "m1": m1, "m2": m2,
+        "module0": module0, "m1": m1, "m2": m2, "m1_insight": m1_insight,
         "concept_line": concept_line, "ad_length": ad_length,
         "context": context,
         "prompt": prompt,
