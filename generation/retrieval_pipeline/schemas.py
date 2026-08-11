@@ -1,12 +1,15 @@
-"""retrieval_pipeline M1(제품·브랜드 인사이트 조사)·M3(장치 생성)·M4(시나리오 완성)·
-M5(스토리보드 이미지 생성 계획) 산출물 스키마 — LLM 응답 검증·다음 단계 전달용 pydantic 모델.
+"""retrieval_pipeline M1(제품·브랜드 인사이트 조사)·M2(장치 생성)·M3(러프 시나리오 초안)·
+M4(시나리오 완성)·M5(스토리보드 이미지 생성 계획) 산출물 스키마 — LLM 응답 검증·다음 단계
+전달용 pydantic 모델.
 
 M1(product_insight, LLM 1회 — 크롤링/웹 검색/참조 이미지 분석 결과를 종합해 제품 종류·외관·
-사용법·기능·재료·브랜드 이미지·타겟을 완성), M3(device_generation, LLM 1회 — 자체적으로
-search_chromadb 도구를 여러 번 호출해 근거를 모은 뒤 장치 8개를 완성), M4(scenario_generation,
-LLM 1회 — M3 장치 중 골라 조합해 광고 전체 시나리오를 완성), M5(storyboard_generation, LLM 1회 —
-M4 시나리오를 스토리보드 이미지 슬롯마다 채울 생성 프롬프트로 전환) 넷의 출력을 다룬다. 필드
-네이밍은 이 파이프라인 전용이라 v5_m0_m3(언더바 금지 컨벤션)과 달리 snake_case 를 쓴다.
+사용법·기능·재료·브랜드 이미지·타겟을 완성), M2(device_generation, LLM 1회 — 자체적으로
+search_chromadb 도구를 여러 번 호출해 근거를 모은 뒤 장치 8개를 완성, 원래 이 파이프라인의
+M3였다가 사용자 요청으로 재번호), M3(scenario_draft, LLM 1회 — M2 장치 중 2~4개씩 조합해
+러프 시나리오 초안 5개를 완성), M4(scenario_generation, LLM 1회 — M2 장치 중 골라 조합해
+광고 전체 시나리오를 완성, M3와는 독립적인 별개 경로), M5(storyboard_generation, LLM 1회 —
+M4 시나리오를 스토리보드 이미지 슬롯마다 채울 생성 프롬프트로 전환) 다섯의 출력을 다룬다.
+필드 네이밍은 이 파이프라인 전용이라 v5_m0_m3(언더바 금지 컨벤션)과 달리 snake_case 를 쓴다.
 
 AdScenarioOutput 은 output/total/*/scenario_analysis.json (기존 분석 산출물) 과 같은 구조
 (title/brand/concept/narrative/cast/scenes/key_messages/production_notes)를 그대로 따른다 —
@@ -77,9 +80,26 @@ class Device(BaseModel):
 
 
 class DeviceGenerationOutput(BaseModel):
-    """M3 산출물 — 크리에이티브 문제 진단 + 장치 8개(근거 포함)."""
+    """M2 산출물 — 크리에이티브 문제 진단 + 장치 8개(근거 포함)."""
     creative_problem: str = ""
     devices: list[Device] = Field(default_factory=list)
+
+
+class ScenarioDraft(BaseModel):
+    """시나리오 초안 1개 — M2 devices[] 중 2~4개를 골라 조합한 러프한 방향. M4의
+    AdScenarioOutput(컷 단위 beats 까지 완성한 풀 프로덕션 시나리오)보다 훨씬 가볍다 —
+    "이 방향으로 가면 대략 이런 흐름"을 빠르게 비교하기 위한 스케치다."""
+    name: str = ""  # 이 방향을 한 줄로 요약한 라벨
+    device_names: list[str] = Field(default_factory=list)  # devices[].name 그대로, 정확히 2~4개
+    narrative: str = ""  # Hook~마무리까지 러프한 흐름 3~5문장(컷 단위 디테일 금지)
+    hook: str = ""  # 도입부에서 시선을 붙잡을 장면 아이디어 1문장
+    why_this_combo: str = ""  # 이 장치들을 같이 썼을 때 왜 시너지가 나는지
+    concept_fit: int = 0  # 1~5, 크리에이티브 문제·타깃에 얼마나 맞는가
+
+
+class ScenarioDraftOutput(BaseModel):
+    """M3 산출물 — 시나리오 초안 정확히 5개."""
+    drafts: list[ScenarioDraft] = Field(default_factory=list)
 
 
 class CastMember(BaseModel):
@@ -105,7 +125,7 @@ class Scene(BaseModel):
 
 
 class DeviceUsage(BaseModel):
-    """M3 devices[] 중 이 시나리오가 실제로 골라 쓴 장치 1개 — 어느 컷에서 어떻게 구현됐는지
+    """M2 devices[] 중 이 시나리오가 실제로 골라 쓴 장치 1개 — 어느 컷에서 어떻게 구현됐는지
     추적하기 위한 필드(scenario_analysis.json 원 데이터셋에는 없는, 이 파이프라인 전용 확장)."""
     device_name: str = ""  # devices[].name 그대로
     cut_indices: list[int] = Field(default_factory=list)
@@ -113,7 +133,7 @@ class DeviceUsage(BaseModel):
 
 
 class AdScenarioOutput(BaseModel):
-    """M4 산출물 — M3 장치 중 고른 것을 조합한 광고 전체 시나리오.
+    """M4 산출물 — M2 장치 중 고른 것을 조합한 광고 전체 시나리오.
 
     title/brand/concept/narrative/cast/scenes/key_messages/production_notes 는
     output/total/*/scenario_analysis.json 과 동일한 구조(모듈 docstring 참고)."""

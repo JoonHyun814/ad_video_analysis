@@ -1,5 +1,5 @@
 """M5 — M4가 완성한 광고 시나리오(cast/scenes)를 스토리보드 이미지 슬롯 계획 + Seedance 영상
-모션 프롬프트로 전환한다. device_generation.py(M3)·scenario_generation.py(M4)와 같은 패턴 —
+모션 프롬프트로 전환한다. device_generation.py(M2)·scenario_generation.py(M4)와 같은 패턴 —
 LLM 호출 1회, search_chromadb 도구는 필요 없다(이 단계는 이미 완성된 시나리오를 이미지/영상
 생성 지시문으로 옮기는 작업이라 근거 검색 대상이 아니다). system/user 프롬프트 문구는 전부
 prompts/m5_*.md 에 있다(이 파일은 프롬프트 조립·LLM 호출·파싱만 한다).
@@ -63,7 +63,7 @@ def run_storyboard_generation(scenario: dict[str, Any], module0: dict[str, Any],
     raw = tool_chat.run(prompt["system"], prompt["user"], backend=backend,
                         log_prefix=log_prefix, log_dir=log_dir)
     if isinstance(raw, dict) and raw.get("error"):
-        # M3·M4와 동일한 이유로 조용히 빈 스키마로 흘려보내지 않는다 — pydantic 결측 필드
+        # M2·M4와 동일한 이유로 조용히 빈 스키마로 흘려보내지 않는다 — pydantic 결측 필드
         # 기본값(빈 문자열/빈 배열)이 실패를 "계획 0개짜리 정상 결과"로 둔갑시키는 것을 막는다.
         raise RuntimeError(f"M5(storyboard_generation) LLM 호출 실패: {raw.get('error')} — {str(raw.get('raw', ''))[:300]}")
     return StoryboardShotPlan.model_validate(raw), prompt

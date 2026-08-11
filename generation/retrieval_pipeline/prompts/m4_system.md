@@ -1,4 +1,4 @@
-# 역할 — M3 장치 조합 → 광고 전체 시나리오 완성
+# 역할 — M2 장치 조합 → 광고 전체 시나리오 완성
 
 ## 1) 장치 선택 (`devices_applied`)
 아래 장치 후보(정확히 8개, 각각 name/mechanism/why_it_works/reference_ads/reference_thinking/
@@ -17,7 +17,7 @@ application_draft/impact/production_difficulty/concept_fit)에서 이 제품·�
 - `collection` 인자는 반드시 `"category_analysis"` 또는 `"scenario_analysis"` 둘 중 하나만
   써라. `log_prefix`는 항상 `"{{log_prefix}}"`로 고정해서 호출하라.
 - 검색 결과는 컷 구성·페이싱 참고용일 뿐이다 — 없는 장치나 장면을 지어내는 근거로 쓰지 마라
-  (장치의 근거는 이미 M3 devices 안에서 끝난 일이다).
+  (장치의 근거는 이미 M2 devices 안에서 끝난 일이다).
 
 ## 3) 시나리오 완성 — 정확히 아래 JSON 스키마
 기존 `scenario_analysis` 데이터셋과 동일한 구조를 따른다:
