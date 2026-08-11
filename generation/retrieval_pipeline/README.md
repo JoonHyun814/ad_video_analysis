@@ -11,8 +11,10 @@
 > 2~4개 조합 → 러프 시나리오 초안 5개)가 가져갔다**(사용자 요청 — "기존 m3 -> m2로 변경하고,
 > m3 단계 새롭게 만들거야", 아래 "M2가 M1을 참조하는 방법"·"M3 실행 흐름" 참고). M2는
 > legacy M0~M2(v5_m0_m3 재사용 경로) 없이 M1만으로 실행할 수 있다. M1은 M2로는 배선됐지만
-> legacy M2(포지셔닝)로는 아직 배선되지 않았고, M3(러프 시나리오 초안)는 아직 M4로 배선되지
-> 않았으며, 여러 시나리오 비교/권고·Markdown 렌더링 같은 뒷단계도 아직 없다(사용자 요청 —
+> legacy M2(포지셔닝)로는 아직 배선되지 않았다. **M4는 이제 M3 초안(drafts[] 중 `--draft`로
+> 고른 하나)을 받아 최소 5개 컷짜리 시나리오로 정교화한다**(사용자 요청 — "m4에서는 m3의
+> drafts 리스트 중 하나를 정해서 입력으로 넣으면 ... 5개 이상의 컷", 아래 "M4 실행 흐름"
+> 참고). 여러 시나리오 비교/권고·Markdown 렌더링 같은 뒷단계는 아직 없다(사용자 요청 —
 > "다 지우고 한단계씩 개발").
 >
 > M5의 최종 목적은 Seedance(이미지→영상 생성 모델)에 "스토리보드(이미지)"와 "프롬프트
@@ -27,8 +29,8 @@
 |------|------|--------|------|
 | M1 | 제품·브랜드 인사이트 조사 | `m1.json` | 이 파이프라인의 첫 단계, 새로 설계 |
 | M2 | 연출 장치 8개 생성 | `m2.json` | 원래 M3, 사용자 요청으로 재번호. M1만으로 실행 가능 |
-| M3 | 러프 시나리오 초안 5개 | `m3.json` | 신규. M2 장치 2~4개씩 조합, 도구 없음. M4와는 독립 경로 |
-| M4 | 광고 전체 시나리오 완성 | `m4.json` | M2 산출물을 직접 받는다(M3를 아직 거치지 않음) |
+| M3 | 러프 시나리오 초안 5개 | `m3.json` | 신규. M2 장치 2~4개씩 조합, 도구 없음 |
+| M4 | 광고 전체 시나리오 완성(최소 5컷) | `m4.json` | M3 초안 중 `--draft`로 고른 하나를 정교화 |
 | M5 | 스토리보드 이미지 계획 | `m5.json` + `storyboard.html` | M4 시나리오 기반 |
 
 ## v5_m0_m3 와의 관계
@@ -113,9 +115,10 @@ legacy `module0`/`m1`/`m2`가 없을 때는 `product.name`/`product.category`/
 
 ## M3 실행 흐름 — M2 장치 2~4개 조합 → 러프 시나리오 초안 5개 (신규)
 
-M4(풀 프로덕션 시나리오 1개 완성)보다 훨씬 가벼운 발산 단계다 — 컷 단위 beats 까지 만들지
-않고, "이 장치들을 조합하면 대략 이런 이야기가 된다"를 5가지 방향으로 빠르게 비교하기 위한
-스케치다(사용자 요청 — "m2의 device를 2~4개정도 조합해서 러프한 시나리오를 5개정도 생성").
+M4(풀 프로덕션 시나리오 1개 완성)보다 훨씬 가벼운 발산 단계다 — 컷 단위 화면구성·대사·자막
+같은 디테일까지 만들지 않고, "이 장치들을 조합하면 대략 이런 이야기가 된다"를 5가지 방향으로
+빠르게 비교하기 위한 스케치다(사용자 요청 — "m2의 device를 2~4개정도 조합해서 러프한
+시나리오를 5개정도 생성").
 
 ```
 M3 scenario_draft   (LLM 호출 1회 — 도구 없음, 장치 자체의 근거는 이미 M2에서 끝난 일)
@@ -131,25 +134,30 @@ M3 scenario_draft   (LLM 호출 1회 — 도구 없음, 장치 자체의 근거�
 `cli_m3.py`는 새 날짜 폴더를 만들지 않고 `--input`(`m2.json`)이 있던 폴더에 `m3.json`으로
 이어서 저장한다(`cli_m4.py`와 같은 관례).
 
-**M4와는 독립적인 별개 경로다** — 지금 M4는 이 초안을 거치지 않고 `m2.json`을 직접 받는다.
-초안 5개 중 하나를 골라 M4로 넘기는 배선은 아직 없다(다음 요청에서 다룬다 — "한단계씩
-개발").
+**M4가 이 초안 중 하나를 받아 정교화한다** — 아래 "M4 실행 흐름" 참고(사용자 요청 —
+"m4에서는 m3의 drafts 리스트 중 하나를 정해서 입력으로 넣으면").
 
-## M4 실행 흐름 — M2 장치 중 골라 조합해 광고 전체 시나리오 완성
+## M4 실행 흐름 — M3 초안 정교화 → 광고 전체 시나리오 완성(최소 5컷)
 
 ```
 M4 scenario_generation   (LLM 호출 1회 — search_chromadb 도구 왕복은 선택적)
-    m2.json(M1 인사이트/legacy 맥락 + creative_problem + devices 8개)
-    → 이 제품·광고 길이에 맞는 장치를 몇 개 골라 하나의 내러티브로 조합
+    m3.json(context — M1 인사이트/legacy 맥락 포함 + creative_problem + devices 8개 + drafts 5개)
+    → cli_m4.py --draft 로 drafts[] 중 하나를 선택(인덱스 또는 name 부분 일치, 기본값 0)
+    → 그 초안(device_names/narrative/hook/why_this_combo)을 촬영 가능한 수준으로 정교화
+      — devices[] 에서 draft.device_names 와 일치하는 장치의 mechanism/application_draft 를
+      실제 반영, context.product_insight(M1 인사이트)가 있으면 외관/기능/재료/사용법/
+      브랜드 이미지를 사실적 근거로 반영
     → (필요하면) search_chromadb 로 이 길이/카테고리의 컷 구성·페이싱을 참고
       — 장치 자체의 근거는 이미 M2에서 끝난 일이라 의무는 아니다
-    → cast/scenes(cut_index·time·beats)/key_messages/production_notes/devices_applied 완성
-      (output/total/*/scenario_analysis.json 과 동일한 구조 + devices_applied 만 추가)
+    → cast[] + scenes[](최소 5컷, 컷마다 cut_index/time/cast/visual/motion/dialogue/
+      narration/subtitle/sound) + key_messages/production_notes/devices_applied 완성
 ```
 
 M2와 같은 이유로 device_generation.py 를 그대로 재사용하지 않고 `scenario_generation.py` 를
 따로 뒀다(출력 스키마가 다르고, 이번 단계는 검색이 선택적이라 프롬프트 지시 자체가 다르다).
-`tool_chat.py`(search_chromadb 자율 호출 왕복 루프)는 M2·M4가 그대로 공유한다.
+`tool_chat.py`(search_chromadb 자율 호출 왕복 루프)는 M2·M4가 그대로 공유한다. `--draft`
+없이(레거시 `m2.json`을 직접 호출 등) `draft`가 주어지지 않으면 devices[] 8개에서 자유롭게
+골라 조합하는 이전 동작으로 폴백한다.
 
 ## M5 실행 흐름 — M4 시나리오를 스토리보드 이미지 계획 + Seedance 프롬프트로 전환
 
@@ -227,7 +235,7 @@ kind 배정이 필요 없다.
 | `prompts/m3_user.md` | 입력 | `concept_line`, `ad_length`, `creative_problem`, `devices_json`, `context_json` |
 | `prompts/m4_common.md` | 페르소나(시나리오 디렉터) | (없음) |
 | `prompts/m4_system.md` | 지시문 — 장치 선택/조합 + (선택)도구로 페이싱 참고 + 시나리오 완성 | (없음) |
-| `prompts/m4_user.md` | 입력 | `concept_line`, `ad_length`, `creative_problem`, `devices_json`, `context_json` |
+| `prompts/m4_user.md` | 입력 | `concept_line`, `ad_length`, `creative_problem`, `draft_json`, `devices_json`, `context_json` |
 | `prompts/m5_common.md` | 페르소나(영상 제작 파이프라인의 스토리보드 플래너) — 이미지/영상 프롬프트 분리 원칙 | (없음) |
 | `prompts/m5_system.md` | 지시문 — 인물/제품/Environment/컷별 이미지 계획 + 컷별 Seedance 모션 프롬프트 완성 | (없음) |
 | `prompts/m5_user.md` | 입력 | `scenario_json`, `product_json` |
@@ -243,7 +251,7 @@ kind 배정이 필요 없다.
 | `device_generation.py` | M2 — 프롬프트 조립 + `tool_chat.run()` 호출 + `DeviceGenerationOutput` 파싱. 원래 이 파이프라인의 M3 |
 | `cli_m3.py` | M3 진입점(`--input <m2.json>` `--concept`(선택, 재지정용) `--llm_backend`) — `--input`과 같은 폴더에 `m3.json` 이어서 저장. 신규(M2 장치 조합 → 러프 시나리오 초안 5개) |
 | `scenario_draft.py` | M3 — 프롬프트 조립(도구 없음) + `tool_chat.run()` 호출 + `ScenarioDraftOutput` 파싱 |
-| `cli_m4.py` | M4 진입점(`--input <m2.json>` `--llm_backend`, `--input`과 같은 폴더에 저장) |
+| `cli_m4.py` | M4 진입점(`--input <m3.json>` `--draft`(선택, 기본값 `0`) `--llm_backend`, `--input`과 같은 폴더에 저장) |
 | `cli_m5.py` | M5 진입점(`--input <m4.json>` `--llm_backend`) — `m5.json` + `storyboard.html` 생성 |
 | `pipeline.py` | `run_m1()` / `run_m0_m2`(재노출) / `run_m2()` / `run_m3()` / `run_m4()` / `run_m5()` 오케스트레이션 |
 | `context.py` | m1_insight(주 근거) + 선택적 legacy module0/m1/m2 → M2 프롬프트용 압축 맥락(`build_context`) |
@@ -254,7 +262,7 @@ kind 배정이 필요 없다.
 | `storyboard_image_layout.py` | M5 뒷단계 — 슬롯이 카테고리별 비율을 따르게 만드는 적응형 레이아웃 도구(story_board에서 그대로 복사, stdlib+ffmpeg만 사용) |
 | `tool_chat.py` | LLM이 `search_chromadb` 를 tool_use 로 자율 호출하는 왕복 루프(cli: MCP, api: Anthropic 네이티브 tool_use) — M2·M4가 공유(M3·M5는 검색을 쓰지 않지만 같은 호출 인프라를 재사용) |
 | `prompt_loader.py` | `prompts/*.md` 로더 + `{{변수}}` 치환(이 패키지 전용) |
-| `schemas.py` | `ProductInsight`(M1) + `DeviceGenerationOutput`/`Device`/`ReferenceAdCitation`(M2) + `ScenarioDraftOutput`/`ScenarioDraft`(M3) + `AdScenarioOutput`/`CastMember`/`Scene`/`SceneBeat`/`DeviceUsage`(M4) + `StoryboardShotPlan`/`CharacterShotPrompts`/`ProductShotBriefs`/`EnvironmentShotPrompt`/`CutShotPlan`(M5) pydantic 모델 |
+| `schemas.py` | `ProductInsight`(M1) + `DeviceGenerationOutput`/`Device`/`ReferenceAdCitation`(M2) + `ScenarioDraftOutput`/`ScenarioDraft`(M3) + `AdScenarioOutput`/`CastMember`/`Scene`(cut_index/time/cast/visual/motion/dialogue/narration/subtitle/sound)/`DeviceUsage`(M4) + `StoryboardShotPlan`/`CharacterShotPrompts`/`ProductShotBriefs`/`EnvironmentShotPrompt`/`CutShotPlan`(M5) pydantic 모델 |
 | `prompts/` | 위 표 참고 |
 | `../../generation/AITIVE_스토리보드_틀.html` | M5가 인스턴스화하는 빈 이미지 슬롯 틀(원본, 사람이 직접 보고 확인용) |
 
@@ -274,15 +282,15 @@ python -m generation.retrieval_pipeline.cli_m2 \
     [--concept "기기를 보여주지 말고, 집에서 세계와 연결되는 순간을 보여라."] \
     [--ad_length 15초] [--llm_backend cli|api]
 
-# 3) M3 (선택 — M2 장치 2~4개 조합 → 러프 시나리오 초안 5개, M4와는 독립 경로)
+# 3) M3 (M2 장치 2~4개 조합 → 러프 시나리오 초안 5개)
 python -m generation.retrieval_pipeline.cli_m3 \
     --input output/retrieval_pipeline/<날짜>_DBH_15초_CTV/m2.json \
     [--concept "..."] [--llm_backend cli|api]
 
-# 4) M4 (M2 장치 조합 → 광고 전체 시나리오 완성)
+# 4) M4 (M3 초안 중 하나를 정교화 → 광고 전체 시나리오 완성, 최소 5컷)
 python -m generation.retrieval_pipeline.cli_m4 \
-    --input output/retrieval_pipeline/<날짜>_DBH_15초_CTV/m2.json \
-    [--llm_backend cli|api]
+    --input output/retrieval_pipeline/<날짜>_DBH_15초_CTV/m3.json \
+    [--draft 0] [--llm_backend cli|api]
 
 # 5) M5 (M4 시나리오 → 스토리보드 이미지 슬롯 계획 + Seedance 모션 프롬프트)
 python -m generation.retrieval_pipeline.cli_m5 \
@@ -297,8 +305,8 @@ python -m generation.retrieval_pipeline.storyboard_codex \
     [--reference_dir <사용자 제품 사진 폴더>] [--dry_run]
 ```
 
-3)번(M3, 러프 시나리오 초안)은 완전히 선택이다 — 지금은 4)번(M4)이 3)번을 거치지 않고
-2)번(M2) 산출물을 직접 받으므로, 3)번을 건너뛰어도 나머지 파이프라인은 그대로 동작한다.
+3)번(M3, 러프 시나리오 초안)은 이제 4)번(M4)의 필수 입력이다 — `cli_m4.py`는 `m2.json`이
+아니라 `m3.json`(drafts 포함)을 받아 `--draft`로 고른 초안 하나를 정교화한다(사용자 요청).
 
 legacy M0~M2(`cli.py`, v5_m0_m3 `run_m0_m2()` 재사용)를 굳이 돌려 M2 맥락을 보강하고
 싶다면: `python -m generation.retrieval_pipeline.cli --url <URL> [--producttitle "제품명"]
@@ -336,17 +344,18 @@ legacy M0~M2(`cli.py`, v5_m0_m3 `run_m0_m2()` 재사용)를 굳이 돌려 M2 맥
 
 | 옵션(`cli_m4.py`) | 기본값 | 설명 |
 |------|--------|------|
-| `--input` | (필수) | `m2.json`(module0/m1/m2/context/creative_problem/devices 포함) |
+| `--input` | (필수) | `m3.json`(context/creative_problem/devices/drafts 포함) |
+| `--draft` | `0` | 사용할 M3 초안 — `drafts[]` 의 인덱스(0부터) 또는 `name` 부분 문자열(대소문자 무시) |
 | `--llm_backend` | `cli` | M2와 동일 |
 
-`cli_m4.py`는 새 날짜 폴더를 만들지 않는다 — `--input`(`m2.json`)이 있던 폴더에 `m4.json`을
+`cli_m4.py`는 새 날짜 폴더를 만들지 않는다 — `--input`(`m3.json`)이 있던 폴더에 `m4.json`을
 이어서 저장하고, `search_chromadb` 호출 로그(선택적으로 쓰였다면)도 같은 폴더에
 `<제목슬러그>_m4.jsonl`로 남긴다(M2 로그 `<제목슬러그>.jsonl`과 파일이 섞이지 않도록 접미사
 구분).
 
 | 옵션(`cli_m5.py`) | 기본값 | 설명 |
 |------|--------|------|
-| `--input` | (필수) | `m4.json`(module0/m1/m2/context/creative_problem/devices + 시나리오 필드 포함) |
+| `--input` | (필수) | `m4.json`(module0/m1/m2/context/creative_problem/devices/draft + 시나리오 필드 포함) |
 | `--llm_backend` | `cli` | M2·M4와 동일 |
 
 `cli_m5.py`도 `--input`(`m4.json`)이 있던 폴더에 `m5.json`/`storyboard.html`을 이어서
@@ -383,12 +392,13 @@ output/retrieval_pipeline/20260807_DBH_15초_CTV/
 │                             context.product_insight: --m1_input 을 줬을 때만 생기는 압축 필드(9개, m1.json 필드와 동일)
 ├── DBH_15초_CTV.jsonl       search_chromadb 호출 로그(M2, 쿼리·컬렉션·검색 결과 원본, 호출마다 한 줄)
 ├── m3.json                  {concept_line, ad_length, context, creative_problem, devices[], prompt, drafts[]}
-│                             (선택 산출물 — cli_m3.py 를 돌렸을 때만 생긴다) drafts[] 원소:
-│                             {name, device_names[](2~4개), narrative, hook, why_this_combo, concept_fit} × 5
-├── m4.json                  {module0, m1, m2, concept_line, ad_length, context, prompt(M4), creative_problem, devices[],
-│                             title, brand, concept, narrative, cast[], scenes[], key_messages[], production_notes, devices_applied[]}
-│                             module0/m1/m2: m2.json 에 없으므로 cli_m4.py 는 항상 {}로 채워 넘긴다(legacy 전용 필드, 사실상 미사용)
-│                             ※ m2.json 을 직접 받는다 — 위 m3.json(초안 5개)은 아직 이 단계 입력으로 배선 안 됨
+│                             drafts[] 원소: {name, device_names[](2~4개), narrative, hook,
+│                             why_this_combo, concept_fit} × 5 — cli_m4.py 의 필수 입력이다
+├── m4.json                  {module0, m1, m2, concept_line, ad_length, context, prompt(M4), creative_problem, devices[], draft,
+│                             title, brand, concept, narrative, cast[], scenes[](최소 5개), key_messages[], production_notes, devices_applied[]}
+│                             module0/m1/m2: m3.json 에 없으므로 cli_m4.py 는 항상 {}로 채워 넘긴다(legacy 전용 필드, 사실상 미사용)
+│                             draft: --draft 로 고른 m3.json drafts[] 원소 그대로
+│                             scenes[] 원소: {cut_index, time, cast, visual, motion, dialogue, narration, subtitle, sound}
 ├── DBH_15초_CTV_m4.jsonl    search_chromadb 호출 로그(M4, 컷 구성/페이싱 참고용 — 안 썼으면 파일 자체가 안 생긴다)
 ├── m5.json                  {…m4.json 필드 그대로 + prompt(M5), scenario(=m4.json의 시나리오 필드만 압축),
 │                             characters[], product, environment, cuts[]}
@@ -433,17 +443,20 @@ output/retrieval_pipeline/20260807_DBH_15초_CTV/
 }
 ```
 
-`m4.json` 의 시나리오 필드(`AdScenarioOutput`, `schemas.py`) — `output/total/*/
-scenario_analysis.json` 과 동일한 구조에 `devices_applied[]` 만 추가된 형태:
+`m4.json` 의 시나리오 필드(`AdScenarioOutput`, `schemas.py`) — 최상위 구조는 `output/total/*/
+scenario_analysis.json` 과 같지만, `scenes[]` 컷 단위는 고정 6필드(사용자 요청)로 다르다
+(모듈 docstring 참고):
 
 ```json
 {
   "title": "...", "brand": "...", "concept": "...", "narrative": "...",
   "cast": [{"id": "캐릭터1", "description": "..."}],
   "scenes": [
-    {"cut_index": 1, "time": "0.00~1.10s",
-     "beats": [{"type": "background", "description": "..."},
-               {"type": "action", "cast": "캐릭터1", "description": "..."}]}
+    {"cut_index": 1, "time": "0.00~3.00s", "cast": "캐릭터1",
+     "visual": "화면구성 — 공간·구도·인물/제품 배치...",
+     "motion": "동적 연출 — 카메라 무브먼트·인물 동작...",
+     "dialogue": "대사(없으면 빈 문자열)", "narration": "나레이션(없으면 빈 문자열)",
+     "subtitle": "자막(없으면 빈 문자열)", "sound": "BGM/SFX..."}
   ],
   "key_messages": ["..."],
   "production_notes": "...",
@@ -538,8 +551,8 @@ python -m db.chromadb.importers.scenario [--data_root output/total]
   공존한다("한단계씩 개발" 방침, 다음 요청에서 다룬다). legacy `cli.py` 경로는 M2에
   `--input`으로 선택적으로만 얹을 수 있고(포지셔닝 성명서·JTBD 인사이트 보강용), M2 실행에
   더 이상 필수가 아니다.
-- M3(러프 시나리오 초안 5개)는 아직 M4에 배선되지 않았다 — M4는 지금도 M2 산출물을 직접
-  받는다. 초안 5개 중 하나를 골라 M4로 넘기는 배선은 다음 요청에서 다룬다.
+- M4의 `--draft` 선택은 사람이 CLI 인자로 직접 지정한다(기본값은 인덱스 `0`, 즉 `drafts[0]`)
+  — 5개 초안 중 어느 것이 가장 좋은지 LLM이 자동으로 고르는 별도 평가 단계는 없다.
 - M1의 크롤링·제품 스펙 검색·댓글 검색·이미지 분석은 순차 실행이다(병렬화 안 함) — 참조
   이미지가 많거나 검색이 느리면 그만큼 M1 전체 실행 시간이 늘어난다.
 - M1의 댓글/평판 조사는 DuckDuckGo 텍스트 검색으로 근사한 것이다 — 유튜브·인스타그램 등

@@ -6,15 +6,17 @@ M1(product_insight, LLM 1회 — 크롤링/웹 검색/참조 이미지 분석 �
 사용법·기능·재료·브랜드 이미지·타겟을 완성), M2(device_generation, LLM 1회 — 자체적으로
 search_chromadb 도구를 여러 번 호출해 근거를 모은 뒤 장치 8개를 완성, 원래 이 파이프라인의
 M3였다가 사용자 요청으로 재번호), M3(scenario_draft, LLM 1회 — M2 장치 중 2~4개씩 조합해
-러프 시나리오 초안 5개를 완성), M4(scenario_generation, LLM 1회 — M2 장치 중 골라 조합해
-광고 전체 시나리오를 완성, M3와는 독립적인 별개 경로), M5(storyboard_generation, LLM 1회 —
+러프 시나리오 초안 5개를 완성), M4(scenario_generation, LLM 1회 — M3 초안 중 하나를 골라
+받아 최소 5컷짜리 풀 프로덕션 시나리오로 정교화), M5(storyboard_generation, LLM 1회 —
 M4 시나리오를 스토리보드 이미지 슬롯마다 채울 생성 프롬프트로 전환) 다섯의 출력을 다룬다.
 필드 네이밍은 이 파이프라인 전용이라 v5_m0_m3(언더바 금지 컨벤션)과 달리 snake_case 를 쓴다.
 
-AdScenarioOutput 은 output/total/*/scenario_analysis.json (기존 분석 산출물) 과 같은 구조
-(title/brand/concept/narrative/cast/scenes/key_messages/production_notes)를 그대로 따른다 —
-M4 산출물을 그 데이터셋과 같은 형태로 비교·재사용할 수 있게 하기 위해서다(devices_applied 만
-이 파이프라인이 추가한 필드).
+AdScenarioOutput 은 output/total/*/scenario_analysis.json (기존 분석 산출물) 과 최상위 구조
+(title/brand/concept/narrative/cast/scenes/key_messages/production_notes)는 같지만, 컷 단위
+디테일은 다르다 — 그 데이터셋의 `scenes[].beats[]`(type 태그로 요소를 나열하는 가변 리스트)
+대신 Scene 이 화면구성/동적 연출/대사/나레이션/자막/사운드를 고정 필드로 명시한다(사용자
+요청 — "컷별 화면구성, 동적 연출, 대사, 나레이션, 자막, 사운드"). devices_applied 도 이
+파이프라인이 추가한 필드다.
 
 StoryboardShotPlan 은 generation/AITIVE_스토리보드_틀.html(1.인물/2.제품/3.Environment/4.컷별
 4개 섹션만 남긴 이미지 슬롯 중심 틀 — 사용자 요청으로 카메라·조명·촬영 기법·크레딧·메타데이터
@@ -87,8 +89,9 @@ class DeviceGenerationOutput(BaseModel):
 
 class ScenarioDraft(BaseModel):
     """시나리오 초안 1개 — M2 devices[] 중 2~4개를 골라 조합한 러프한 방향. M4의
-    AdScenarioOutput(컷 단위 beats 까지 완성한 풀 프로덕션 시나리오)보다 훨씬 가볍다 —
-    "이 방향으로 가면 대략 이런 흐름"을 빠르게 비교하기 위한 스케치다."""
+    AdScenarioOutput(컷 단위로 화면구성·대사·자막 등까지 완성한 풀 프로덕션 시나리오)보다
+    훨씬 가볍다 — "이 방향으로 가면 대략 이런 흐름"을 빠르게 비교하기 위한 스케치다. cli_m4.py
+    가 drafts[] 중 하나를 골라 M4 입력으로 넘긴다(scenario_generation.py 참고)."""
     name: str = ""  # 이 방향을 한 줄로 요약한 라벨
     device_names: list[str] = Field(default_factory=list)  # devices[].name 그대로, 정확히 2~4개
     narrative: str = ""  # Hook~마무리까지 러프한 흐름 3~5문장(컷 단위 디테일 금지)
@@ -108,20 +111,20 @@ class CastMember(BaseModel):
     description: str = ""
 
 
-class SceneBeat(BaseModel):
-    """컷 1개 안에서 동시에 일어나는 요소 1개(background/camera/action/music/dialogue/
-    text_overlay 중 하나). cast 는 action/dialogue 처럼 인물이 결부될 때만 채워진다(쉼표로
-    복수 인물 표기, 예: "캐릭터11,캐릭터12") — scenario_analysis.json 의 beats[] 관례와 동일."""
-    type: str = ""
-    cast: str = ""
-    description: str = ""
-
-
 class Scene(BaseModel):
-    """컷 1개 — scenario_analysis.json 의 scenes[] 원소와 동일한 형태."""
+    """컷(cut) 1개 — 화면구성/동적 연출/대사/나레이션/자막/사운드를 모두 담는다(사용자 요청
+    — "컷별 화면구성, 동적 연출, 대사, 나레이션, 자막, 사운드"). scenario_analysis.json 의
+    beats[](type 태그로 요소를 나열하는 가변 리스트) 관례를 걷어내고 고정 필드로 명시했다 —
+    매 컷마다 6개 요소 전부를 판단하도록 강제하기 위해서다(해당 없으면 빈 문자열이 정상)."""
     cut_index: int = 0
-    time: str = ""  # "0.00~1.10s" 형식
-    beats: list[SceneBeat] = Field(default_factory=list)
+    time: str = ""  # "0.00~3.00s" 형식
+    cast: str = ""  # 이 컷에 등장하는 인물(쉼표로 복수 표기, 예: "캐릭터1,캐릭터2"), 없으면 빈 문자열
+    visual: str = ""     # 화면구성 — 정지 프레임에 보이는 것(인물/제품/배경/구도)
+    motion: str = ""     # 동적 연출 — 카메라 무브먼트·인물 동작 등 시간에 따른 전개
+    dialogue: str = ""   # 대사 — 등장인물이 실제로 하는 말
+    narration: str = ""  # 나레이션 — 내레이터 음성
+    subtitle: str = ""   # 자막 — 화면에 표시되는 텍스트(카피/키워드 등)
+    sound: str = ""      # 사운드 — BGM/SFX 등 음향 연출
 
 
 class DeviceUsage(BaseModel):
@@ -133,10 +136,13 @@ class DeviceUsage(BaseModel):
 
 
 class AdScenarioOutput(BaseModel):
-    """M4 산출물 — M2 장치 중 고른 것을 조합한 광고 전체 시나리오.
+    """M4 산출물 — M3 초안(drafts[] 중 선택된 하나) + M1 인사이트(context.product_insight)를
+    받아 정교화한 광고 전체 시나리오. scenes[] 는 최소 5개 컷으로 구성하고, 각 컷은 Scene 의
+    6개 필드(visual/motion/dialogue/narration/subtitle/sound)를 모두 판단한다(사용자 요청).
 
-    title/brand/concept/narrative/cast/scenes/key_messages/production_notes 는
-    output/total/*/scenario_analysis.json 과 동일한 구조(모듈 docstring 참고)."""
+    title/brand/concept/narrative/cast/key_messages/production_notes 는
+    output/total/*/scenario_analysis.json 과 최상위 구조가 같다 — scenes[] 컷 단위 디테일은
+    다르다(모듈 docstring 참고)."""
     title: str = ""
     brand: str = ""
     concept: str = ""
