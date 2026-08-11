@@ -76,9 +76,11 @@ def run_m3(module0: dict | None = None, m1: dict | None = None, m2: dict | None 
     (사용자 요청 — 날짜 폴더 하위에 저장). 안 주면 tool_chat.py 기본값(logs/search_chromadb/)
     을 쓴다.
 
-    반환에 module0~m2/m1_insight/concept_line/ad_length/context 를 함께 담는다 — 다음
-    단계가 이 dict 하나만으로 이어받을 수 있도록(각 단계 출력 파일이 독립적으로 다음 단계의
-    유일한 입력이 될 수 있도록 하는 이 파이프라인의 기존 관례를 그대로 따른다).
+    반환에 module0/m1/m2/m1_insight 원본은 담지 않는다(사용자 요청 — "m3 결과 저장할 때
+    module0,m1,m2,m1_insight는 저장 안해도 돼") — 이미 build_context() 가 뽑아낸 압축본이
+    "context"에 다 들어있으므로 원본을 다시 통째로 들고 다닐 필요가 없다. concept_line/
+    ad_length/context 는 계속 담는다(다음 단계가 이 dict 하나만으로 이어받을 수 있도록).
+    cli_m4.py 는 module0/m1/m2 가 없어도(get() 폴백으로 빈 dict) 동작한다.
     """
     module0, m1, m2 = module0 or {}, m1 or {}, m2 or {}
     context = build_context(module0, m1, m2, m1_insight=m1_insight)
@@ -87,7 +89,6 @@ def run_m3(module0: dict | None = None, m1: dict | None = None, m2: dict | None 
         log_prefix=log_prefix, log_dir=log_dir,
     )
     return {
-        "module0": module0, "m1": m1, "m2": m2, "m1_insight": m1_insight,
         "concept_line": concept_line, "ad_length": ad_length,
         "context": context,
         "prompt": prompt,

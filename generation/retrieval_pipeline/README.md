@@ -313,13 +313,14 @@ output/retrieval_pipeline/20260807_DBH_15초_CTV/
 │                             aspirational_brand_image, target_group, misc_notes[]}
 │                             ※ --m1_input 으로 M3의 주 근거로 넘긴다(아래 참고), M2 입력으론 아직 배선 안 됨
 ├── crawled_images/          크롤링 중 발견한 로고·제품 이미지(logo.*, product_1.* …) — 아무것도 못 찾았으면 폴더 자체가 안 생긴다
-├── m3.json                  {module0, m1, m2, m1_insight, concept_line, ad_length, context, prompt, creative_problem, devices[]}
-│                             module0/m1/m2: --input(legacy) 을 줬으면 그 내용, 안 줬으면 {}
-│                             m1_insight: --m1_input 을 줬으면 그 m1.json 내용 그대로, 안 줬으면 null
-│                             context.product_insight: m1_insight 가 있을 때만 생기는 압축 필드(9개, 위 m1.json 필드와 동일)
+├── m3.json                  {concept_line, ad_length, context, prompt, creative_problem, devices[]}
+│                             module0/m1/m2/m1_insight 원본은 저장하지 않는다(사용자 요청 —
+│                             build_context() 가 뽑아낸 압축본이 이미 context 에 다 있다)
+│                             context.product_insight: --m1_input 을 줬을 때만 생기는 압축 필드(9개, m1.json 필드와 동일)
 ├── DBH_15초_CTV.jsonl       search_chromadb 호출 로그(M3, 쿼리·컬렉션·검색 결과 원본, 호출마다 한 줄)
-├── m4.json                  {…m3.json 필드 그대로 + prompt(M4), title, brand, concept, narrative,
-│                             cast[], scenes[], key_messages[], production_notes, devices_applied[]}
+├── m4.json                  {module0, m1, m2, concept_line, ad_length, context, prompt(M4), creative_problem, devices[],
+│                             title, brand, concept, narrative, cast[], scenes[], key_messages[], production_notes, devices_applied[]}
+│                             module0/m1/m2: m3.json 에 없으므로 cli_m4.py 는 항상 {}로 채워 넘긴다(legacy 전용 필드, 사실상 미사용)
 ├── DBH_15초_CTV_m4.jsonl    search_chromadb 호출 로그(M4, 컷 구성/페이싱 참고용 — 안 썼으면 파일 자체가 안 생긴다)
 ├── m5.json                  {…m4.json 필드 그대로 + prompt(M5), scenario(=m4.json의 시나리오 필드만 압축),
 │                             characters[], product, environment, cuts[]}
