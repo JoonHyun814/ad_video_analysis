@@ -4,7 +4,7 @@
 ## 광고 길이
 {{ad_length}}
 
-## 제품/인사이트/포지셔닝 맥락 (M0~M2 핸드오프 요약)
+## 제품/인사이트/포지셔닝 맥락 (M1 product_insight + 있다면 legacy M0~M2 핸드오프 요약)
 {{context_json}}
 
 위 맥락을 바탕으로 `search_chromadb` 도구를 필요한 만큼 호출해 근거를 모은 뒤, 지정된 JSON

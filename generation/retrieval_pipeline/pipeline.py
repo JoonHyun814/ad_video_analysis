@@ -6,11 +6,12 @@
       무관한 이 파이프라인 전용 새 설계다 — run_m0_m2() 의 M0~M2 재사용 원칙과 별개.
   run_m0_m2(): generation.v5_m0_m3.pipeline.run_m0_m2() 를 그대로 재노출한다(사용자 요청 —
       "M0~M2는 v5_m0_m3과 동일"). 크롤·M1·M2 로직을 이 파이프라인에 다시 구현하지 않는다.
-  run_m3(): M0~M2 맥락을 입력받아 search_chromadb 도구를 자율 호출하며 연출 장치 8개를
-      완성한다(LLM 1회, 도구 왕복은 다회, device_generation.py). 이전 설계(M3 공백
-      placeholder → M4 device_scout → M5 retrieval → M6 synthesis → M7 render)를 걷어내고
-      파이프라인을 처음부터 다시 설계했다(사용자 요청 — "pipeline 개편, 다 지우고 한단계씩
-      개발").
+  run_m3(): M1 인사이트(+선택적으로 M0~M2 legacy 맥락)를 입력받아 search_chromadb 도구를
+      자율 호출하며 연출 장치 8개를 완성한다(LLM 1회, 도구 왕복은 다회, device_generation.py).
+      module0/m1/m2(legacy) 는 전부 선택이다(사용자 요청 — "M3는 이제 m0_m2 말고 m1을
+      토대로 작동") — m1_insight 만으로도 실행할 수 있다. 이전 설계(M3 공백 placeholder →
+      M4 device_scout → M5 retrieval → M6 synthesis → M7 render)를 걷어내고 파이프라인을
+      처음부터 다시 설계했다(사용자 요청 — "pipeline 개편, 다 지우고 한단계씩 개발").
   run_m4(): M3가 완성한 장치 8개 중 이 제품·광고 길이에 맞는 것을 골라 조합해, 광고 전체
       시나리오(scenario_analysis.json 과 동일한 구조)를 완성한다(LLM 1회, search_chromadb
       호출은 선택적, scenario_generation.py).
@@ -50,27 +51,36 @@ async def run_m1(product_name: str, url: str, *, guideline_md: str = "",
     }
 
 
-def run_m3(module0: dict, m1: dict, m2: dict, *, m1_insight: dict | None = None,
-          concept_line: str = "", ad_length: str = "15초", backend: str = "cli",
-          log_prefix: str = "default", log_dir: str | None = None) -> dict[str, Any]:
-    """M3 — m0~m2 맥락을 분석하고 도구 호출로 근거를 모아 연출 장치 8개를 완성한다.
+def run_m3(module0: dict | None = None, m1: dict | None = None, m2: dict | None = None, *,
+          m1_insight: dict | None = None, concept_line: str = "", ad_length: str = "15초",
+          backend: str = "cli", log_prefix: str = "default", log_dir: str | None = None
+          ) -> dict[str, Any]:
+    """M3 — M1 인사이트(+선택적 M0~M2 legacy 맥락)를 분석하고 도구 호출로 근거를 모아
+    연출 장치 8개를 완성한다.
 
-    m1_insight: 새 M1(product_insight.py, run_m1() 이 만드는 m1.json)의 산출물(선택) —
-    legacy m1(위 인자, JTBD 인사이트)과는 별개다. 지정하면 context.build_context() 가
-    context.product_insight 로 얹어 M3 가 제품 외관/사용법/기능/재료/브랜드 이미지 같은
-    구체적 사실 근거를 연출 장치(mechanism/application_draft)에 반영할 수 있게 한다. 안 주면
-    기존과 동일하게 동작한다(하위호환 — cli_m3.py 의 --m1_input 이 없으면 None).
+    module0/m1/m2 는 전부 선택이다(사용자 요청 — "M3는 이제 m0_m2 말고 m1을 토대로 작동") —
+    cli_m3.py 의 --input(legacy m0_m2.json) 없이 --m1_input 만으로도 실행할 수 있다. 셋 다
+    안 주면 빈 dict 로 취급한다(context.build_context() 참고).
+
+    m1_insight: 새 M1(product_insight.py, run_m1() 이 만드는 m1.json)의 산출물 — legacy m1
+    (위 인자, JTBD 인사이트, 있다면)과는 별개다. 지정하면 context.build_context() 가
+    context.product_insight 로 얹어(module0/m1 이 없으면 product.name/category,
+    insight.target_label 의 폴백 소스로도 쓰인다) M3 가 제품 외관/사용법/기능/재료/브랜드
+    이미지 같은 구체적 사실 근거를 연출 장치(mechanism/application_draft)에 반영할 수 있게
+    한다.
 
     log_prefix: search_chromadb 호출 로그 파일명(<log_prefix>.jsonl) — cli_m3.py 는
-    --title(슬러그)을 그대로 넘긴다(사용자 요청 — 프로젝트 제목별로 로그 분리).
-    log_dir: 그 로그 파일을 남길 폴더 — cli_m3.py 는 이 실행의 출력 폴더
-    (output/retrieval_pipeline/<날짜>_<제목>/)를 그대로 넘긴다(사용자 요청 — 날짜 폴더 하위에
-    저장). 안 주면 tool_chat.py 기본값(logs/search_chromadb/)을 쓴다.
+    --title(슬러그, 또는 --m1_input 이 있던 폴더명에서 뽑은 슬러그)을 그대로 넘긴다(사용자
+    요청 — 프로젝트 제목별로 로그 분리).
+    log_dir: 그 로그 파일을 남길 폴더 — cli_m3.py 는 이 실행의 출력 폴더를 그대로 넘긴다
+    (사용자 요청 — 날짜 폴더 하위에 저장). 안 주면 tool_chat.py 기본값(logs/search_chromadb/)
+    을 쓴다.
 
     반환에 module0~m2/m1_insight/concept_line/ad_length/context 를 함께 담는다 — 다음
     단계가 이 dict 하나만으로 이어받을 수 있도록(각 단계 출력 파일이 독립적으로 다음 단계의
     유일한 입력이 될 수 있도록 하는 이 파이프라인의 기존 관례를 그대로 따른다).
     """
+    module0, m1, m2 = module0 or {}, m1 or {}, m2 or {}
     context = build_context(module0, m1, m2, m1_insight=m1_insight)
     output, prompt = device_generation.run_device_generation(
         context, ad_length=ad_length, concept_line=concept_line, backend=backend,

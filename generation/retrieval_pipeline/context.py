@@ -1,4 +1,5 @@
-"""M0~M2 핸드오프(module0/m1/m2)에서 M3 프롬프트에 넣을 압축 맥락을 뽑는다.
+"""M0~M2 핸드오프(module0/m1/m2, 선택)와 M1 인사이트(m1_insight, 이 파이프라인의 새 M1)에서
+M3 프롬프트에 넣을 압축 맥락을 뽑는다.
 
 module0/m1/m2 전체를 그대로 프롬프트에 붙이면 M3(컨셉 발산 다수)를 위해 설계된 필드까지
 다 실려 불필요하게 길어진다 — M3가 실제로 참고하는 필드만 골라낸다(evaluation/ad_concept_production
@@ -7,28 +8,37 @@ module0/m1/m2 필드 이름은 generation/v5_m0_m3/module0_ingest.py 반환 dict
 M1(corejob/humantruth/target)·M2(positioningstatement/valueproposition/uniqueattributes) 출력과
 정확히 일치해야 한다.
 
-m1_insight(선택)는 위 legacy m1(JTBD 인사이트)과 다른, 이 파이프라인 전용 새 M1
-(product_insight.py, cli_m1.py 가 만드는 m1.json)의 산출물이다 — 제품 종류/외관/사용법/기능/
-재료/브랜드 이미지/타겟/기타사항처럼 M3가 구체적인 연출 장치를 만들 때 쓸 수 있는 물리적·
-사실적 근거를 담고 있다. 아직 이 새 M1은 legacy m1/m2 를 대체하지 않으므로(M2 는 그대로
-legacy 경로를 쓴다) 별도 선택적 인자로만 얹는다 — cli_m3.py 의 --m1_input 이 없으면 기존과
-동일하게 동작한다(하위호환).
+module0/m1/m2(legacy, v5_m0_m3 M0~M2 재사용 경로)는 이제 전부 선택이다(사용자 요청 — "M3는
+이제 m0_m2 말고 m1을 토대로 작동"). m1_insight(cli_m1.py 가 만드는 m1.json, product_insight.py
+산출물)만으로도 M3를 돌릴 수 있어야 하므로, module0/m1/m2 가 비어 있으면 product.name/
+category, insight.target_label 을 m1_insight 의 대응 필드로 채운다(둘 다 있으면 legacy 값을
+우선한다 — 더 구조화된 소스이므로). legacy m1(JTBD 인사이트)과 m1_insight(제품·브랜드
+인사이트)는 서로 다른 산출물이라 대체 관계가 아니라 보강 관계다.
 """
 from __future__ import annotations
 
 from typing import Any
 
 
-def build_context(module0: dict[str, Any], m1: dict[str, Any], m2: dict[str, Any], *,
+def build_context(module0: dict[str, Any] | None = None, m1: dict[str, Any] | None = None,
+                  m2: dict[str, Any] | None = None, *,
                   m1_insight: dict[str, Any] | None = None) -> dict[str, Any]:
-    """M3 프롬프트({{context_json}})에 그대로 직렬화해 넣을 dict."""
+    """M3 프롬프트({{context_json}})에 그대로 직렬화해 넣을 dict.
+
+    module0/m1/m2 는 전부 생략 가능(legacy m0~m2 없이 m1_insight 만으로 호출 가능) — 생략 시
+    빈 dict 로 취급한다.
+    """
+    module0 = module0 or {}
+    m1 = m1 or {}
+    m2 = m2 or {}
+    m1_insight = m1_insight or {}
     humantruth = m1.get("humantruth") or {}
     target = m1.get("target") or {}
     context: dict[str, Any] = {
         "product": {
-            "name": module0.get("productname", ""),
+            "name": module0.get("productname", "") or m1_insight.get("product_name", ""),
             "brand": module0.get("brand", ""),
-            "category": module0.get("category", ""),
+            "category": module0.get("category", "") or m1_insight.get("product_type", ""),
             "tone": module0.get("tone", ""),
             "facts": (module0.get("facts") or [])[:6],
             "usp_candidates": (module0.get("uspcandidates") or [])[:5],
@@ -37,7 +47,7 @@ def build_context(module0: dict[str, Any], m1: dict[str, Any], m2: dict[str, Any
             "core_job": m1.get("corejob", ""),
             "human_truth": humantruth.get("truth", ""),
             "human_truth_contradiction": humantruth.get("contradiction", ""),
-            "target_label": target.get("label", "") or target.get("who", ""),
+            "target_label": target.get("label", "") or target.get("who", "") or m1_insight.get("target_group", ""),
         },
         "positioning": {
             "positioning_statement": m2.get("positioningstatement", ""),
