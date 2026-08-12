@@ -44,7 +44,7 @@ def run_scenario_draft(context: dict[str, Any], creative_problem: str, devices: 
     prompt = build_prompt(context, creative_problem, devices, concept_line=concept_line,
                           ad_length=ad_length, log_prefix=log_prefix)
     raw = tool_chat.run(prompt["system"], prompt["user"], backend=backend,
-                        log_prefix=log_prefix, log_dir=log_dir)
+                        log_prefix=log_prefix, log_dir=log_dir, stage="M3")
     if isinstance(raw, dict) and raw.get("error"):
         # M2/M4와 동일한 이유로 조용히 빈 스키마로 흘려보내지 않는다 — pydantic 결측 필드
         # 기본값(빈 배열)이 실패를 "초안 0개짜리 정상 결과"로 둔갑시켜 다음 단계로 조용히

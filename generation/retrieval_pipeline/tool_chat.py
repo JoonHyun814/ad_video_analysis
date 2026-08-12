@@ -34,6 +34,10 @@ _MCP_ALLOWED_TOOLS = ["mcp__chromadb-explorer__search_chromadb"]
 # 호출 로그를 이 실행의 출력 폴더로 몰아넣는 유일한 통로다(도구 스키마에 log_root 인자를 두지
 # 않은 이유는 tool_definitions.py 모듈 docstring 참고).
 _LOG_DIR_ENV = "SEARCH_CHROMADB_LOG_DIR"
+# 이 호출이 파이프라인의 어느 단계에서 나왔는지("M1"~"M4") 로그 각 줄에 남기기 위한 환경변수 —
+# LOG_DIR_ENV 와 똑같은 이유(cli 백엔드는 tool_use 를 가로챌 수 없어 함수 인자로 못 넘긴다)로
+# env var 를 쓴다. db.chromadb.tool_definitions._STAGE_ENV 와 반드시 이름이 일치해야 한다.
+_STAGE_ENV = "SEARCH_CHROMADB_STAGE"
 
 _API_DEFAULT_MODEL = "claude-sonnet-5"
 _API_MAX_TOKENS = 24000
@@ -115,7 +119,7 @@ def _run_cli(system: str, user: str, *, timeout: int) -> dict:
 
 
 def run(system: str, user: str, *, backend: str, log_prefix: str = "default",
-       log_dir: str | Path | None = None, timeout: int = 600) -> dict:
+       log_dir: str | Path | None = None, stage: str | None = None, timeout: int = 600) -> dict:
     """system+user 프롬프트를 backend("cli"|"api")로 실행하고, search_chromadb 도구를 자율
     호출하며 완성한 최종 JSON 응답을 반환한다.
 
@@ -124,17 +128,29 @@ def run(system: str, user: str, *, backend: str, log_prefix: str = "default",
     log_dir: 로그를 남길 폴더(기본 None → tool_definitions.py 의 기본값 logs/search_chromadb/).
     지정하면 SEARCH_CHROMADB_LOG_DIR 환경변수로 이 호출 동안만 덮어쓰고 끝나면 원래대로
     되돌린다(같은 프로세스에서 여러 번 run() 을 호출해도 서로 새지 않도록).
+    stage: 호출한 파이프라인 단계 라벨(예: "M2"/"M4") — log_dir 과 같은 방식(env var, 두
+    백엔드 모두에서 동작)으로 db.chromadb.tool_definitions._log_call() 에 전달되어 로그 각
+    줄의 "stage" 필드에 남는다. log_prefix(파일명)만으로는 나중에 파일을 분리해도 로그 한
+    줄만 보고는 어느 단계 호출인지 알 수 없어서, 호출 내용 자체에 단계를 기록해둔다.
     """
-    prev = os.environ.get(_LOG_DIR_ENV)
+    prev_dir = os.environ.get(_LOG_DIR_ENV)
     if log_dir is not None:
         os.environ[_LOG_DIR_ENV] = str(log_dir)
+    prev_stage = os.environ.get(_STAGE_ENV)
+    if stage is not None:
+        os.environ[_STAGE_ENV] = stage
     try:
         if backend == "api":
             return _run_api(system, user, log_prefix=log_prefix)
         return _run_cli(system, user, timeout=timeout)
     finally:
         if log_dir is not None:
-            if prev is None:
+            if prev_dir is None:
                 os.environ.pop(_LOG_DIR_ENV, None)
             else:
-                os.environ[_LOG_DIR_ENV] = prev
+                os.environ[_LOG_DIR_ENV] = prev_dir
+        if stage is not None:
+            if prev_stage is None:
+                os.environ.pop(_STAGE_ENV, None)
+            else:
+                os.environ[_STAGE_ENV] = prev_stage

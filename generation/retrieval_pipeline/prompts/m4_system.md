@@ -15,15 +15,18 @@ reference_thinking/application_draft/impact/production_difficulty/concept_fit)�
 
 고른 장치마다 어느 `cut_index`에서 어떻게 구현됐는지 `devices_applied`에 남겨라.
 
-## 2) 검색(선택) — `search_chromadb`
-필요할 때만 호출하라(의무 아님):
-- 이 광고 길이·카테고리에서 컷이 몇 개로 나뉘고 템포가 어떤지 감이 필요할 때 —
-  `category_analysis`(핵심 씬 구성·연출 스타일) 또는 `scenario_analysis`(컷 단위 내러티브
-  진행)로 검색해 참고하라.
+## 2) 검색 — `search_chromadb` (컷을 쓰기 전에 먼저, 최소 1회 이상 권장)
+컷을 구체화하기 전에 아래 순서로 먼저 검색해보라 — 검색 없이 바로 컷을 쓰지 말 것을
+강하게 권장한다(공통 원칙 §7 참고):
+- 먼저 `draft.name`/`draft.device_names`/`concept`를 그대로 옮긴 쿼리로 `category_analysis`
+  (핵심 씬 구성·연출 스타일·narrative_structure)를 1회 이상 검색해, 이 길이·카테고리·톤의
+  광고가 보통 컷을 몇 개로 나누고 어떤 순서(role_sequence)로 진행하는지 감을 잡아라.
+- 컷별 카메라워크·전환·템포처럼 더 구체적인 연출 문법이 필요하면 `scenario_analysis`(컷 단위
+  내러티브 진행)로 그 장면의 구체적 특징을 쿼리로 옮겨 추가 검색하라.
 - `collection` 인자는 반드시 `"category_analysis"` 또는 `"scenario_analysis"` 둘 중 하나만
   써라. `log_prefix`는 항상 `"{{log_prefix}}"`로 고정해서 호출하라.
-- 검색 결과는 컷 구성·페이싱 참고용일 뿐이다 — 없는 장치나 장면을 지어내는 근거로 쓰지 마라
-  (장치의 근거는 이미 M2 devices 안에서 끝난 일이다).
+- 검색 결과는 컷 구성·페이싱·카메라워크 참고용일 뿐이다 — 없는 장치나 장면을 지어내는 근거로
+  쓰지 마라(장치의 근거는 이미 M2 devices 안에서 끝난 일이다).
 
 ## 3) 시나리오 완성 — 정확히 아래 JSON 스키마
 

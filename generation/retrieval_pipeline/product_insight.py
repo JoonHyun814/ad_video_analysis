@@ -243,7 +243,7 @@ async def run(product_name: str, url: str, *, guideline_md: str = "",
     prompt = build_prompt(product_name, url, guideline_md, crawl, product_research,
                           comment_research, image_notes)
     raw = tool_chat.run(prompt["system"], prompt["user"], backend=backend,
-                        log_prefix=log_prefix, log_dir=log_dir)
+                        log_prefix=log_prefix, log_dir=log_dir, stage="M1")
     if isinstance(raw, dict) and raw.get("error"):
         raise RuntimeError(f"M1(product_insight) LLM 호출 실패: {raw.get('error')} — {str(raw.get('raw', ''))[:300]}")
     return ProductInsight.model_validate(raw), prompt, saved_images

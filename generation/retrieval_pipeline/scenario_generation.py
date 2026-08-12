@@ -2,8 +2,10 @@
 구성된 광고 전체 시나리오(cast/scenes/key_messages/production_notes)로 정교화한다(사용자
 요청 — "m3의 drafts 리스트 중 하나를 정해서 입력으로 넣으면 ... 컷별 화면구성, 동적 연출,
 대사, 나레이션, 자막, 사운드가 들어간 5개 이상의 컷으로 구성된 결과"). device_generation.py
-(M2)와 같은 패턴 — LLM 호출 1회, 그 안에서 `search_chromadb` 도구 왕복은 선택적으로 여러 번
-(컷 구성·페이싱 참고용, 장치 자체의 근거는 이미 M2에서 끝난 일이라 의무는 아니다). system/
+(M2)와 같은 패턴 — LLM 호출 1회, 그 안에서 `search_chromadb` 도구 왕복은 여러 번 일어날 수
+있다(컷 구성·페이싱·카메라워크 참고용, 장치 자체의 근거는 이미 M2에서 끝난 일이라 강제는
+아니지만, 컷을 쓰기 전에 먼저 검색해보도록 프롬프트가 강하게 권장한다 — prompts/m4_common.md
+§7/m4_system.md §2 참고, 사용자 요청 — "세부 연출 만들 때 검색을 사용할 확률을 높여줘"). system/
 user 프롬프트 문구는 전부 prompts/m4_*.md 에 있다(이 파일은 프롬프트 조립·LLM 호출·파싱만
 한다).
 
@@ -67,7 +69,7 @@ def run_scenario_generation(context: dict[str, Any], devices: list[dict[str, Any
     """프롬프트를 조립해 LLM(+선택적 도구)을 호출하고 (파싱된 결과, 실제 전송한 프롬프트) 를 반환한다."""
     prompt = build_prompt(context, devices, creative_problem, module0, draft, ad_length, concept_line, log_prefix)
     raw = tool_chat.run(prompt["system"], prompt["user"], backend=backend,
-                        log_prefix=log_prefix, log_dir=log_dir)
+                        log_prefix=log_prefix, log_dir=log_dir, stage="M4")
     if isinstance(raw, dict) and raw.get("error"):
         # M2(device_generation.py)와 동일한 이유로 조용히 빈 스키마로 흘려보내지 않는다 —
         # pydantic 결측 필드 기본값(빈 문자열/빈 배열)이 실패를 "씬 0개짜리 정상 결과"로

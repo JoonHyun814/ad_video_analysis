@@ -27,6 +27,11 @@ from db.chromadb.search_query import search as _search_impl
 
 _LOG_ROOT_DEFAULT = Path(__file__).resolve().parent.parent.parent / "logs" / "search_chromadb"
 _LOG_DIR_ENV = "SEARCH_CHROMADB_LOG_DIR"
+# 이 호출이 파이프라인의 어느 단계(M1~M4 등)에서 나왔는지 로그에 남기기 위한 환경변수 — LOG_DIR_ENV
+# 와 같은 이유로 env var 를 쓴다("cli" 백엔드는 claude -p 서브프로세스 내부에서 도구가 호출돼
+# tool_use 블록을 가로챌 수 없으므로, 호출측이 log_prefix 처럼 함수 인자로 넘겨줄 수 없다 —
+# 서브프로세스가 상속하는 환경변수만이 두 백엔드("cli"/"api") 모두에서 동일하게 동작한다).
+_STAGE_ENV = "SEARCH_CHROMADB_STAGE"
 
 
 def _resolve_log_root() -> Path:
@@ -42,6 +47,7 @@ def _log_call(log_prefix: str, collection: str, query_text: str, n_results: int,
              results: list[dict[str, Any]]) -> None:
     entry = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "stage": os.environ.get(_STAGE_ENV, ""),  # 호출측(retrieval_pipeline tool_chat.run)이 지정 — 예: "M2"/"M4"
         "collection": collection,
         "query_text": query_text,
         "n_results": n_results,

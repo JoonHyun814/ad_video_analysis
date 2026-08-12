@@ -40,7 +40,7 @@ def run_device_generation(context: dict[str, Any], *, ad_length: str = "15초",
     """프롬프트를 조립해 LLM(+도구)을 호출하고 (파싱된 결과, 실제 전송한 프롬프트) 를 반환한다."""
     prompt = build_prompt(context, ad_length, concept_line, log_prefix)
     raw = tool_chat.run(prompt["system"], prompt["user"], backend=backend,
-                        log_prefix=log_prefix, log_dir=log_dir)
+                        log_prefix=log_prefix, log_dir=log_dir, stage="M2")
     if isinstance(raw, dict) and raw.get("error"):
         # LLM 호출·JSON 파싱 실패를 조용히 빈 스키마로 흘려보내지 않는다 — pydantic 은 결측
         # 필드를 기본값(빈 문자열/빈 배열)으로 채워 통과시키므로, 여기서 막지 않으면 실패가
