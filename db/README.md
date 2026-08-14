@@ -283,6 +283,11 @@ claude -p "..." --mcp-config .mcp.json --allowedTools "mcp__chromadb-explorer__s
 HTTP/SSE MCP 커넥터만 지원), `db.chromadb.tool_definitions.TOOL_DEFINITIONS`/`call_tool` 을
 그대로 가져다 `messages.create(..., tools=...)` 호출과 tool_use 왕복 루프에 쓴다.
 
+**내부망 원격 접속(Streamable HTTP)**: 같은 `search_chromadb` 도구를 로컬 subprocess 없이
+내부망의 다른 머신·Anthropic API 원격 MCP 커넥터에 노출하려면 `server/mcp_server.py`(병행
+운영되는 별도 서버, `python -m server.mcp_server`)를 쓴다 — 자세한 내용은
+[`../server/README.md`](../server/README.md) 참고.
+
 **임베딩 모델 예열**: `mcp_server.py` 는 `__main__` 실행 시 `connection.get_embedding_function()`
 으로 bge-m3 를 서버 기동 시점에 미리 로드한다(`search_chromadb` 는 임의의 컬렉션을 검색하므로
 특정 컬렉션이 아니라 임베딩 함수 자체만 예열한다) — 그렇지 않으면 첫 검색 호출이 모델 로딩
