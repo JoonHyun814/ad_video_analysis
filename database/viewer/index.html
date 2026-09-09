@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>scenario_analysis 원본 비교 뷰어</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#ffffff; --ink:#1c2330; --sub:#5a6475; --line:#e3e7ee;
+    --blue:#2a78d6; --blue-soft:#e8f1fc;
+    --orange:#eb6834; --orange-soft:#fdeee6;
+    --green:#1baf7a; --green-soft:#e4f6ee;
+    --gold:#c7920f; --gold-soft:#fcf3dd;
+    --purple:#8153c7; --purple-soft:#f0e9fb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12151b; --card:#1b2029; --ink:#e8ecf3; --sub:#9aa4b5; --line:#2b3342;
+      --blue-soft:#17293f; --orange-soft:#3a2317; --green-soft:#143126; --gold-soft:#332a12; --purple-soft:#291f3d;
+    }
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--ink); font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif; line-height:1.6; font-size:14px;}
+  .kicker{font-size:12px; letter-spacing:.12em; color:var(--green); font-weight:700;}
+  header{padding:24px 28px 16px; border-bottom:1px solid var(--line); background:var(--card);}
+  h1{font-size:22px; margin:4px 0 6px; letter-spacing:-0.02em;}
+  .lede{font-size:13.5px; color:var(--sub);}
+  .layout{display:flex; align-items:flex-start; max-width:1500px; margin:0 auto;}
+  .sidebar{width:300px; flex:0 0 300px; border-right:1px solid var(--line); min-height:calc(100vh - 90px); padding:16px; position:sticky; top:0; align-self:flex-start; max-height:100vh; overflow-y:auto;}
+  .main{flex:1; padding:24px 28px; min-width:0;}
+  .controls{display:flex; gap:8px; margin-bottom:12px;}
+  input[type=search]{flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font-size:13px;}
+  select{padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font-size:13px;}
+  .stage-tabs{display:flex; gap:6px; margin-bottom:10px;}
+  .stage-tab{flex:1; text-align:center; padding:7px 4px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--sub); font-size:12.5px; font-weight:600; cursor:pointer;}
+  .stage-tab.active{border-color:var(--blue); background:var(--blue-soft); color:var(--blue);}
+  .stage-pill{display:inline-block; font-size:10px; font-weight:700; border-radius:99px; padding:1px 8px; margin-left:6px; vertical-align:middle;}
+  .stage-pill.original{background:var(--line); color:var(--sub);}
+  .stage-pill.postprocessed{background:var(--purple-soft); color:var(--purple);}
+  .unit-count{font-size:12px; color:var(--sub); margin-bottom:10px;}
+  .unit-item{border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px; cursor:pointer; background:var(--card); transition:border-color .15s;}
+  .unit-item:hover{border-color:var(--blue);}
+  .unit-item.active{border-color:var(--blue); background:var(--blue-soft);}
+  .unit-item .run{font-size:12px; color:var(--sub); word-break:break-all;}
+  .unit-item .vid{font-size:13.5px; font-weight:600; margin:2px 0 6px;}
+  .badge{display:inline-block; font-size:11px; font-weight:700; border-radius:99px; padding:2px 10px;}
+  .badge.good{background:var(--green-soft); color:var(--green);}
+  .badge.mid{background:var(--gold-soft); color:var(--gold);}
+  .badge.bad{background:var(--orange-soft); color:var(--orange);}
+  .empty{color:var(--sub); font-size:13px; padding:40px 0; text-align:center;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 22px; margin-bottom:16px;}
+  .card h2{font-size:15px; margin-bottom:10px; letter-spacing:-0.01em;}
+  .detail-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;}
+  .detail-head h1{margin:0;}
+  .detail-sub{font-size:12.5px; color:var(--sub);}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media (max-width: 980px){ .grid2{grid-template-columns:1fr;} .layout{flex-direction:column;} .sidebar{width:100%; flex:none; position:static; max-height:none; border-right:none; border-bottom:1px solid var(--line);} }
+  video{width:100%; border-radius:10px; background:#000; display:block;}
+  .prompt-box{white-space:pre-wrap; font-size:12.5px; max-height:260px; overflow-y:auto; background:var(--bg); border-radius:9px; padding:12px 14px; color:var(--sub);}
+  .thumbs{display:flex; flex-wrap:wrap; gap:8px;}
+  .thumb{width:96px; cursor:pointer; border-radius:8px; overflow:hidden; border:1px solid var(--line); position:relative;}
+  .thumb img{width:100%; height:96px; object-fit:cover; display:block;}
+  .thumb .no{position:absolute; top:2px; left:4px; font-size:10px; background:rgba(0,0,0,.55); color:#fff; border-radius:4px; padding:0 4px;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{padding:9px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top;}
+  th{color:var(--sub); font-size:11.5px; font-weight:600;}
+  tr.match td{background:transparent;}
+  tr.nomatch td:first-child{border-left:3px solid var(--orange);}
+  tr.match td:first-child{border-left:3px solid var(--green);}
+  .factor-name{font-weight:600; white-space:nowrap;}
+  .mark{font-weight:700;}
+  .mark.ok{color:var(--green);}
+  .mark.no{color:var(--orange);}
+  .summary-box{background:var(--blue-soft); border-radius:9px; padding:12px 14px; font-size:13px; color:var(--ink);}
+  .meta-row{display:flex; gap:18px; flex-wrap:wrap; font-size:12.5px; color:var(--sub); margin-bottom:14px;}
+  .meta-row b{color:var(--ink);}
+  .lightbox{position:fixed; inset:0; background:rgba(0,0,0,.82); display:none; align-items:center; justify-content:center; z-index:50; cursor:zoom-out; padding:30px;}
+  .lightbox.open{display:flex;}
+  .lightbox img{max-width:100%; max-height:100%; border-radius:10px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="kicker">COMPARISON VIEWER</div>
+  <h1>scenario_analysis 원본 비교 뷰어</h1>
+  <p class="lede">prompt · 스토리보드 이미지 · 완성 영상 · 재분석 결과(scenario_analysis)를 한 화면에서 비교합니다.</p>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="stage-tabs" id="stageTabs">
+      <div class="stage-tab active" data-stage="">전체</div>
+      <div class="stage-tab" data-stage="original">원본</div>
+      <div class="stage-tab" data-stage="postprocessed">후반합성</div>
+    </div>
+    <div class="controls">
+      <input type="search" id="search" placeholder="run_id / video_id 검색">
+      <select id="sort">
+        <option value="asc">일치율 낮은 순</option>
+        <option value="desc">일치율 높은 순</option>
+      </select>
+    </div>
+    <div class="unit-count" id="unitCount"></div>
+    <div id="unitList"></div>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="empty">왼쪽에서 항목을 선택하세요.</div>
+  </main>
+</div>
+
+<div class="lightbox" id="lightbox"><img id="lightboxImg" src=""></div>
+
+<script>
+const FACTOR_LABELS = {
+  cut_count: "컷 수",
+  cut_order: "컷 순서",
+  character_count: "캐릭터 수",
+  character_appearance: "캐릭터 외형",
+  scene_description: "장면 묘사",
+  dialogue: "대사",
+  text_overlay: "텍스트",
+  scene_duration: "씬 길이",
+  brand_logo_exposure: "브랜드/로고 노출",
+};
+
+let UNITS = [];
+let ACTIVE_ID = null;
+let ACTIVE_STAGE = "";
+
+const STAGE_LABELS = { original: "원본", postprocessed: "후반합성" };
+
+function badgeClass(rate) {
+  if (rate >= 0.7) return "good";
+  if (rate >= 0.4) return "mid";
+  return "bad";
+}
+
+function unitKey(u) { return `${u.run_id}__${u.video_id}__${u.stage}`; }
+
+const VIDEO_SOURCE_LABELS = {
+  caption: '<span class="badge good" style="margin-left:6px;">나레이션+로고/오버레이 최종본</span>',
+  narration: '<span class="badge mid" style="margin-left:6px;">나레이션 합성본</span>',
+  original: '<span class="badge" style="margin-left:6px; background:var(--line); color:var(--sub);">원본(후처리 전)</span>',
+};
+function videoSourceBadge(source) {
+  return VIDEO_SOURCE_LABELS[source] || "";
+}
+
+function renderList() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const sortDir = document.getElementById("sort").value;
+
+  let items = UNITS.filter(u =>
+    (!ACTIVE_STAGE || u.stage === ACTIVE_STAGE) &&
+    (!q || u.run_id.toLowerCase().includes(q) || String(u.video_id).includes(q))
+  );
+  items.sort((a, b) => {
+    const ra = a.comparison.overall_match_rate ?? 0;
+    const rb = b.comparison.overall_match_rate ?? 0;
+    return sortDir === "asc" ? ra - rb : rb - ra;
+  });
+
+  const totalForStage = UNITS.filter(u => !ACTIVE_STAGE || u.stage === ACTIVE_STAGE).length;
+  document.getElementById("unitCount").textContent = `${items.length} / ${totalForStage}건`;
+
+  const list = document.getElementById("unitList");
+  list.innerHTML = "";
+  for (const u of items) {
+    const rate = u.comparison.overall_match_rate ?? 0;
+    const el = document.createElement("div");
+    el.className = "unit-item" + (unitKey(u) === ACTIVE_ID ? " active" : "");
+    el.innerHTML = `
+      <div class="run">${u.run_id}<span class="stage-pill ${u.stage}">${STAGE_LABELS[u.stage] || u.stage}</span></div>
+      <div class="vid">video${u.video_id} <span style="color:var(--sub); font-weight:400;">(concept ${u.comparison.concept_index})</span></div>
+      <span class="badge ${badgeClass(rate)}">일치율 ${(rate * 100).toFixed(0)}%</span>
+    `;
+    el.addEventListener("click", () => selectUnit(unitKey(u)));
+    list.appendChild(el);
+  }
+}
+
+function selectStage(stage) {
+  ACTIVE_STAGE = stage;
+  document.querySelectorAll(".stage-tab").forEach(t => t.classList.toggle("active", t.dataset.stage === stage));
+  renderList();
+  const visible = UNITS.filter(u => !ACTIVE_STAGE || u.stage === ACTIVE_STAGE);
+  if (visible.length && !visible.some(u => unitKey(u) === ACTIVE_ID)) selectUnit(unitKey(visible[0]));
+}
+
+function selectUnit(key) {
+  ACTIVE_ID = key;
+  renderList();
+  const u = UNITS.find(x => unitKey(x) === key);
+  if (u) renderDetail(u);
+}
+
+function renderDetail(u) {
+  const c = u.comparison;
+  const rate = c.overall_match_rate ?? 0;
+  const s = u.scenario || {};
+
+  const factorRows = Object.keys(FACTOR_LABELS).map(key => {
+    const f = c.factors?.[key];
+    if (!f) return "";
+    const cls = f.match ? "match" : "nomatch";
+    const mark = f.match ? '<span class="mark ok">일치</span>' : '<span class="mark no">불일치</span>';
+    return `
+      <tr class="${cls}">
+        <td class="factor-name">${FACTOR_LABELS[key]}</td>
+        <td>${mark}</td>
+        <td>${esc(f.expected)}</td>
+        <td>${esc(f.actual)}</td>
+        <td>${esc(f.evidence)}</td>
+      </tr>`;
+  }).join("");
+
+  const thumbs = (u.images || []).map(img => `
+    <div class="thumb" data-src="${img.file}">
+      <span class="no">#${img.scene_no}</span>
+      <img src="${img.file}" loading="lazy">
+    </div>
+  `).join("");
+
+  document.getElementById("main").innerHTML = `
+    <div class="detail-head">
+      <div>
+        <h1>${u.run_id} · video${u.video_id}<span class="stage-pill ${u.stage}">${STAGE_LABELS[u.stage] || u.stage}</span></h1>
+        <div class="detail-sub">storyboard ${c.storyboard_id} · concept ${c.concept_index}</div>
+      </div>
+      <span class="badge ${badgeClass(rate)}" style="font-size:14px; padding:6px 16px;">일치율 ${(rate * 100).toFixed(0)}%</span>
+    </div>
+
+    <div class="meta-row">
+      <span><b>제목</b> ${esc(s.title) || "—"}</span>
+      <span><b>브랜드</b> ${esc(s.brand) || "—"}</span>
+      <span><b>재분석 컷 수</b> ${s.scenes_count ?? "—"}</span>
+    </div>
+
+    <div class="card">
+      <h2>총평</h2>
+      <div class="summary-box">${esc(c.summary) || "(요약 없음)"}</div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>원본 영상 생성 프롬프트</h2>
+        <div class="prompt-box">${esc(u.prompt) || "(프롬프트 없음)"}</div>
+      </div>
+      <div class="card">
+        <h2>완성 영상 ${videoSourceBadge(c.video_source)}</h2>
+        <video controls src="${u.video}"></video>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>스토리보드 이미지 (${(u.images || []).length}씬)</h2>
+      <div class="thumbs">${thumbs || "(이미지 없음)"}</div>
+    </div>
+
+    <div class="card" style="overflow-x:auto;">
+      <h2>요인별 비교</h2>
+      <table>
+        <thead><tr><th style="width:110px">요인</th><th style="width:70px">판정</th><th>원본(expected)</th><th>재분석(actual)</th><th>근거</th></tr></thead>
+        <tbody>${factorRows}</tbody>
+      </table>
+    </div>
+  `;
+
+  document.querySelectorAll(".thumb").forEach(t => {
+    t.addEventListener("click", () => openLightbox(t.dataset.src));
+  });
+}
+
+function openLightbox(src) {
+  document.getElementById("lightboxImg").src = src;
+  document.getElementById("lightbox").classList.add("open");
+}
+document.getElementById("lightbox").addEventListener("click", () => {
+  document.getElementById("lightbox").classList.remove("open");
+});
+
+function esc(v) {
+  if (v === null || v === undefined) return "";
+  return String(v).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+document.getElementById("search").addEventListener("input", renderList);
+document.getElementById("sort").addEventListener("change", renderList);
+document.querySelectorAll(".stage-tab").forEach(t => {
+  t.addEventListener("click", () => selectStage(t.dataset.stage));
+});
+
+fetch("./manifest.json")
+  .then(r => r.json())
+  .then(data => {
+    UNITS = data.units || [];
+    renderList();
+    if (UNITS.length) selectUnit(unitKey(UNITS[0]));
+  })
+  .catch(err => {
+    document.getElementById("main").innerHTML =
+      `<div class="empty">manifest.json 을 불러오지 못했습니다. http(s):// 로 서빙 중인지 확인하세요 (file:// 로 직접 열면 fetch 가 차단됩니다).<br>${esc(err)}</div>`;
+  });
+</script>
+</body>
+</html>
