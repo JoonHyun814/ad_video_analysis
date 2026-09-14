@@ -27,6 +27,8 @@ from db.chromadb.hybrid_search import hybrid_search as _hybrid_search_impl
 from db.chromadb.search_query import search as _search_impl
 from db.chromadb.show_by_video_id import fetch_by_video_id as _fetch_by_video_id_impl
 from db.chromadb.visual_search import search_visual as _search_visual_impl
+from db.graph.graph_query import role_element_frequency as _role_element_frequency_impl
+from evaluation.category.category_analysis import _ROLES as _GRAPH_ROLES
 
 _LOG_ROOT_DEFAULT = Path(__file__).resolve().parent.parent.parent / "logs" / "search_chromadb"
 _LOG_DIR_ENV = "SEARCH_CHROMADB_LOG_DIR"
@@ -126,6 +128,17 @@ def search_visual(query_text: str, n_results: int = 5, collection: str = "ad_vis
     return {"collection": collection, "query_text": query_text, "count": len(results), "results": results}
 
 
+def search_graph_pattern(role: str, persona_category: str | None = None, top_k: int = 10,
+                          log_prefix: str = "default") -> dict[str, Any]:
+    """여러 캠페인에 걸친 패턴(어떤 서사 역할에서 어떤 크리에이티브 요소가 자주 쓰이는지)을
+    찾는다 — 개별 광고 하나를 찾는 도구가 아니다(그건 search_chromadb(_hybrid)/search_visual,
+    개별 광고 원본은 fetch_by_video_id)."""
+    results = _role_element_frequency_impl(role, persona_category, top_k)
+    query_desc = f"role={role} persona={persona_category or ''}"
+    _log_call(log_prefix, "ad_graph", query_desc, top_k, results, backend="graph")
+    return {"role": role, "persona_category": persona_category, "count": len(results), "results": results}
+
+
 # ── 도구 정의(Anthropic tool_use 스키마) — MCP 서버와 API 백엔드 툴콜 경로가 공유하는 단일 소스 ──
 
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
@@ -216,6 +229,31 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["query_text"],
         },
     },
+    {
+        "name": "search_graph_pattern",
+        "description": (
+            "여러 캠페인에 걸친 관계·패턴을 그래프로 찾는다 — 특정 서사 역할(role)에서 어떤 "
+            "크리에이티브 요소(element_type/element_subtype)가 자주 쓰이는지 집계한다. "
+            "개별 광고 하나를 찾는 도구가 아니다: 개별 광고 검색은 search_chromadb(_hybrid)/"
+            "search_visual, 개별 광고 원본 전체는 fetch_by_video_id 를 써라. persona_category "
+            "를 주면 그 타겟 페르소나를 가진 캠페인으로만 좁힌다(모든 캠페인이 페르소나 데이터를 "
+            "갖고 있지는 않다 — 결과가 비면 persona_category 없이 다시 시도하라)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "role": {"type": "string", "enum": _GRAPH_ROLES.split("|"),
+                          "description": "서사 역할(예: HOOK, EMOTIONAL_APPEAL)"},
+                "persona_category": {"type": "string",
+                                       "description": "타겟 페르소나 카테고리로 좁힐 때만 지정(선택)"},
+                "top_k": {"type": "integer", "description": "반환 결과 수(기본 10)", "default": 10},
+                "log_prefix": {"type": "string",
+                                "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
+                                "default": "default"},
+            },
+            "required": ["role"],
+        },
+    },
 ]
 
 
@@ -239,5 +277,10 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return search_visual(
             arguments["query_text"], arguments.get("n_results", 5),
             arguments.get("collection", "ad_visual_reference"), arguments.get("log_prefix", "default"),
+        )
+    if name == "search_graph_pattern":
+        return search_graph_pattern(
+            arguments["role"], arguments.get("persona_category"),
+            arguments.get("top_k", 10), arguments.get("log_prefix", "default"),
         )
     return {"error": f"unknown tool: {name}"}

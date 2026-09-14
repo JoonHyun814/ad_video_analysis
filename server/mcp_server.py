@@ -43,6 +43,7 @@ from mcp.server.fastmcp import FastMCP
 from db.chromadb.tool_definitions import fetch_by_video_id as _fetch_by_video_id
 from db.chromadb.tool_definitions import search_chromadb as _search_chromadb
 from db.chromadb.tool_definitions import search_chromadb_hybrid as _search_chromadb_hybrid
+from db.chromadb.tool_definitions import search_graph_pattern as _search_graph_pattern
 from db.chromadb.tool_definitions import search_visual as _search_visual
 
 _DEFAULT_PORT = 8765
@@ -121,6 +122,24 @@ def search_visual(query_text: str, n_results: int = 5, collection: str = "ad_vis
             등)에서 나왔는지 표시한다. 미지정 시 'default'.
     """
     return _search_visual(query_text, n_results, collection, log_prefix)
+
+
+@mcp.tool()
+def search_graph_pattern(role: str, persona_category: str | None = None, top_k: int = 10,
+                          log_prefix: str = "default") -> dict:
+    """여러 캠페인에 걸친 패턴(특정 서사 역할에서 자주 쓰인 크리에이티브 요소)을 그래프로
+    집계한다 — 개별 광고 하나를 찾는 도구가 아니다(search_chromadb(_hybrid)/search_visual/
+    fetch_by_video_id 의 역할). 호출마다 <log_prefix>.jsonl 에 기록된다(기본 위치
+    logs/search_chromadb/<날짜>/).
+
+    Args:
+        role: 서사 역할(예: HOOK, EMOTIONAL_APPEAL, BRAND_CLOSE).
+        persona_category: 타겟 페르소나로 좁힐 때만 지정(선택, 모든 캠페인이 갖고 있진 않음).
+        top_k: 반환 결과 수(기본 10).
+        log_prefix: 호출 로그 파일명(<log_prefix>.jsonl) — 이 호출이 어떤 맥락(프로젝트/단계명
+            등)에서 나왔는지 표시한다. 미지정 시 'default'.
+    """
+    return _search_graph_pattern(role, persona_category, top_k, log_prefix)
 
 
 def main() -> None:

@@ -281,12 +281,15 @@ retrieval_pipeline` 는 `category_analysis`/`scenario_analysis` 를 LLM 이 자�
 
 ## MCP 서버 / Claude API 도구 — `chromadb-explorer`
 
-도구는 **`search_chromadb`/`search_chromadb_hybrid`/`fetch_by_video_id`/`search_visual` 네
-개**다(검색 세 개는 범용 자연어/비주얼 검색 — 세그먼트 필터·self-reference 정책 없음;
-`fetch_by_video_id`는 검색이 아니라 특정 video_id 의 원본 전체 조회다). Claude CLI
-(`claude -p`/대화형 세션)와 Claude API 양쪽에 노출한다. 이 저장소의 유일한 ChromaDB MCP
-서버다. `list_collections`/`show_schema`, `importers/*`(컬렉션 삭제·재적재 배치 작업)는
-도구로 올리지 않는다 — 사람이 CLI로 직접 실행한다.
+도구는 **`search_chromadb`/`search_chromadb_hybrid`/`fetch_by_video_id`/`search_visual`/
+`search_graph_pattern` 다섯 개**다(검색 네 개는 범용 자연어/비주얼/그래프 검색 — 세그먼트
+필터·self-reference 정책 없음; `fetch_by_video_id`는 검색이 아니라 특정 video_id 의 원본 전체
+조회다; `search_graph_pattern`은 개별 광고가 아니라 여러 캠페인에 걸친 패턴을 찾는다 — 아래
+"Graph" 절 참고). Claude CLI(`claude -p`/대화형 세션)와 Claude API 양쪽에 노출한다. 이
+저장소의 유일한 ChromaDB MCP 서버이자, 유일한 Graph(Kùzu) 질의 노출 지점이기도 하다
+(`db/graph/`는 저장소가 달라도 같은 MCP 서버 안에서 도구 하나로 노출된다 — 호출하는 쪽은
+백엔드가 ChromaDB인지 Kùzu인지 몰라도 된다). `list_collections`/`show_schema`, `importers/*`
+(적재 배치 작업)는 도구로 올리지 않는다 — 사람이 CLI로 직접 실행한다.
 
 | 도구 | 인자 | 반환 |
 |------|------|------|
@@ -294,6 +297,7 @@ retrieval_pipeline` 는 `category_analysis`/`scenario_analysis` 를 LLM 이 자�
 | `search_chromadb_hybrid` | 위와 동일 | dense+BM25 RRF 결합 상위 레코드(`dense_rank`/`bm25_rank`/`rrf_score` 포함) — 브랜드명·숫자 등 정확 매칭 키워드가 있을 때 우선 사용 |
 | `fetch_by_video_id` | `collection`(필수), `video_id`(필수, integer), `log_prefix`(기본 `"default"`) | 해당 video_id 의 레코드 전체(청킹 우회, Contextual/Long-context RAG) — 검색으로 이미 찾은 광고의 원본이 필요할 때만 사용 |
 | `search_visual` | `query_text`(필수, 자연어), `n_results`(기본 5), `collection`(기본 `ad_visual_reference`), `log_prefix`(기본 `"default"`) | 키프레임 이미지를 CLIP 으로 비교한 상위 레코드(`video_id`/`cut_index`/`image_path`) — 이미지 파일 자체는 반환하지 않는다 |
+| `search_graph_pattern` | `role`(필수), `persona_category`(선택), `top_k`(기본 10), `log_prefix`(기본 `"default"`) | 그 역할(role)에서 자주 쓰인 `element_type`/`element_subtype` 집계(Graph RAG, 캠페인 간 패턴) |
 
 `db_path` 를 도구 인자로 받지 않는다 — `collection` 명만 주면 `data/<collection>/` 로 자동
 결정된다(호출하는 쪽이 내부 폴더 구조를 몰라도 됨).
@@ -301,9 +305,10 @@ retrieval_pipeline` 는 `category_analysis`/`scenario_analysis` 를 LLM 이 자�
 **호출 로깅(항상 켜짐)**: 호출마다 `<log_root>/<log_prefix>.jsonl` 에 한 줄씩 append 된다
 (`{"timestamp","backend","collection","query_text","n_results","result_count","results"}` —
 `backend` 는 `"dense"`(search_chromadb)/`"hybrid"`(search_chromadb_hybrid)/
-`"fetch_by_video_id"`/`"visual"`(search_visual) 네 가지, `fetch_by_video_id` 로그는
-`query_text`/`n_results` 대신 `video_id` 필드를 남긴다. 검색 결과 원본도 함께 남는다).
-`log_prefix` 로 호출 맥락(프로젝트/단계명 등)을 구분해서 기록한다 —
+`"fetch_by_video_id"`/`"visual"`(search_visual)/`"graph"`(search_graph_pattern) 다섯 가지,
+`fetch_by_video_id` 로그는 `query_text`/`n_results` 대신 `video_id` 필드를, `search_graph_pattern`
+로그는 `query_text` 자리에 `"role=... persona=..."` 조합 문자열을 남긴다. 검색 결과 원본도
+함께 남는다). `log_prefix` 로 호출 맥락(프로젝트/단계명 등)을 구분해서 기록한다 —
 미지정 시 `default.jsonl` 로 몰린다. `log_root` 는 기본 `logs/search_chromadb/<날짜>/`
 (하루 단위 폴더 — 한 파일에 로그가 무한정 쌓이지 않도록)지만 `SEARCH_CHROMADB_LOG_DIR`
 환경변수로 호출측이 재지정할 수 있다(도구 스키마에는 없다 — LLM 이 저장 위치를 결정하지
@@ -338,3 +343,64 @@ HTTP/SSE MCP 커넥터만 지원), `db.chromadb.tool_definitions.TOOL_DEFINITION
 으로 bge-m3 를 서버 기동 시점에 미리 로드한다(`search_chromadb` 는 임의의 컬렉션을 검색하므로
 특정 컬렉션이 아니라 임베딩 함수 자체만 예열한다) — 그렇지 않으면 첫 검색 호출이 모델 로딩
 비용까지 떠안아 느려지거나 타임아웃에 걸릴 수 있다.
+
+## Graph — `db.graph.*` (Kùzu, 관계·서사 구조 추론)
+
+`data/ad_visual_reference/` 등과 달리 **ChromaDB 컬렉션이 아니다** — `data/ad_graph/`는
+[Kùzu](https://kuzudb.com/)(임베디드 그래프 DB, 별도 서버 프로세스 없음) 파일이다. 지금까지의
+검색(dense/hybrid/visual)은 "쿼리 하나 → 유사 레코드 목록"만 가능한데, "여러 캠페인에 걸친
+서사 역할별 크리에이티브 요소 패턴"처럼 다단(multi-hop) 관계 질의는 그래프가 아니면 어렵다.
+
+### 노드/엣지 스키마
+
+| 노드 | 기본키 | 속성 |
+|------|--------|------|
+| `Campaign` | `video_id` | `brand_name`, `industry_category`, `product_category`, `campaign_objective`, `duration` |
+| `Sequence` | `id`(`"<video_id>:seq:<position>"`) | `video_id`, `position`, `role`, `cut_index` |
+| `Element` | `id`(ChromaDB 레코드 id 재사용) | `video_id`, `element_type`, `element_subtype`, `description`, `cut_refs` |
+| `Persona` | `category` | (dedup 노드 — 여러 캠페인이 같은 페르소나를 공유) |
+
+| 엣지 | 방향 | 속성 |
+|------|------|------|
+| `HAS_TARGET_PERSONA` | Campaign → Persona | — |
+| `HAS_SEQUENCE` | Campaign → Sequence | `position` |
+| `INCLUDES_ELEMENT` | Sequence → Element | — |
+| `TRANSITIONS_TO` | Element → Element | — |
+
+### 데이터 소스와 한계
+
+원본 JSON(`category_analysis.json`/`scenario_analysis.json`/`production_analysis.json`)을
+다시 스캔하지 않는다 — `category_analysis`/`ad_production_reference`(`record_kind=element`)/
+`ad_concept_reference` 세 ChromaDB 컬렉션을 읽어 그래프를 만든다(각각 `category.py`/
+`production_reference.py`/`concept_reference.py`가 이미 정규화해둔 데이터 재사용).
+
+`role_sequence`(`category_analysis.json`, 쉼표 구분 문자열)는 `scenario_analysis.json`의
+`cut_index`와 형식적으로 연결돼 있지 않다 — **i번째 역할을 그 캠페인 Element 들의 `cut_refs`
+합집합에서 i번째로 작은 `cut_index`에 위치적으로 대응**시킨다(LLM이 "씬 순서별로" 역할을
+나열하라는 프롬프트 지시를 실제로 따랐다는 best-effort 가정 — 강제되지 않으므로 개별 캠페인에
+따라 어긋날 수 있다). `TRANSITIONS_TO`는 같은 `video_id` + 같은 `element_type` 안에서
+`cut_refs` 최솟값 기준 오름차순으로 연속된 Element 를 잇는다.
+
+**다음 확장(미구현)**: `SIMILAR_TO`(Campaign↔Campaign, `search_chromadb` 벡터 유사도를 그래프에
+역주입해 "이 캠페인과 비슷한 다른 캠페인" 다단 탐색을 가능하게 함).
+
+### 파일 구성
+
+| 파일 | 역할 |
+|------|------|
+| `connection.py` | Kùzu 연결 헬퍼(`data/ad_graph/`, `db.chromadb.connection.db_path_for` 재사용) |
+| `schema.py` | 노드/엣지 테이블 DDL, `ensure_schema()`(존재하면 조용히 건너뜀) |
+| `importers/campaign_graph.py` | 위 세 ChromaDB 컬렉션 → 그래프 적재 — 독립 CLI |
+| `graph_query.py` | `role_element_frequency()`(도구로 노출) + `campaign_graph()`(CLI 전용) |
+
+### CLI
+
+```bash
+python -m db.graph.importers.campaign_graph [--rebuild]
+python -m db.graph.graph_query --role HOOK [--persona <카테고리>] [--top_k 10]
+python -m db.graph.graph_query --video_id <id>   # campaign_graph() — 특정 캠페인 전체 조회
+```
+
+`search_chromadb`처럼 원시 Cypher 를 도구로 노출하지 않는다 — `role_element_frequency()` 만
+`search_graph_pattern` 도구로 올라간다("MCP 서버 / Claude API 도구" 절 참고). `campaign_graph()`
+는 `list_collections`/`show_schema`와 같은 취급으로 CLI 전용이다.
