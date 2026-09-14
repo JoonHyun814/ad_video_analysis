@@ -25,6 +25,7 @@ from typing import Any
 
 from db.chromadb.hybrid_search import hybrid_search as _hybrid_search_impl
 from db.chromadb.search_query import search as _search_impl
+from db.chromadb.show_by_video_id import fetch_by_video_id as _fetch_by_video_id_impl
 
 _LOG_ROOT_DEFAULT = Path(__file__).resolve().parent.parent.parent / "logs" / "search_chromadb"
 _LOG_DIR_ENV = "SEARCH_CHROMADB_LOG_DIR"
@@ -66,6 +67,26 @@ def _log_call(log_prefix: str, collection: str, query_text: str, n_results: int,
         pass  # 로깅 실패가 검색 자체를 막으면 안 됨
 
 
+def _log_fetch_call(log_prefix: str, collection: str, video_id: int, records: list[dict[str, Any]]) -> None:
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "stage": os.environ.get(_STAGE_ENV, ""),
+        "backend": "fetch_by_video_id",
+        "collection": collection,
+        "video_id": video_id,
+        "result_count": len(records),
+        "results": records,
+    }
+    try:
+        log_root = _resolve_log_root()
+        log_root.mkdir(parents=True, exist_ok=True)
+        path = log_root / f"{log_prefix or 'default'}.jsonl"
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # 로깅 실패가 조회 자체를 막으면 안 됨
+
+
 def search_chromadb(collection: str, query_text: str, n_results: int = 5,
                      log_prefix: str = "default") -> dict[str, Any]:
     """컬렉션명(=`data/<collection>/` 저장 경로)으로 자연어 유사도 검색을 실행하고 호출을 기록한다."""
@@ -81,6 +102,17 @@ def search_chromadb_hybrid(collection: str, query_text: str, n_results: int = 5,
     results = _hybrid_search_impl(collection, query_text, n_results)
     _log_call(log_prefix, collection, query_text, n_results, results, backend="hybrid")
     return {"collection": collection, "query_text": query_text, "count": len(results), "results": results}
+
+
+def fetch_by_video_id(collection: str, video_id: int, log_prefix: str = "default") -> dict[str, Any]:
+    """search_chromadb(_hybrid) 로 특정 광고를 이미 찾은 뒤, 요약이 아니라 원본 레코드 전체가
+    필요할 때 쓴다 — 청킹을 우회해 해당 video_id 의 모든 레코드를 그대로 반환한다(Contextual/
+    Long-context RAG)."""
+    records = _fetch_by_video_id_impl(collection, video_id)
+    _log_fetch_call(log_prefix, collection, video_id, records)
+    total_chars = sum(len(r.get("document") or "") for r in records)
+    return {"collection": collection, "video_id": video_id, "count": len(records),
+            "total_chars": total_chars, "records": records}
 
 
 # ── 도구 정의(Anthropic tool_use 스키마) — MCP 서버와 API 백엔드 툴콜 경로가 공유하는 단일 소스 ──
@@ -130,6 +162,26 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["collection", "query_text"],
         },
     },
+    {
+        "name": "fetch_by_video_id",
+        "description": (
+            "search_chromadb 나 search_chromadb_hybrid 로 특정 광고(video_id)를 이미 찾아낸 "
+            "**뒤에**, 검색 결과의 요약이 아니라 그 광고의 원본 레코드 전체(예: 모든 씬·캐스트·"
+            "크리에이티브 요소)가 필요할 때 쓴다. 탐색·발견 목적으로는 쓰지 마라 — 그건 검색 "
+            "도구의 역할이다. video_id 를 모르면 먼저 검색 도구로 찾아라."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "collection": {"type": "string", "description": "조회할 컬렉션명"},
+                "video_id": {"type": "integer", "description": "조회할 광고의 video_id"},
+                "log_prefix": {"type": "string",
+                                "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
+                                "default": "default"},
+            },
+            "required": ["collection", "video_id"],
+        },
+    },
 ]
 
 
@@ -144,5 +196,9 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return search_chromadb_hybrid(
             arguments["collection"], arguments["query_text"],
             arguments.get("n_results", 5), arguments.get("log_prefix", "default"),
+        )
+    if name == "fetch_by_video_id":
+        return fetch_by_video_id(
+            arguments["collection"], arguments["video_id"], arguments.get("log_prefix", "default"),
         )
     return {"error": f"unknown tool: {name}"}

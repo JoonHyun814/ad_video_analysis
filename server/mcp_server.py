@@ -40,6 +40,7 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
+from db.chromadb.tool_definitions import fetch_by_video_id as _fetch_by_video_id
 from db.chromadb.tool_definitions import search_chromadb as _search_chromadb
 from db.chromadb.tool_definitions import search_chromadb_hybrid as _search_chromadb_hybrid
 
@@ -86,6 +87,21 @@ def search_chromadb_hybrid(collection: str, query_text: str, n_results: int = 5,
             등)에서 나왔는지 표시한다. 미지정 시 'default'.
     """
     return _search_chromadb_hybrid(collection, query_text, n_results, log_prefix)
+
+
+@mcp.tool()
+def fetch_by_video_id(collection: str, video_id: int, log_prefix: str = "default") -> dict:
+    """search_chromadb(_hybrid) 로 특정 광고(video_id)를 이미 찾은 뒤, 요약이 아니라 원본
+    레코드 전체가 필요할 때 쓴다 — 탐색·발견 목적으로는 쓰지 마라(검색 도구의 역할). 호출마다
+    <log_prefix>.jsonl 에 기록된다(기본 위치 logs/search_chromadb/<날짜>/).
+
+    Args:
+        collection: 조회할 컬렉션명.
+        video_id: 조회할 광고의 video_id(검색 도구 결과의 metadata.video_id).
+        log_prefix: 호출 로그 파일명(<log_prefix>.jsonl) — 이 호출이 어떤 맥락(프로젝트/단계명
+            등)에서 나왔는지 표시한다. 미지정 시 'default'.
+    """
+    return _fetch_by_video_id(collection, video_id, log_prefix)
 
 
 def main() -> None:

@@ -42,7 +42,7 @@ MySQL 조회·CSV 추출 + ChromaDB(벡터 DB) 유틸. **이 저장소의 Chroma
 | `connection.py` | 클라이언트/컬렉션 연결 헬퍼 + 임베딩 함수(`BAAI/bge-m3`) + `db_path_for(collection)`(컬렉션명 → `data/<collection>/`) — 이 저장소의 모든 컬렉션이 공유하는 단일 소스 |
 | `list_collections.py` | `data/` 아래 전체 컬렉션 목록 + 레코드 수 출력 |
 | `show_schema.py` | 컬렉션 하나 지정 → 메타데이터 스키마(필드·타입·예시) + 데이터 수 출력 |
-| `show_by_video_id.py` | 컬렉션 + `video_id` 지정 → 해당 레코드 전체 출력 |
+| `show_by_video_id.py` | 컬렉션 + `video_id` 지정 → 해당 레코드 전체 출력 — `tool_definitions.fetch_by_video_id` 가 재사용 |
 | `search_query.py` | 컬렉션 + 자연어 쿼리 지정 → 유사도 상위 레코드 출력(범용) — `tool_definitions.search_chromadb` 가 재사용하는 실제 검색 구현 |
 | `hybrid_search.py` | 컬렉션 + 자연어 쿼리 지정 → dense(`search_query.search` 재사용) + BM25 키워드 검색을 RRF 로 결합한 상위 레코드 출력 — `tool_definitions.search_chromadb_hybrid` 가 재사용 |
 | `tool_definitions.py` | MCP/Anthropic tool_use 공유 도구 정의. **`search_chromadb` 하나뿐** — 호출마다 `<log_prefix>.jsonl` 에 로그를 남긴다(기본 `logs/search_chromadb/<날짜>/`, `SEARCH_CHROMADB_LOG_DIR` 환경변수로 재지정 가능) |
@@ -256,24 +256,28 @@ retrieval_pipeline` 는 `category_analysis`/`scenario_analysis` 를 LLM 이 자�
 
 ## MCP 서버 / Claude API 도구 — `chromadb-explorer`
 
-도구는 **`search_chromadb`와 `search_chromadb_hybrid` 두 개**다(둘 다 범용 자연어 검색 —
-세그먼트 필터·self-reference 정책 없음). Claude CLI(`claude -p`/대화형 세션)와 Claude API
-양쪽에 노출한다. 이 저장소의 유일한 ChromaDB MCP 서버다. `list_collections`/`show_schema`/
-`show_by_video_id`, `importers/*`(컬렉션 삭제·재적재 배치 작업)는 도구로 올리지 않는다 —
-사람이 CLI로 직접 실행한다.
+도구는 **`search_chromadb`/`search_chromadb_hybrid`/`fetch_by_video_id` 세 개**다(검색 두
+개는 범용 자연어 검색 — 세그먼트 필터·self-reference 정책 없음; `fetch_by_video_id`는 검색이
+아니라 특정 video_id 의 원본 전체 조회다). Claude CLI(`claude -p`/대화형 세션)와 Claude API
+양쪽에 노출한다. 이 저장소의 유일한 ChromaDB MCP 서버다. `list_collections`/`show_schema`,
+`importers/*`(컬렉션 삭제·재적재 배치 작업)는 도구로 올리지 않는다 — 사람이 CLI로 직접
+실행한다.
 
 | 도구 | 인자 | 반환 |
 |------|------|------|
 | `search_chromadb` | `collection`(필수), `query_text`(필수, 자연어), `n_results`(기본 5), `log_prefix`(기본 `"default"`) | dense 유사도 상위 레코드 |
 | `search_chromadb_hybrid` | 위와 동일 | dense+BM25 RRF 결합 상위 레코드(`dense_rank`/`bm25_rank`/`rrf_score` 포함) — 브랜드명·숫자 등 정확 매칭 키워드가 있을 때 우선 사용 |
+| `fetch_by_video_id` | `collection`(필수), `video_id`(필수, integer), `log_prefix`(기본 `"default"`) | 해당 video_id 의 레코드 전체(청킹 우회, Contextual/Long-context RAG) — 검색으로 이미 찾은 광고의 원본이 필요할 때만 사용 |
 
 `db_path` 를 도구 인자로 받지 않는다 — `collection` 명만 주면 `data/<collection>/` 로 자동
 결정된다(호출하는 쪽이 내부 폴더 구조를 몰라도 됨).
 
 **호출 로깅(항상 켜짐)**: 호출마다 `<log_root>/<log_prefix>.jsonl` 에 한 줄씩 append 된다
 (`{"timestamp","backend","collection","query_text","n_results","result_count","results"}` —
-`backend` 는 `"dense"`(search_chromadb) 또는 `"hybrid"`(search_chromadb_hybrid), 검색 결과
-원본도 함께 남는다). `log_prefix` 로 호출 맥락(프로젝트/단계명 등)을 구분해서 기록한다 —
+`backend` 는 `"dense"`(search_chromadb)/`"hybrid"`(search_chromadb_hybrid)/
+`"fetch_by_video_id"` 세 가지, `fetch_by_video_id` 로그는 `query_text`/`n_results` 대신
+`video_id` 필드를 남긴다. 검색 결과 원본도 함께 남는다). `log_prefix` 로 호출 맥락(프로젝트/
+단계명 등)을 구분해서 기록한다 —
 미지정 시 `default.jsonl` 로 몰린다. `log_root` 는 기본 `logs/search_chromadb/<날짜>/`
 (하루 단위 폴더 — 한 파일에 로그가 무한정 쌓이지 않도록)지만 `SEARCH_CHROMADB_LOG_DIR`
 환경변수로 호출측이 재지정할 수 있다(도구 스키마에는 없다 — LLM 이 저장 위치를 결정하지

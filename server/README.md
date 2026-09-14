@@ -1,8 +1,8 @@
 # server 모듈
 
 내부망(사내망)에서 다른 머신이 접속할 수 있는 **네트워크용 MCP 서버**. 이 저장소의 유일한
-ChromaDB MCP 도구(`search_chromadb`, `search_chromadb_hybrid`)를 Streamable HTTP 전송으로
-노출한다.
+ChromaDB MCP 도구(`search_chromadb`, `search_chromadb_hybrid`, `fetch_by_video_id`)를
+Streamable HTTP 전송으로 노출한다.
 
 `db/chromadb/mcp_server.py`(stdio, 로컬 `claude -p` 전용, 저장소 루트 `.mcp.json` 등록)와
 도구·검색 로직은 완전히 같다 — 둘 다 `db.chromadb.tool_definitions.search_chromadb` 를 그대로
@@ -60,13 +60,15 @@ MCP_SERVER_PORT=9000 python -m server.mcp_server
 
 ## 도구
 
-`search_chromadb`, `search_chromadb_hybrid` 두 개를 노출한다 — `db/chromadb/mcp_server.py`,
-`db/README.md`의 "MCP 서버 / Claude API 도구" 절과 동일한 스키마다.
+`search_chromadb`, `search_chromadb_hybrid`, `fetch_by_video_id` 세 개를 노출한다 —
+`db/chromadb/mcp_server.py`, `db/README.md`의 "MCP 서버 / Claude API 도구" 절과 동일한
+스키마다.
 
 | 도구 | 인자 | 반환 |
 |------|------|------|
 | `search_chromadb` | `collection`(필수), `query_text`(필수, 자연어), `n_results`(기본 5), `log_prefix`(기본 `"default"`) | dense 유사도 상위 레코드 |
 | `search_chromadb_hybrid` | 위와 동일 | dense+BM25 RRF 결합 상위 레코드 — 브랜드명·숫자 등 정확 매칭 키워드가 있을 때 우선 사용 |
+| `fetch_by_video_id` | `collection`(필수), `video_id`(필수, integer), `log_prefix`(기본 `"default"`) | 해당 video_id 의 레코드 전체(청킹 우회) — 검색으로 이미 찾은 광고의 원본이 필요할 때만 사용 |
 
 호출 로깅도 동일하게 항상 켜져 있다(`<log_root>/<log_prefix>.jsonl`, 기본
 `logs/search_chromadb/<날짜>/`, `SEARCH_CHROMADB_LOG_DIR` 환경변수로 재지정 가능 — 자세한
