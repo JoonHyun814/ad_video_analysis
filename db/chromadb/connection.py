@@ -44,11 +44,15 @@ _clip_text_ef_cache: "_ClipTextEmbeddingFunction | None" = None
 _clip_image_encoder_cache = None
 
 
-class _ClipTextEmbeddingFunction:
+class _ClipTextEmbeddingFunction(embedding_functions.EmbeddingFunction):
     """ChromaDB 컬렉션에 등록해 query_texts 검색 시 자동으로 쓰이는 CLIP 텍스트 인코더.
 
     이미지 인코딩(clip-ViT-B-32)과 같은 임베딩 공간이라, 여기로 인코딩한 한국어/영어 쿼리가
     keyframe_visual 이 미리 계산해둔 이미지 벡터와 직접 비교된다.
+
+    `chromadb.api.types.EmbeddingFunction`을 상속해야 한다 — `col.query()`는 `__call__`이
+    아니라 `embed_query()`를 호출하는데, 이 메서드는 Protocol 기본 구현(`__call__`에 위임)이라
+    실제로 상속하지 않으면(구조적 덕타이핑만으로는) 제공되지 않는다.
     """
 
     def __init__(self) -> None:
@@ -58,7 +62,8 @@ class _ClipTextEmbeddingFunction:
     def __call__(self, input: list[str]) -> list[list[float]]:
         return self._model.encode(list(input), convert_to_numpy=True).tolist()
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         return _CLIP_TEXT_MODEL
 
 
