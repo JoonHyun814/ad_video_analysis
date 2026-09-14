@@ -33,6 +33,57 @@ def get_embedding_function() -> embedding_functions.SentenceTransformerEmbedding
     return _ef_cache
 
 
+# ── 멀티모달(이미지) 임베딩 — db.chromadb.importers.keyframe_visual/visual_search 전용 ──
+# clip-ViT-B-32(이미지)와 clip-ViT-B-32-multilingual-v1(텍스트, 한국어 포함)은 같은 임베딩
+# 공간을 공유하는 sentence-transformers 공식 조합 — 새 라이브러리(open-clip 등) 없이 이미
+# 설치된 sentence-transformers 만으로 텍스트→이미지 교차 검색이 가능하다.
+_CLIP_TEXT_MODEL = "clip-ViT-B-32-multilingual-v1"
+_CLIP_IMAGE_MODEL = "clip-ViT-B-32"
+
+_clip_text_ef_cache: "_ClipTextEmbeddingFunction | None" = None
+_clip_image_encoder_cache = None
+
+
+class _ClipTextEmbeddingFunction:
+    """ChromaDB 컬렉션에 등록해 query_texts 검색 시 자동으로 쓰이는 CLIP 텍스트 인코더.
+
+    이미지 인코딩(clip-ViT-B-32)과 같은 임베딩 공간이라, 여기로 인코딩한 한국어/영어 쿼리가
+    keyframe_visual 이 미리 계산해둔 이미지 벡터와 직접 비교된다.
+    """
+
+    def __init__(self) -> None:
+        from sentence_transformers import SentenceTransformer
+        self._model = SentenceTransformer(_CLIP_TEXT_MODEL)
+
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        return self._model.encode(list(input), convert_to_numpy=True).tolist()
+
+    def name(self) -> str:
+        return _CLIP_TEXT_MODEL
+
+
+def get_clip_text_embedding_function() -> "_ClipTextEmbeddingFunction":
+    """프로세스 단위로 CLIP 텍스트 인코더를 1회만 로드한다(검색 경로 전용)."""
+    global _clip_text_ef_cache
+    if _clip_text_ef_cache is None:
+        _clip_text_ef_cache = _ClipTextEmbeddingFunction()
+    return _clip_text_ef_cache
+
+
+def get_clip_image_encoder():
+    """프로세스 단위로 CLIP 이미지 인코더를 1회만 로드한다(적재 경로 전용 — `.encode(list[PIL.Image])`).
+
+    ChromaDB 임베딩 함수 인터페이스를 따르지 않는 순수 sentence-transformers 모델 — 임포터가
+    이미지를 미리 벡터로 변환해 `collection.upsert(embeddings=...)` 로 직접 넣기 때문에 컬렉션에
+    등록할 필요가 없다.
+    """
+    global _clip_image_encoder_cache
+    if _clip_image_encoder_cache is None:
+        from sentence_transformers import SentenceTransformer
+        _clip_image_encoder_cache = SentenceTransformer(_CLIP_IMAGE_MODEL)
+    return _clip_image_encoder_cache
+
+
 def db_path_for(collection: str) -> Path:
     """컬렉션명 → 저장 경로. `data/<collection>/` 하나로 통일한다."""
     return DATA_ROOT / collection

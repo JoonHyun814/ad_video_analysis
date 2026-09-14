@@ -20,6 +20,7 @@ MySQL 조회·CSV 추출 + ChromaDB(벡터 DB) 유틸. **이 저장소의 Chroma
 | `ad_target`/`ad_usp`/`ad_creative` | `data/ad_target/`, `data/ad_usp/`, `data/ad_creative/` | `evaluation/concept/run.py --load_facets` |
 | `category_analysis` | `data/category_analysis/` | `db.chromadb.importers.category` |
 | `scenario_analysis` | `data/scenario_analysis/` | `db.chromadb.importers.scenario` |
+| `ad_visual_reference` | `data/ad_visual_reference/` | `db.chromadb.importers.keyframe_visual` |
 
 ## 파일 구성
 
@@ -39,17 +40,19 @@ MySQL 조회·CSV 추출 + ChromaDB(벡터 DB) 유틸. **이 저장소의 Chroma
 
 | 파일 | 역할 |
 |------|------|
-| `connection.py` | 클라이언트/컬렉션 연결 헬퍼 + 임베딩 함수(`BAAI/bge-m3`) + `db_path_for(collection)`(컬렉션명 → `data/<collection>/`) — 이 저장소의 모든 컬렉션이 공유하는 단일 소스 |
+| `connection.py` | 클라이언트/컬렉션 연결 헬퍼 + 임베딩 함수(`BAAI/bge-m3`) + `db_path_for(collection)`(컬렉션명 → `data/<collection>/`) — 이 저장소의 모든 컬렉션이 공유하는 단일 소스. CLIP 텍스트/이미지 인코더(`get_clip_text_embedding_function`/`get_clip_image_encoder`)도 여기 있음 |
 | `list_collections.py` | `data/` 아래 전체 컬렉션 목록 + 레코드 수 출력 |
 | `show_schema.py` | 컬렉션 하나 지정 → 메타데이터 스키마(필드·타입·예시) + 데이터 수 출력 |
 | `show_by_video_id.py` | 컬렉션 + `video_id` 지정 → 해당 레코드 전체 출력 — `tool_definitions.fetch_by_video_id` 가 재사용 |
 | `search_query.py` | 컬렉션 + 자연어 쿼리 지정 → 유사도 상위 레코드 출력(범용) — `tool_definitions.search_chromadb` 가 재사용하는 실제 검색 구현 |
 | `hybrid_search.py` | 컬렉션 + 자연어 쿼리 지정 → dense(`search_query.search` 재사용) + BM25 키워드 검색을 RRF 로 결합한 상위 레코드 출력 — `tool_definitions.search_chromadb_hybrid` 가 재사용 |
+| `visual_search.py` | `ad_visual_reference` 컬렉션에서 자연어(한국어 포함) 쿼리로 비주얼(이미지) 유사도 검색 — `tool_definitions.search_visual` 가 재사용 |
 | `tool_definitions.py` | MCP/Anthropic tool_use 공유 도구 정의. **`search_chromadb` 하나뿐** — 호출마다 `<log_prefix>.jsonl` 에 로그를 남긴다(기본 `logs/search_chromadb/<날짜>/`, `SEARCH_CHROMADB_LOG_DIR` 환경변수로 재지정 가능) |
 | `creative_search.py` | `ad_concept_reference`/`ad_production_reference` 의미 검색(세그먼트 필터·self-reference 정책·검색 로그 포함) — RAG 백엔드. `generation/v5_m0_m3 --retrieval`가 이걸 쓴다(도구로는 노출되지 않음, 아래 참고) |
 | `mcp_server.py` | `search_chromadb` 하나만 노출하는 stdio MCP 서버(`chromadb-explorer`, 저장소 루트 `.mcp.json` 등록) |
 | `importers/category.py` | `<data_root>/<video_id>/category_analysis.json` → `category_analysis` 컬렉션 적재(전체 필드) — 독립 CLI |
 | `importers/scenario.py` | `<data_root>/<video_id>/scenario_analysis.json` → `scenario_analysis` 컬렉션 적재(concept/narrative/key_messages/production_notes + cast·scenes 개수) — 독립 CLI |
+| `importers/keyframe_visual.py` | `<data_root>/<video_id>/keyframes/*.jpg` → `ad_visual_reference` 컬렉션 적재(CLIP 이미지 임베딩) — 독립 CLI |
 | `importers/video_category.py` | `video_category` 컬렉션 적재·검색(`upsert_video`/`upsert_batch`/`query`) — `evaluation/category/run.py --load_vector` 가 쓰는 라이브러리 모듈 |
 | `importers/concept_reference.py` | `ad_concept_reference` 컬렉션 적재·조회(`upsert_concept_reference`/`fetch_concepts`) — `evaluation/concept/run.py --load_vector` 가 쓰는 라이브러리 모듈 |
 | `importers/facets.py` | `ad_target`/`ad_usp`/`ad_creative` 3개 컬렉션 적재·검색(`upsert_facets`/`query_facet`/`fetch_members`) — `evaluation/concept/run.py --load_facets`, `generation/`의 여러 G1~G6 스크립트가 쓰는 라이브러리 모듈 |
@@ -172,10 +175,22 @@ python -m db.chromadb.hybrid_search --collection ad_concept_reference --query "�
 bigram 토크나이저를 쓴다 — 새 시스템 의존성 없이 한국어 조사 변형에도 부분 매칭되면서, 영문
 단어·숫자·브랜드명은 정확 매칭에 가깝게 동작한다.
 
-## ChromaDB — `db.chromadb.importers.*` (category/scenario 사후 일괄 적재)
+### 6) 비주얼(이미지) 유사도 검색
 
-`output/total/<video_id>/category_analysis.json`, `scenario_analysis.json` 을 스캔해
-자연어 검색용 ChromaDB 컬렉션에 적재한다.
+```bash
+python -m db.chromadb.visual_search --query "보라색 단색 배경" --n_results 5
+```
+
+`ad_visual_reference` 컬렉션(`db.chromadb.importers.keyframe_visual` 가 적재)에서 컷 대표
+프레임 이미지 자체를 CLIP 임베딩으로 비교한다 — 색감·구도·소품처럼 텍스트 요약에 담기지 않는
+순수 시각적 특징을 찾을 때 쓴다. 이미지 인코더는 `clip-ViT-B-32`, 텍스트 인코더는
+`clip-ViT-B-32-multilingual-v1`(한국어 포함) — 둘 다 `sentence-transformers` 가 이미
+설치돼 있어 새 라이브러리(open-clip 등) 없이 같은 임베딩 공간을 공유한다.
+
+## ChromaDB — `db.chromadb.importers.*` (category/scenario/keyframe_visual 사후 일괄 적재)
+
+`output/total/<video_id>/category_analysis.json`, `scenario_analysis.json`,
+`keyframes/*.jpg` 를 스캔해 자연어/이미지 검색용 ChromaDB 컬렉션에 적재한다.
 
 **반드시 `python -m db.chromadb.importers.<파일명>` 형태로 실행한다** — 패키지명이
 `chromadb` 라이브러리와 같은 것과 별개로, 이 하위 폴더 자체는 일반 `import` 문으로도 정상
@@ -186,13 +201,14 @@ bigram 토크나이저를 쓴다 — 새 시스템 의존성 없이 한국어 �
 ```bash
 python -m db.chromadb.importers.category [--data_root output/total] [--db_path data/category_analysis] [--rebuild]
 python -m db.chromadb.importers.scenario [--data_root output/total] [--db_path data/scenario_analysis] [--rebuild]
+python -m db.chromadb.importers.keyframe_visual [--data_root output/total] [--db_path data/ad_visual_reference] [--rebuild]
 ```
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `--data_root` | `output/total` | `<data_root>/<video_id>/*.json` 스캔 |
-| `--db_path` | `data/category_analysis` \| `data/scenario_analysis` | ChromaDB 저장 경로 |
-| `--collection` | `category_analysis` \| `scenario_analysis` | 컬렉션명 |
+| `--data_root` | `output/total` | `<data_root>/<video_id>/*.json`(또는 `keyframes/*.jpg`) 스캔 |
+| `--db_path` | `data/category_analysis` \| `data/scenario_analysis` \| `data/ad_visual_reference` | ChromaDB 저장 경로 |
+| `--collection` | `category_analysis` \| `scenario_analysis` \| `ad_visual_reference` | 컬렉션명 |
 | `--rebuild` | off | 기존 컬렉션 삭제 후 재적재 |
 
 ### `category.py` — 적재 내용
@@ -210,6 +226,15 @@ duration, brand_name 등)를 `key: value` 줄로 직렬화해 문서 텍스트�
 임베딩한다. `cast`/`scenes` 원문은 넣지 않고 **개수만** `cast_count`/`scenes_count`
 메타데이터로 저장한다 — 캐스팅 설명·씬 비트 원문까지 넣으면 문서가 길어져 임베딩 품질이
 흐려지기 때문이다.
+
+### `keyframe_visual.py` — 적재 내용
+
+문서 텍스트를 임베딩하지 않는다 — `pipeline/keyframe.py`가 남긴 컷별 대표 프레임
+(`cut_XXX_frame_YYYYY.jpg`)을 `clip-ViT-B-32`로 직접 벡터화해 `collection.upsert(embeddings=...)`
+로 미리 계산된 벡터를 넣는다. 컬렉션 자체의 `embedding_function`은 검색 시 자연어 쿼리를
+인코딩할 `clip-ViT-B-32-multilingual-v1`로 등록해둔다(적재용 이미지 인코더와 검색용 텍스트
+인코더가 다르다 — `db/chromadb/connection.py` 참고). 메타데이터는 `video_id`/`cut_index`/
+`frame_number`/`image_path`.
 
 ## ChromaDB — `db.chromadb.importers.*` (평가 파이프라인 저장 계층)
 
@@ -256,18 +281,19 @@ retrieval_pipeline` 는 `category_analysis`/`scenario_analysis` 를 LLM 이 자�
 
 ## MCP 서버 / Claude API 도구 — `chromadb-explorer`
 
-도구는 **`search_chromadb`/`search_chromadb_hybrid`/`fetch_by_video_id` 세 개**다(검색 두
-개는 범용 자연어 검색 — 세그먼트 필터·self-reference 정책 없음; `fetch_by_video_id`는 검색이
-아니라 특정 video_id 의 원본 전체 조회다). Claude CLI(`claude -p`/대화형 세션)와 Claude API
-양쪽에 노출한다. 이 저장소의 유일한 ChromaDB MCP 서버다. `list_collections`/`show_schema`,
-`importers/*`(컬렉션 삭제·재적재 배치 작업)는 도구로 올리지 않는다 — 사람이 CLI로 직접
-실행한다.
+도구는 **`search_chromadb`/`search_chromadb_hybrid`/`fetch_by_video_id`/`search_visual` 네
+개**다(검색 세 개는 범용 자연어/비주얼 검색 — 세그먼트 필터·self-reference 정책 없음;
+`fetch_by_video_id`는 검색이 아니라 특정 video_id 의 원본 전체 조회다). Claude CLI
+(`claude -p`/대화형 세션)와 Claude API 양쪽에 노출한다. 이 저장소의 유일한 ChromaDB MCP
+서버다. `list_collections`/`show_schema`, `importers/*`(컬렉션 삭제·재적재 배치 작업)는
+도구로 올리지 않는다 — 사람이 CLI로 직접 실행한다.
 
 | 도구 | 인자 | 반환 |
 |------|------|------|
 | `search_chromadb` | `collection`(필수), `query_text`(필수, 자연어), `n_results`(기본 5), `log_prefix`(기본 `"default"`) | dense 유사도 상위 레코드 |
 | `search_chromadb_hybrid` | 위와 동일 | dense+BM25 RRF 결합 상위 레코드(`dense_rank`/`bm25_rank`/`rrf_score` 포함) — 브랜드명·숫자 등 정확 매칭 키워드가 있을 때 우선 사용 |
 | `fetch_by_video_id` | `collection`(필수), `video_id`(필수, integer), `log_prefix`(기본 `"default"`) | 해당 video_id 의 레코드 전체(청킹 우회, Contextual/Long-context RAG) — 검색으로 이미 찾은 광고의 원본이 필요할 때만 사용 |
+| `search_visual` | `query_text`(필수, 자연어), `n_results`(기본 5), `collection`(기본 `ad_visual_reference`), `log_prefix`(기본 `"default"`) | 키프레임 이미지를 CLIP 으로 비교한 상위 레코드(`video_id`/`cut_index`/`image_path`) — 이미지 파일 자체는 반환하지 않는다 |
 
 `db_path` 를 도구 인자로 받지 않는다 — `collection` 명만 주면 `data/<collection>/` 로 자동
 결정된다(호출하는 쪽이 내부 폴더 구조를 몰라도 됨).
@@ -275,9 +301,9 @@ retrieval_pipeline` 는 `category_analysis`/`scenario_analysis` 를 LLM 이 자�
 **호출 로깅(항상 켜짐)**: 호출마다 `<log_root>/<log_prefix>.jsonl` 에 한 줄씩 append 된다
 (`{"timestamp","backend","collection","query_text","n_results","result_count","results"}` —
 `backend` 는 `"dense"`(search_chromadb)/`"hybrid"`(search_chromadb_hybrid)/
-`"fetch_by_video_id"` 세 가지, `fetch_by_video_id` 로그는 `query_text`/`n_results` 대신
-`video_id` 필드를 남긴다. 검색 결과 원본도 함께 남는다). `log_prefix` 로 호출 맥락(프로젝트/
-단계명 등)을 구분해서 기록한다 —
+`"fetch_by_video_id"`/`"visual"`(search_visual) 네 가지, `fetch_by_video_id` 로그는
+`query_text`/`n_results` 대신 `video_id` 필드를 남긴다. 검색 결과 원본도 함께 남는다).
+`log_prefix` 로 호출 맥락(프로젝트/단계명 등)을 구분해서 기록한다 —
 미지정 시 `default.jsonl` 로 몰린다. `log_root` 는 기본 `logs/search_chromadb/<날짜>/`
 (하루 단위 폴더 — 한 파일에 로그가 무한정 쌓이지 않도록)지만 `SEARCH_CHROMADB_LOG_DIR`
 환경변수로 호출측이 재지정할 수 있다(도구 스키마에는 없다 — LLM 이 저장 위치를 결정하지

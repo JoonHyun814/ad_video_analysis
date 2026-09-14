@@ -22,6 +22,7 @@ from mcp.server.fastmcp import FastMCP
 from db.chromadb.tool_definitions import fetch_by_video_id as _fetch_by_video_id
 from db.chromadb.tool_definitions import search_chromadb as _search_chromadb
 from db.chromadb.tool_definitions import search_chromadb_hybrid as _search_chromadb_hybrid
+from db.chromadb.tool_definitions import search_visual as _search_visual
 
 mcp = FastMCP("chromadb-explorer")
 
@@ -77,10 +78,29 @@ def fetch_by_video_id(collection: str, video_id: int, log_prefix: str = "default
     return _fetch_by_video_id(collection, video_id, log_prefix)
 
 
+@mcp.tool()
+def search_visual(query_text: str, n_results: int = 5, collection: str = "ad_visual_reference",
+                   log_prefix: str = "default") -> dict:
+    """색감·구도·소품·조명처럼 텍스트 요약에 없는 순수 시각적 특징으로 컷을 찾을 때 쓴다 — 컷
+    대표 프레임 이미지 자체를 CLIP 임베딩으로 비교한다(한국어 자연어 쿼리 가능). 이 도구는 이미지
+    파일 자체를 반환하지 않는다 — video_id/cut_index/image_path 메타데이터만 준다. 호출마다
+    <log_prefix>.jsonl 에 기록된다(기본 위치 logs/search_chromadb/<날짜>/).
+
+    Args:
+        query_text: 찾고 싶은 시각적 특징을 서술한 자연어 텍스트(예: '보라색 단색 배경').
+        n_results: 반환 결과 수(기본 5).
+        collection: 검색할 컬렉션명(기본 ad_visual_reference).
+        log_prefix: 호출 로그 파일명(<log_prefix>.jsonl) — 이 호출이 어떤 맥락(프로젝트/단계명
+            등)에서 나왔는지 표시한다. 미지정 시 'default'.
+    """
+    return _search_visual(query_text, n_results, collection, log_prefix)
+
+
 if __name__ == "__main__":
-    # 임베딩 모델(bge-m3) 로딩을 서버 기동 시점에 미리 치른다 — 첫 search_chromadb 호출이 그
-    # 비용까지 떠안아 claude -p 쪽 도구 호출이 타임아웃에 걸리는 것을 피하기 위함. search_chromadb
-    # 는 임의의 컬렉션을 검색하므로 특정 컬렉션이 아니라 임베딩 함수 자체만 예열한다.
-    from db.chromadb.connection import get_embedding_function
+    # 임베딩 모델(bge-m3, CLIP 텍스트 인코더) 로딩을 서버 기동 시점에 미리 치른다 — 첫 검색
+    # 호출이 그 비용까지 떠안아 claude -p 쪽 도구 호출이 타임아웃에 걸리는 것을 피하기 위함.
+    # CLIP 이미지 인코더는 적재(임포터) 전용이라 검색 서버에서는 예열하지 않는다.
+    from db.chromadb.connection import get_clip_text_embedding_function, get_embedding_function
     get_embedding_function()
+    get_clip_text_embedding_function()
     mcp.run()

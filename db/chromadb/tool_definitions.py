@@ -26,6 +26,7 @@ from typing import Any
 from db.chromadb.hybrid_search import hybrid_search as _hybrid_search_impl
 from db.chromadb.search_query import search as _search_impl
 from db.chromadb.show_by_video_id import fetch_by_video_id as _fetch_by_video_id_impl
+from db.chromadb.visual_search import search_visual as _search_visual_impl
 
 _LOG_ROOT_DEFAULT = Path(__file__).resolve().parent.parent.parent / "logs" / "search_chromadb"
 _LOG_DIR_ENV = "SEARCH_CHROMADB_LOG_DIR"
@@ -115,6 +116,16 @@ def fetch_by_video_id(collection: str, video_id: int, log_prefix: str = "default
             "total_chars": total_chars, "records": records}
 
 
+def search_visual(query_text: str, n_results: int = 5, collection: str = "ad_visual_reference",
+                   log_prefix: str = "default") -> dict[str, Any]:
+    """색감·구도·소품처럼 텍스트 요약에 없는 순수 시각적 특징으로 컷을 찾을 때 쓴다 — 키프레임
+    이미지 자체를 CLIP 으로 비교한다(한국어 쿼리 가능). 이미지 파일이 아니라 video_id/cut_index/
+    image_path 메타데이터만 반환한다."""
+    results = _search_visual_impl(query_text, n_results, collection)
+    _log_call(log_prefix, collection, query_text, n_results, results, backend="visual")
+    return {"collection": collection, "query_text": query_text, "count": len(results), "results": results}
+
+
 # ── 도구 정의(Anthropic tool_use 스키마) — MCP 서버와 API 백엔드 툴콜 경로가 공유하는 단일 소스 ──
 
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
@@ -182,6 +193,29 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["collection", "video_id"],
         },
     },
+    {
+        "name": "search_visual",
+        "description": (
+            "색감·구도·소품·조명처럼 텍스트 요약(search_chromadb 계열)에 없는 순수 시각적 "
+            "특징으로 컷을 찾을 때 쓴다 — 컷 대표 프레임 이미지 자체를 CLIP 임베딩으로 비교한다 "
+            "(한국어 자연어 쿼리 가능, 예: '보라색 단색 배경', '6분할 모자이크'). "
+            "**주의: 이 도구는 이미지 파일 자체를 반환하지 않는다** — video_id/cut_index/"
+            "image_path 메타데이터만 준다. 실제 이미지를 봐야 하면 image_path 를 별도로 읽어라."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query_text": {"type": "string", "description": "찾고 싶은 시각적 특징을 서술한 자연어 텍스트(한국어 가능)"},
+                "n_results": {"type": "integer", "description": "반환 결과 수(기본 5)", "default": 5},
+                "collection": {"type": "string", "description": "검색할 컬렉션명(기본 ad_visual_reference)",
+                                "default": "ad_visual_reference"},
+                "log_prefix": {"type": "string",
+                                "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
+                                "default": "default"},
+            },
+            "required": ["query_text"],
+        },
+    },
 ]
 
 
@@ -200,5 +234,10 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if name == "fetch_by_video_id":
         return fetch_by_video_id(
             arguments["collection"], arguments["video_id"], arguments.get("log_prefix", "default"),
+        )
+    if name == "search_visual":
+        return search_visual(
+            arguments["query_text"], arguments.get("n_results", 5),
+            arguments.get("collection", "ad_visual_reference"), arguments.get("log_prefix", "default"),
         )
     return {"error": f"unknown tool: {name}"}
