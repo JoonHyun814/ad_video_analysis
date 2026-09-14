@@ -4,6 +4,9 @@ MySQL 조회·CSV 추출 + ChromaDB(벡터 DB) 유틸. **이 저장소의 Chroma
 `db/chromadb/` 아래 있다** — 다른 모듈(`evaluation/*`, `generation/*`)은 컬렉션을 직접
 적재/조회하지 않고 이 패키지의 함수를 가져다 쓴다.
 
+이 저장소가 구현한 RAG 방식들(Vector/Hybrid/Contextual/Multimodal/Graph/Agentic)의 특징·
+장단점·관련 논문은 [`RAG_TYPES.md`](RAG_TYPES.md)에 정리돼 있다.
+
 ## 저장 경로 — `data/<컬렉션명>/` 하나로 통일
 
 모든 컬렉션은 `data/<collection>/`에 1:1로 산다(`db.chromadb.connection.db_path_for`) —
