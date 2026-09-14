@@ -4,6 +4,9 @@
 ChromaDB/Graph(Kùzu) MCP 도구(`search_chromadb`, `search_chromadb_hybrid`, `fetch_by_video_id`,
 `search_visual`, `search_graph_pattern`)를 Streamable HTTP 전송으로 노출한다.
 
+**다른 서버/프로젝트에서 이 서버에 연동하려면** 빌드·운영 절차인 이 문서보다
+[`MCP_SPEC.md`](MCP_SPEC.md)(연결 정보·도구별 파라미터/반환값 명세)를 참고한다.
+
 `db/chromadb/mcp_server.py`(stdio, 로컬 `claude -p` 전용, 저장소 루트 `.mcp.json` 등록)와
 도구·검색 로직은 완전히 같다 — 둘 다 `db.chromadb.tool_definitions.search_chromadb` 를 그대로
 가져다 쓰는 얇은 전송 계층이다. 이 서버는 그 stdio 서버를 대체하지 않고 **병행 운영**된다:
