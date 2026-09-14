@@ -1,7 +1,8 @@
 # server 모듈
 
 내부망(사내망)에서 다른 머신이 접속할 수 있는 **네트워크용 MCP 서버**. 이 저장소의 유일한
-ChromaDB MCP 도구(`search_chromadb`)를 Streamable HTTP 전송으로 노출한다.
+ChromaDB MCP 도구(`search_chromadb`, `search_chromadb_hybrid`)를 Streamable HTTP 전송으로
+노출한다.
 
 `db/chromadb/mcp_server.py`(stdio, 로컬 `claude -p` 전용, 저장소 루트 `.mcp.json` 등록)와
 도구·검색 로직은 완전히 같다 — 둘 다 `db.chromadb.tool_definitions.search_chromadb` 를 그대로
@@ -16,6 +17,29 @@ ChromaDB MCP 도구(`search_chromadb`)를 Streamable HTTP 전송으로 노출한
 
 ## 실행
 
+### A. Docker (권장 — 상시 기동)
+
+`server/Dockerfile` 은 이 서버 하나만을 위한 경량 이미지다(루트 `Dockerfile`의 CUDA/TensorFlow/
+학습 스택 없이 CPU torch + chromadb + sentence-transformers + mcp 만 담아 약 2.3GB). 코드는
+이미지에 넣지 않고 리포를 그대로 bind mount 한다 — 코드가 바뀌면 컨테이너 재시작만으로 반영된다.
+
+```bash
+cd ad_video_analysis
+docker build -t chromadb-mcp -f server/Dockerfile .
+
+docker run -d --name chromadb-mcp --restart unless-stopped \
+    -p 8765:8765 \
+    -v "$(pwd)":/app \
+    -v "$(pwd)/../.cache/huggingface:/root/.cache/huggingface" \
+    chromadb-mcp
+```
+
+HF 모델 캐시(`.cache/huggingface`, `.gitignore` 로 제외)를 호스트에 마운트해 컨테이너를
+재생성해도 `BAAI/bge-m3` 를 다시 받지 않도록 한다. `--restart unless-stopped` 로 호스트
+재부팅 후에도 자동 기동된다. 로그: `docker logs chromadb-mcp`.
+
+### B. 로컬 프로세스 (venv, 디버그용)
+
 `ad_video_analysis/` 디렉토리에서 실행한다.
 
 ```bash
@@ -29,18 +53,20 @@ python -m server.mcp_server
 MCP_SERVER_PORT=9000 python -m server.mcp_server
 ```
 
-기동 시 임베딩 모델(`BAAI/bge-m3`)을 미리 로드한다(`db.chromadb.connection.get_embedding_function`)
-— 첫 검색 요청이 모델 로딩 비용까지 떠안아 느려지거나 타임아웃에 걸리는 것을 피하기 위함이다.
-로딩이 끝나면 콘솔에 접속 URL을 출력한다.
+두 방식 모두 기동 시 임베딩 모델(`BAAI/bge-m3`)을 미리 로드한다
+(`db.chromadb.connection.get_embedding_function`) — 첫 검색 요청이 모델 로딩 비용까지
+떠안아 느려지거나 타임아웃에 걸리는 것을 피하기 위함이다. 로딩이 끝나면 콘솔(또는
+`docker logs`)에 접속 URL을 출력한다.
 
 ## 도구
 
-`search_chromadb` 하나만 노출한다 — `db/chromadb/mcp_server.py`, `db/README.md`의
-"MCP 서버 / Claude API 도구" 절과 동일한 스키마다.
+`search_chromadb`, `search_chromadb_hybrid` 두 개를 노출한다 — `db/chromadb/mcp_server.py`,
+`db/README.md`의 "MCP 서버 / Claude API 도구" 절과 동일한 스키마다.
 
 | 도구 | 인자 | 반환 |
 |------|------|------|
-| `search_chromadb` | `collection`(필수), `query_text`(필수, 자연어), `n_results`(기본 5), `log_prefix`(기본 `"default"`) | 유사도 상위 레코드 |
+| `search_chromadb` | `collection`(필수), `query_text`(필수, 자연어), `n_results`(기본 5), `log_prefix`(기본 `"default"`) | dense 유사도 상위 레코드 |
+| `search_chromadb_hybrid` | 위와 동일 | dense+BM25 RRF 결합 상위 레코드 — 브랜드명·숫자 등 정확 매칭 키워드가 있을 때 우선 사용 |
 
 호출 로깅도 동일하게 항상 켜져 있다(`<log_root>/<log_prefix>.jsonl`, 기본
 `logs/search_chromadb/<날짜>/`, `SEARCH_CHROMADB_LOG_DIR` 환경변수로 재지정 가능 — 자세한

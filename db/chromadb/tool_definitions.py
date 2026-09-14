@@ -23,6 +23,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from db.chromadb.hybrid_search import hybrid_search as _hybrid_search_impl
 from db.chromadb.search_query import search as _search_impl
 
 _LOG_ROOT_DEFAULT = Path(__file__).resolve().parent.parent.parent / "logs" / "search_chromadb"
@@ -44,10 +45,11 @@ def _resolve_log_root() -> Path:
 
 
 def _log_call(log_prefix: str, collection: str, query_text: str, n_results: int,
-             results: list[dict[str, Any]]) -> None:
+             results: list[dict[str, Any]], backend: str = "dense") -> None:
     entry = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "stage": os.environ.get(_STAGE_ENV, ""),  # 호출측(retrieval_pipeline tool_chat.run)이 지정 — 예: "M2"/"M4"
+        "backend": backend,  # "dense"(search_chromadb) | "hybrid"(search_chromadb_hybrid)
         "collection": collection,
         "query_text": query_text,
         "n_results": n_results,
@@ -68,7 +70,16 @@ def search_chromadb(collection: str, query_text: str, n_results: int = 5,
                      log_prefix: str = "default") -> dict[str, Any]:
     """컬렉션명(=`data/<collection>/` 저장 경로)으로 자연어 유사도 검색을 실행하고 호출을 기록한다."""
     results = _search_impl(collection, query_text, n_results)
-    _log_call(log_prefix, collection, query_text, n_results, results)
+    _log_call(log_prefix, collection, query_text, n_results, results, backend="dense")
+    return {"collection": collection, "query_text": query_text, "count": len(results), "results": results}
+
+
+def search_chromadb_hybrid(collection: str, query_text: str, n_results: int = 5,
+                            log_prefix: str = "default") -> dict[str, Any]:
+    """search_chromadb 와 같은 컬렉션·저장 경로를 쓰되, dense 유사도와 BM25 키워드 검색을 RRF 로
+    결합한다 — 브랜드명·숫자·특정 용어처럼 정확히 일치해야 의미 있는 키워드가 쿼리에 있을 때 쓴다."""
+    results = _hybrid_search_impl(collection, query_text, n_results)
+    _log_call(log_prefix, collection, query_text, n_results, results, backend="hybrid")
     return {"collection": collection, "query_text": query_text, "count": len(results), "results": results}
 
 
@@ -81,13 +92,36 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "컬렉션 하나를 지정하고 자연어 쿼리로 유사도 검색한다(임베딩: BAAI/bge-m3, 한/영 "
             "모두 잘 동작). query_text 는 자유 서술 문장이 항상 안전하다. 호출마다 로그가 "
             "남으므로 log_prefix 로 이 호출이 어떤 맥락(예: 프로젝트/단계명)에서 나왔는지 "
-            "표시하라."
+            "표시하라. 쿼리에 브랜드명·숫자·특정 용어처럼 정확히 일치해야 하는 키워드가 있다면 "
+            "이 도구 대신 search_chromadb_hybrid 를 쓰는 게 더 안전하다."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "collection": {"type": "string", "description": "검색할 컬렉션명"},
                 "query_text": {"type": "string", "description": "자연어 검색 쿼리"},
+                "n_results": {"type": "integer", "description": "반환 결과 수(기본 5)", "default": 5},
+                "log_prefix": {"type": "string",
+                                "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
+                                "default": "default"},
+            },
+            "required": ["collection", "query_text"],
+        },
+    },
+    {
+        "name": "search_chromadb_hybrid",
+        "description": (
+            "search_chromadb 와 동일한 컬렉션을 검색하되, 의미 유사도(dense)와 BM25 키워드 매칭을 "
+            "함께 반영한다. 브랜드명·숫자·특정 용어처럼 '정확히 그 단어가 포함돼야' 의미 있는 "
+            "쿼리일 때 search_chromadb 보다 이 도구를 우선 써라 — 순수 의미 검색으로는 놓치기 "
+            "쉬운 정확 일치 결과를 끌어올린다. 그 외 일반적인 자연어 쿼리는 search_chromadb 로도 "
+            "충분하다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "collection": {"type": "string", "description": "검색할 컬렉션명"},
+                "query_text": {"type": "string", "description": "자연어 검색 쿼리(브랜드명·숫자 등 정확 매칭 키워드 포함 가능)"},
                 "n_results": {"type": "integer", "description": "반환 결과 수(기본 5)", "default": 5},
                 "log_prefix": {"type": "string",
                                 "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
@@ -103,6 +137,11 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """도구 이름 → 함수 디스패치(Anthropic tool_use 루프 전용, MCP 서버는 FastMCP 가 직접 라우팅)."""
     if name == "search_chromadb":
         return search_chromadb(
+            arguments["collection"], arguments["query_text"],
+            arguments.get("n_results", 5), arguments.get("log_prefix", "default"),
+        )
+    if name == "search_chromadb_hybrid":
+        return search_chromadb_hybrid(
             arguments["collection"], arguments["query_text"],
             arguments.get("n_results", 5), arguments.get("log_prefix", "default"),
         )

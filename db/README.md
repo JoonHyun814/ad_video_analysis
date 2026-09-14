@@ -44,6 +44,7 @@ MySQL 조회·CSV 추출 + ChromaDB(벡터 DB) 유틸. **이 저장소의 Chroma
 | `show_schema.py` | 컬렉션 하나 지정 → 메타데이터 스키마(필드·타입·예시) + 데이터 수 출력 |
 | `show_by_video_id.py` | 컬렉션 + `video_id` 지정 → 해당 레코드 전체 출력 |
 | `search_query.py` | 컬렉션 + 자연어 쿼리 지정 → 유사도 상위 레코드 출력(범용) — `tool_definitions.search_chromadb` 가 재사용하는 실제 검색 구현 |
+| `hybrid_search.py` | 컬렉션 + 자연어 쿼리 지정 → dense(`search_query.search` 재사용) + BM25 키워드 검색을 RRF 로 결합한 상위 레코드 출력 — `tool_definitions.search_chromadb_hybrid` 가 재사용 |
 | `tool_definitions.py` | MCP/Anthropic tool_use 공유 도구 정의. **`search_chromadb` 하나뿐** — 호출마다 `<log_prefix>.jsonl` 에 로그를 남긴다(기본 `logs/search_chromadb/<날짜>/`, `SEARCH_CHROMADB_LOG_DIR` 환경변수로 재지정 가능) |
 | `creative_search.py` | `ad_concept_reference`/`ad_production_reference` 의미 검색(세그먼트 필터·self-reference 정책·검색 로그 포함) — RAG 백엔드. `generation/v5_m0_m3 --retrieval`가 이걸 쓴다(도구로는 노출되지 않음, 아래 참고) |
 | `mcp_server.py` | `search_chromadb` 하나만 노출하는 stdio MCP 서버(`chromadb-explorer`, 저장소 루트 `.mcp.json` 등록) |
@@ -158,6 +159,19 @@ python -m db.chromadb.search_query --collection ad_concept_reference --query "20
 임베딩 모델은 다른 ChromaDB 유틸과 동일한 `BAAI/bge-m3`(`db.chromadb.connection` 소유) —
 컬렉션마다 별도 설정이 없다.
 
+### 5) 하이브리드(dense+BM25) 유사도 검색
+
+```bash
+python -m db.chromadb.hybrid_search --collection ad_concept_reference --query "컬리 10주년 캠페인" --n_results 5
+```
+
+`search_query.py`(dense 단독)의 결과가 브랜드명·숫자·특정 용어 같은 정확 일치 키워드를 의미
+유사도에 밀려 놓치는 경우를 보완한다. dense 순위와 BM25 순위를 Reciprocal Rank Fusion(RRF)으로
+합쳐 상위 `n_results`건을 반환하고, 각 결과에 `dense_rank`/`bm25_rank`/`rrf_score` 를 함께
+표시해 어느 신호로 뽑혔는지 알 수 있게 한다. 형태소 분석기(konlpy/mecab 등)는 쓰지 않고 문자
+bigram 토크나이저를 쓴다 — 새 시스템 의존성 없이 한국어 조사 변형에도 부분 매칭되면서, 영문
+단어·숫자·브랜드명은 정확 매칭에 가깝게 동작한다.
+
 ## ChromaDB — `db.chromadb.importers.*` (category/scenario 사후 일괄 적재)
 
 `output/total/<video_id>/category_analysis.json`, `scenario_analysis.json` 을 스캔해
@@ -242,21 +256,23 @@ retrieval_pipeline` 는 `category_analysis`/`scenario_analysis` 를 LLM 이 자�
 
 ## MCP 서버 / Claude API 도구 — `chromadb-explorer`
 
-도구는 **`search_chromadb` 하나뿐**이다(범용 자연어 검색 — 세그먼트 필터·self-reference
-정책 없음). Claude CLI(`claude -p`/대화형 세션)와 Claude API 양쪽에 노출한다. 이 저장소의
-유일한 ChromaDB MCP 서버다. `list_collections`/`show_schema`/`show_by_video_id`,
-`importers/*`(컬렉션 삭제·재적재 배치 작업)는 도구로 올리지 않는다 — 사람이 CLI로 직접
-실행한다.
+도구는 **`search_chromadb`와 `search_chromadb_hybrid` 두 개**다(둘 다 범용 자연어 검색 —
+세그먼트 필터·self-reference 정책 없음). Claude CLI(`claude -p`/대화형 세션)와 Claude API
+양쪽에 노출한다. 이 저장소의 유일한 ChromaDB MCP 서버다. `list_collections`/`show_schema`/
+`show_by_video_id`, `importers/*`(컬렉션 삭제·재적재 배치 작업)는 도구로 올리지 않는다 —
+사람이 CLI로 직접 실행한다.
 
 | 도구 | 인자 | 반환 |
 |------|------|------|
-| `search_chromadb` | `collection`(필수), `query_text`(필수, 자연어), `n_results`(기본 5), `log_prefix`(기본 `"default"`) | 유사도 상위 레코드 |
+| `search_chromadb` | `collection`(필수), `query_text`(필수, 자연어), `n_results`(기본 5), `log_prefix`(기본 `"default"`) | dense 유사도 상위 레코드 |
+| `search_chromadb_hybrid` | 위와 동일 | dense+BM25 RRF 결합 상위 레코드(`dense_rank`/`bm25_rank`/`rrf_score` 포함) — 브랜드명·숫자 등 정확 매칭 키워드가 있을 때 우선 사용 |
 
 `db_path` 를 도구 인자로 받지 않는다 — `collection` 명만 주면 `data/<collection>/` 로 자동
 결정된다(호출하는 쪽이 내부 폴더 구조를 몰라도 됨).
 
 **호출 로깅(항상 켜짐)**: 호출마다 `<log_root>/<log_prefix>.jsonl` 에 한 줄씩 append 된다
-(`{"timestamp","collection","query_text","n_results","result_count","results"}` — 검색 결과
+(`{"timestamp","backend","collection","query_text","n_results","result_count","results"}` —
+`backend` 는 `"dense"`(search_chromadb) 또는 `"hybrid"`(search_chromadb_hybrid), 검색 결과
 원본도 함께 남는다). `log_prefix` 로 호출 맥락(프로젝트/단계명 등)을 구분해서 기록한다 —
 미지정 시 `default.jsonl` 로 몰린다. `log_root` 는 기본 `logs/search_chromadb/<날짜>/`
 (하루 단위 폴더 — 한 파일에 로그가 무한정 쌓이지 않도록)지만 `SEARCH_CHROMADB_LOG_DIR`

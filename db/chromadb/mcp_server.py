@@ -20,6 +20,7 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from db.chromadb.tool_definitions import search_chromadb as _search_chromadb
+from db.chromadb.tool_definitions import search_chromadb_hybrid as _search_chromadb_hybrid
 
 mcp = FastMCP("chromadb-explorer")
 
@@ -28,6 +29,8 @@ mcp = FastMCP("chromadb-explorer")
 def search_chromadb(collection: str, query_text: str, n_results: int = 5, log_prefix: str = "default") -> dict:
     """컬렉션 하나를 지정하고 자연어 쿼리로 유사도 검색한다(임베딩: BAAI/bge-m3, 한/영 모두
     잘 동작). 호출마다 <log_prefix>.jsonl 에 기록된다(기본 위치 logs/search_chromadb/<날짜>/).
+    브랜드명·숫자·특정 용어처럼 정확히 일치해야 하는 키워드가 있다면 search_chromadb_hybrid 를
+    대신 써라.
 
     Args:
         collection: 검색할 컬렉션명(예: ad_concept_reference, ad_production_reference,
@@ -38,6 +41,24 @@ def search_chromadb(collection: str, query_text: str, n_results: int = 5, log_pr
             등)에서 나왔는지 표시한다. 미지정 시 'default'.
     """
     return _search_chromadb(collection, query_text, n_results, log_prefix)
+
+
+@mcp.tool()
+def search_chromadb_hybrid(collection: str, query_text: str, n_results: int = 5, log_prefix: str = "default") -> dict:
+    """search_chromadb 와 동일한 컬렉션을 dense 유사도 + BM25 키워드 검색을 RRF 로 결합해 찾는다.
+    브랜드명·숫자·특정 용어처럼 정확히 그 단어가 포함돼야 의미 있는 쿼리일 때 search_chromadb
+    보다 이 도구를 우선 써라. 호출마다 <log_prefix>.jsonl 에 기록된다(기본 위치
+    logs/search_chromadb/<날짜>/).
+
+    Args:
+        collection: 검색할 컬렉션명(예: ad_concept_reference, ad_production_reference,
+            category_analysis, scenario_analysis, video_category).
+        query_text: 자연어 검색 쿼리(브랜드명·숫자 등 정확 매칭 키워드 포함 가능).
+        n_results: 반환 결과 수(기본 5).
+        log_prefix: 호출 로그 파일명(<log_prefix>.jsonl) — 이 호출이 어떤 맥락(프로젝트/단계명
+            등)에서 나왔는지 표시한다. 미지정 시 'default'.
+    """
+    return _search_chromadb_hybrid(collection, query_text, n_results, log_prefix)
 
 
 if __name__ == "__main__":
