@@ -16,6 +16,11 @@
 | `scripts/compare_scenario.py` | `scenario_analysis` 와 원본(prompt+스토리보드+이미지)을 claude -p 로 비교 |
 | `scripts/precheck.py` | scenario 생성 전 저비용 사전 검증 — 영상 프레임 vs 스토리보드 이미지로 오매칭 여부 판정 |
 | `scripts/run_comparison_pipeline.py` | 위를 엮어 매칭 데이터 일괄 처리하는 CLI 진입점 |
+| `scripts/prompt_context.py` | `compare_scenario.py`/`advanced_metrics.py` 공용 스토리보드 프롬프트 포맷터 |
+| `scripts/advanced_metrics_prompts.py` | T2VScore-A/VBench-2.0 심화 지표 프롬프트·JSON 스키마 상수 |
+| `scripts/advanced_metrics_scoring.py` | claude -p 원시 응답에서 정답률·순차매칭 점수를 코드로 계산 |
+| `scripts/advanced_metrics.py` | T2VScore-A/VBench-2.0 심화 지표를 claude -p 로 산출(`compute_advanced_metrics`) |
+| `scripts/run_advanced_metrics.py` | 기존 `comparison.json` 에 `advanced_metrics` 를 병합 저장하는 CLI 진입점 |
 | `scripts/build_manifest.py` | 비교 결과 디렉토리를 스캔해 GUI 뷰어용 `manifest.json` 생성 + 뷰어 템플릿 복사 |
 | `viewer/index.html` | prompt·스토리보드 이미지·영상·비교 결과를 한 화면에서 보는 정적 GUI (뷰어 템플릿, git 추적) |
 
@@ -189,13 +194,85 @@ python scripts/run_comparison_pipeline.py --limit 10 --out_dir ../output/origina
 }
 ```
 
+## `run_advanced_metrics.py` — T2VScore-A / VBench-2.0 심화 지표 추가
+
+`comparison.json` 의 9개 factor 판정과 별개로, T2V 생성 품질 평가 논문 두 편의 방법론을
+옮겨와 **기존 결과에 추가**하는 스크립트다. `run_comparison_pipeline.py` 를 다시 돌릴 필요
+없이 이미 받아둔 `assets/`(스토리보드 이미지)와 `scenario/`(재분석 결과)를 그대로 재사용해서,
+`comparison.json` 에 `advanced_metrics` 키를 병합 저장한다.
+
+```bash
+python scripts/run_advanced_metrics.py --out_dir ../output/postprocessed
+python scripts/run_advanced_metrics.py --out_dir ../output/original --video_source original
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--out_dir` | (필수) | `run_comparison_pipeline.py` 에 쓴 것과 동일한 경로 (`comparison.json` 을 재귀 스캔) |
+| `--video_source` | `postprocessed` | 해당 `comparison.json` 을 만들 때 쓴 `--video_source` 와 동일해야 스토리보드를 DB 에서 다시 찾을 수 있다 |
+| `--overwrite` | off | 이미 `advanced_metrics` 가 있어도 다시 계산 |
+| `--timeout` | `600` | claude -p 타임아웃(초) |
+
+### T2VScore-A — 요소 분해 정합성 (Wu et al. 2024, arXiv:2401.07781 §3.1)
+
+스토리보드 전체에서 검증 가능한 핵심 요소(주체·속성·동작) 6~10개를 뽑아 각각이
+`scenario_analysis` 에서 확인되는지 개별 판정하고, `score = 검증된 요소 수 / 전체 요소 수`
+로 집계한다. 기존 `character_appearance`/`scene_description` 같은 요인 단위 통짜 판정보다
+더 잘게 쪼갠 원자적 체크라 — 어떤 세부 요소가 구체적으로 빠졌는지 요소별로 드러난다.
+
+```json
+"t2vscore_a": {
+  "elements": [
+    {"element": "...", "type": "entity|attribute|action|global", "source_scene": 1, "verified": false, "evidence": "..."}
+  ],
+  "verified_count": 2, "total_count": 9, "score": 0.222
+}
+```
+
+### VBench-2.0 서브셋 — 7개 차원 (Zheng et al. 2025, arXiv:2503.21755 §III-A)
+
+VBench-2.0 18개 차원 중, 별도 전문가 모델(GRiT·UMT·자체 학습 이상탐지기 등) 없이 claude -p
+만으로 논문 방법론 그대로 재현 가능한 7개만 구현했다. 나머지(Human Anatomy·Instance
+Preservation·Diversity 등)는 자체 학습 체크포인트나 동일 프롬프트 다중 샘플링이 필요해
+이 프로젝트 구조상 재현하지 않는다.
+
+각 차원은 스토리보드가 해당 능력을 애초에 요구하는지(`applicable`) 먼저 판단하고, 요구하지
+않으면 `score: null` 로 집계에서 제외한다.
+
+| 차원 | 논문 근거 | 적용 조건 | 점수 방식 |
+|------|-----------|-----------|-----------|
+| `complex_plot` | §III-A(3-e) | 다단계 서사(사건 전개)가 있는 스토리보드 | 순차 매칭 — 앞에서부터 맞은 비트 수 / 전체(첫 불일치 지점 이후는 계산에서 제외) |
+| `complex_landscape` | §III-A(3-f) | 여러 장소/배경 전환이 있는 스토리보드 | `complex_plot` 과 동일한 순차 매칭 |
+| `human_interaction` | §III-A(3-d) | 인물 2인 이상의 물리적 상호작용이 명시된 경우 | 이진 판정(1.0/0.0) |
+| `motion_order_understanding` | §III-A(3-c) | 한 샷 안에 순서가 명시된 동작이 2개 이상인 경우 | 두 동작 모두 순서대로 확인돼야 1.0(논문 원칙) |
+| `dynamic_attribute` | §III-A(3-a) | 시간에 따른 속성 변화(색상·형태 등)가 명시된 경우 | redundant 3질문(초기/최종/변화 여부) 정답률 |
+| `dynamic_spatial_relationship` | §III-A(3-b) | 물체/인물의 위치 이동이 명시된 경우 | `dynamic_attribute` 와 동일한 3질문 정답률 |
+| `motion_rationality` | §III-A(5-a) | "동작이 실제 결과를 남겨야/남기면 안 된다"는 지시가 있는 경우(예: 먹기·마시기·자르기) | redundant 3질문 정답률 — 허위 동작·허위 정지를 잡아낸다 |
+
+```json
+"vbench2": {
+  "complex_plot": {"applicable": true, "elements": [{"beat": "...", "matched": false}], "matched_count": 0, "total_count": 6, "score": 0.0, "evidence": "..."},
+  "human_interaction": {"applicable": false, "score": null, "evidence": "해당 없는 이유"}
+},
+"vbench2_summary": {"applicable_dimensions": 5, "total_dimensions": 7, "avg_score": 0.533}
+```
+
+`expected`/`actual` 을 예/아니오 질문쌍으로 받는 3개 차원(`dynamic_attribute`/
+`dynamic_spatial_relationship`/`motion_rationality`)과, 순차 매칭 2개 차원(`complex_plot`/
+`complex_landscape`) 은 정답 여부·집계 점수를 LLM 이 아니라 `advanced_metrics_scoring.py`
+가 코드로 계산한다 — `compare_scenario.py` 의 `cut_count` 처리와 같은 원칙(셀 수 있는 값을
+LLM 산술에 맡기면 신뢰도가 떨어진다)이다.
+
 ## GUI 뷰어 — `build_manifest.py` + `viewer/index.html`
 
 `run_comparison_pipeline.py` 결과(prompt/이미지/영상/비교)를 한 화면에서 보기 위한 정적 뷰어.
 `<out_dir>/*/video*/`(원본)와 `<out_dir>/postprocessed/*/video*/`(후반합성) 양쪽을 스캔해
 합치고, 유닛마다 `stage`("original"|"postprocessed") 를 매겨 좌측 상단 탭(전체/원본/후반합성)
 으로 구분해서 볼 수 있다. 탭으로 거른 뒤 유닛을 검색·정렬해 고르면 우측에 프롬프트·스토리보드
-이미지·완성 영상·요인별 비교표가 표시된다.
+이미지·완성 영상·요인별 비교표가 표시된다. `run_advanced_metrics.py` 로 `advanced_metrics`
+가 채워진 유닛은 요인별 비교표 아래에 T2VScore-A/VBench-2.0 카드가 추가로 표시된다(없는
+유닛은 이 카드 자체가 나타나지 않는다) — `build_manifest.py` 는 `comparison.json` 을 그대로
+담으므로 별도 코드 변경 없이 자동 반영된다.
 
 ```bash
 python scripts/build_manifest.py --out_dir ../../output   # manifest.json 생성 + 뷰어 복사

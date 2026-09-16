@@ -131,7 +131,7 @@ def fetch_matched_units(
     for row in rows:
         if row["video_id"] in qa_flagged:
             continue
-        scenes = _extract_scenes(row["machinejson"])
+        scenes = extract_scenes(row["machinejson"])
         if not scenes:
             continue
         if video_source == "postprocessed":
@@ -205,7 +205,7 @@ def _looks_like_qa_test(text: str | None) -> bool:
     return bool(_QA_LABEL_RE.search(t) or t.isdigit() or _JAMO_ONLY_RE.match(t))
 
 
-def _extract_scenes(machinejson_text: str | None) -> list[dict[str, Any]]:
+def extract_scenes(machinejson_text: str | None) -> list[dict[str, Any]]:
     """machinejson.m9.scenes 중 sketchurl(스토리보드 이미지)이 있는 항목만 반환한다."""
     try:
         data = json.loads(machinejson_text or "{}")

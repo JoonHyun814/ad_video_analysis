@@ -8,3 +8,5 @@ unsloth_compiled_cache
 .claude
 logs
 data
+database/runs.csv
+database/docs/

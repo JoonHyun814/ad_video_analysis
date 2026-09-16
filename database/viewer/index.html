@@ -77,6 +77,13 @@
   .lightbox{position:fixed; inset:0; background:rgba(0,0,0,.82); display:none; align-items:center; justify-content:center; z-index:50; cursor:zoom-out; padding:30px;}
   .lightbox.open{display:flex;}
   .lightbox img{max-width:100%; max-height:100%; border-radius:10px;}
+  .vb2-dim{border:1px solid var(--line); border-radius:9px; padding:10px 12px; margin-bottom:8px;}
+  .vb2-dim-title{font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px; margin-bottom:4px;}
+  .vb2-dim-note{font-size:12px; color:var(--sub);}
+  .vb2-detail{list-style:none; margin-top:6px; font-size:12px; color:var(--ink);}
+  .vb2-detail li{padding:2px 0;}
+  .vb2-detail-line{font-size:12px; color:var(--ink); margin-top:6px;}
+  .card h2 .badge{font-size:11px; margin-left:4px;}
 </style>
 </head>
 <body>
@@ -123,6 +130,16 @@ const FACTOR_LABELS = {
   text_overlay: "텍스트",
   scene_duration: "씬 길이",
   brand_logo_exposure: "브랜드/로고 노출",
+};
+
+const VBENCH2_LABELS = {
+  complex_plot: "복합 플롯(서사 순서)",
+  complex_landscape: "복합 배경(장소 전환)",
+  human_interaction: "인물 간 상호작용",
+  motion_order_understanding: "동작 순서 이해",
+  dynamic_attribute: "속성 변화",
+  dynamic_spatial_relationship: "위치 이동",
+  motion_rationality: "동작 합리성(허위 동작 검출)",
 };
 
 let UNITS = [];
@@ -266,11 +283,94 @@ function renderDetail(u) {
         <tbody>${factorRows}</tbody>
       </table>
     </div>
+
+    ${renderAdvancedMetrics(c.advanced_metrics)}
   `;
 
   document.querySelectorAll(".thumb").forEach(t => {
     t.addEventListener("click", () => openLightbox(t.dataset.src));
   });
+}
+
+function scorePct(score) {
+  return score == null ? "—" : `${(score * 100).toFixed(0)}%`;
+}
+
+function renderAdvancedMetrics(am) {
+  if (!am) return "";
+  if (am.parse_failed) {
+    return `<div class="card"><h2>심화 지표 (T2VScore-A / VBench-2.0)</h2>
+      <div class="summary-box" style="background:var(--orange-soft); color:var(--orange);">claude -p 응답 파싱 실패 — 재계산이 필요합니다.</div></div>`;
+  }
+  return renderT2VScoreA(am.t2vscore_a) + renderVbench2(am.vbench2, am.vbench2_summary);
+}
+
+function renderT2VScoreA(t) {
+  if (!t) return "";
+  const rows = (t.elements || []).map(e => `
+    <tr class="${e.verified ? "match" : "nomatch"}">
+      <td class="factor-name">${esc(e.type)}</td>
+      <td>${esc(e.element)}</td>
+      <td>${e.verified ? '<span class="mark ok">확인</span>' : '<span class="mark no">미확인</span>'}</td>
+      <td>${esc(e.evidence)}</td>
+    </tr>`).join("");
+  return `
+    <div class="card" style="overflow-x:auto;">
+      <h2>T2VScore-A — 요소 분해 정합성
+        <span class="badge ${badgeClass(t.score ?? 0)}">${scorePct(t.score)} (${t.verified_count}/${t.total_count})</span>
+      </h2>
+      <table>
+        <thead><tr><th style="width:70px">유형</th><th>요소</th><th style="width:70px">판정</th><th>근거</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4">(데이터 없음)</td></tr>`}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderVbench2(v, summary) {
+  if (!v) return "";
+  const dims = Object.keys(VBENCH2_LABELS).map(key => renderVbench2Dim(key, v[key])).join("");
+  const avg = summary?.avg_score;
+  return `
+    <div class="card">
+      <h2>VBench-2.0 서브셋
+        <span class="badge ${badgeClass(avg ?? 0)}">평균 ${scorePct(avg)} (적용 ${summary?.applicable_dimensions ?? 0}/${summary?.total_dimensions ?? 0})</span>
+      </h2>
+      ${dims}
+    </div>`;
+}
+
+function renderVbench2Dim(key, d) {
+  if (!d) return "";
+  const label = VBENCH2_LABELS[key];
+  if (!d.applicable) {
+    return `<div class="vb2-dim">
+      <div class="vb2-dim-title">${label} <span class="badge" style="background:var(--line); color:var(--sub);">해당 없음</span></div>
+      <div class="vb2-dim-note">${esc(d.evidence)}</div>
+    </div>`;
+  }
+  return `<div class="vb2-dim">
+    <div class="vb2-dim-title">${label} <span class="badge ${badgeClass(d.score ?? 0)}">${scorePct(d.score)}</span></div>
+    <div class="vb2-dim-note">${esc(d.evidence)}</div>
+    ${renderVbench2Detail(d)}
+  </div>`;
+}
+
+function renderVbench2Detail(d) {
+  if (d.questions) {
+    return `<ul class="vb2-detail">${d.questions.map(q =>
+      `<li>${q.correct ? "✅" : "❌"} ${esc(q.question)} <span style="color:var(--sub);">(기대: ${q.expected} / 실제: ${q.actual})</span></li>`
+    ).join("")}</ul>`;
+  }
+  if (d.elements) {
+    return `<ul class="vb2-detail">${d.elements.map(e => `<li>${e.matched ? "✅" : "❌"} ${esc(e.beat)}</li>`).join("")}</ul>`;
+  }
+  if (d.actions) {
+    return `<ul class="vb2-detail">${d.actions.map(a => `<li>${a.order_matched ? "✅" : "❌"} ${esc(a.action)}</li>`).join("")}</ul>`;
+  }
+  if ("match" in d) {
+    return `<div class="vb2-detail-line">기대: ${esc(d.expected)}<br>실제: ${esc(d.actual)}</div>`;
+  }
+  return "";
 }
 
 function openLightbox(src) {

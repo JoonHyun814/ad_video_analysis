@@ -17,6 +17,7 @@ if str(_REPO_ROOT) not in sys.path:
 from utils.json_utils import parse_json  # noqa: E402
 
 from matching import MatchedUnit  # noqa: E402
+from prompt_context import format_storyboard_block  # noqa: E402
 
 _LLM_FACTOR_KEYS = (
     "cut_order", "character_count", "character_appearance",
@@ -101,16 +102,7 @@ def _call_claude(unit: MatchedUnit, scenario: dict[str, Any], images_dir: Path, 
 
 
 def _build_prompt(unit: MatchedUnit, scenario: dict[str, Any], images_dir: Path) -> str:
-    scene_lines = []
-    for scene in unit.scenes:
-        img_path = images_dir / f"scene{scene.get('no')}.png"
-        shot_count = len(scene.get("shots") or []) or 1
-        scene_lines.append(
-            f"- Scene {scene.get('no')} ({scene.get('time')}): brief={scene.get('brief')} | "
-            f"visual={scene.get('visual')} | audio={scene.get('audio')} | overlay={scene.get('overlay')} | "
-            f"shots={shot_count}개 | 이미지파일={img_path}"
-        )
-    storyboard_block = "\n".join(scene_lines)
+    storyboard_block = format_storyboard_block(unit, images_dir)
     source_note = _VIDEO_SOURCE_NOTES.get(unit.video_source, "")
 
     return (
