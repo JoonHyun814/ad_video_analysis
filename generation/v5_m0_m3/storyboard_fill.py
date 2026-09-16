@@ -5,8 +5,8 @@ storyboard_render.py 가 M9 원본을 그대로 사용한다 — 이미 검증�
 드리프트를 만들 위험을 피하기 위함이다.
 
 cli_storyboard.py --retrieval 가 켜져 있으면(stage="STORYBOARD_HTML") ad_production_reference
-검색 도구(search_production_reference/list_production_segment_columns)를 advisory 로 제공한다
-— 캐스팅·카메라·조명 필드를 채울 때 참고용(evaluation/README.md 스키마 통합 계획 참고).
+검색 도구를 advisory 로 제공한다(백엔드별로 실제 도구가 다르다 — generation/v5_m0_m3/README.md
+의 --retrieval 절 참고) — 캐스팅·카메라·조명 필드를 채울 때 참고용.
 """
 from __future__ import annotations
 
@@ -79,10 +79,10 @@ def _context(module0: dict, m1: dict, m2: dict, m4: dict, m5: dict, m9: dict) ->
 
 _RETRIEVAL_NOTE = (
     "\n\n---\n\n[연출 레퍼런스 검색 도구 사용 가능]\n"
-    "search_production_reference / list_production_segment_columns 도구가 제공되면, 이 컨셉과 "
-    "비슷하게 연출된 기존 광고의 캐스팅·카메라워크·조명·환경을 검색해 character/environment/"
-    "camera/lighting 필드를 더 구체적으로 채우는 데 참고할 수 있다. 그대로 베끼지 말고 이 "
-    "제품·컨셉 맥락에 맞게 변형하라. 반드시 호출할 필요는 없다."
+    "제공된 검색 도구가 있다면, 이 컨셉과 비슷하게 연출된 기존 광고의 캐스팅·카메라워크·"
+    "조명·환경을 검색해 character/environment/camera/lighting 필드를 더 구체적으로 채우는 데 "
+    "참고할 수 있다(어떤 이름의 도구가 제공됐는지는 그 도구 설명을 그대로 따라라). 그대로 "
+    "베끼지 말고 이 제품·컨셉 맥락에 맞게 변형하라. 반드시 호출할 필요는 없다."
 )
 
 

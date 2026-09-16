@@ -178,9 +178,9 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
   타입·네거티브)·환경(장소·시간대·톤)·카메라 원칙·조명·메타데이터(장르·컴포지션·팔레트 등).
   카메라 바디/렌즈처럼 실물 장비를 뜻하는 필드는 이 파이프라인이 AI 이미지-투-비디오 생성이라는
   점을 감안해 "N/A(AI 생성)"로 채우도록 프롬프트에 명시했다. `--retrieval` 을 켜면(stage=
-  `"STORYBOARD_HTML"`) `ad_production_reference` 검색 도구(`search_production_reference`/
-  `list_production_segment_columns`)가 advisory 로 붙어, 이 컨셉과 비슷하게 연출된 기존 광고의
-  캐스팅·카메라·조명을 참고해 이 필드들을 채울 수 있다(강제 아님).
+  `"STORYBOARD_HTML"`) `ad_production_reference` 검색 도구(`--llm_backend` 별로 다름 — 이
+  문서의 `--retrieval` 옵션 설명 참고)가 advisory 로 붙어, 이 컨셉과 비슷하게 연출된 기존
+  광고의 캐스팅·카메라·조명을 참고해 이 필드들을 채울 수 있다(강제 아님).
 
 **이미지 슬롯**(`IMAGE` 칩이 붙은 자리)은 실제 이미지를 생성하지 않으므로(이 CLI의 범위 밖)
 원본 그대로 빈 자리로 남는다 — 다음 단계(M10~M12, 이 프로젝트 범위 밖)에서 채울 자리다.
@@ -228,16 +228,20 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
   파일이 없으면(오탈자 등) 에러로 즉시 중단한다(조용히 무시하지 않음) — 기본값 없음, 매 실행마다
   명시적으로 지정해야 적용된다.
 - `--retrieval`(cli_m3.py 전용, M3): M3 시스템 프롬프트에 `ad_concept_reference` 벡터 DB를
-  검색하는 도구(`search_concept_reference`/`list_concept_segment_columns`,
-  `creative-retrieval` MCP 서버)를 붙인다. 어떤 세그먼트 컬럼/값으로 몇 건(top_k)을 검색할지는
-  LLM 이 그때그때 판단한다(강제 호출 아님). 두 `--llm_backend` 모두 지원하지만 전송 방식이
-  다르다 — `cli`: `claude -p --mcp-config .mcp.json`, `api`: Anthropic 네이티브 tool_use 루프
-  (`llm_adapter._chat_json_api_with_tools`). 첫 호출은 임베딩 모델(bge-m3) 콜드스타트로 15~20초
-  안팎 걸리지만 이후 호출은 초 단위로 빠르다(`reference_retrieval.py` 가 프로세스당
-  `chromadb.PersistentClient` 를 캐싱 — 예전엔 검색 1건마다 재오픈해서 `claude -p` 경유 호출이
-  30분 넘게 멈추는 버그가 있었고, 매칭 영상별로 N번 나눠 하던 크리에이티브 요소 조회도 단일
-  `$in` 쿼리로 합쳤다). 자세한 도구 스펙은
-  [`../../evaluation/creative/README.md`](../../evaluation/creative/README.md) 참고.
+  검색하는 도구를 붙인다. 어떤 컬럼/값으로 몇 건(top_k)을 검색할지는 LLM 이 그때그때
+  판단한다(강제 호출 아님). **`--llm_backend` 별로 도구 자체가 다르다**:
+  - `cli`: `claude -p --mcp-config .mcp.json` 로 `chromadb-explorer` MCP 서버의 범용
+    `search_chromadb(collection, query_text, n_results, log_prefix)` 하나를 연다 —
+    `collection="ad_concept_reference"` 로 지정하라는 안내를 프롬프트에 자동으로 덧붙인다
+    (`llm_adapter._chat_json_cli`). segment_column exact-match 필터는 없다.
+  - `api`: Anthropic 네이티브 tool_use 루프(`llm_adapter._chat_json_api_with_tools`)로
+    `db.chromadb.creative_search.search_concept_reference`/`list_concept_segment_columns`
+    (segment_column 필터 포함, MCP 축소와 무관하게 그대로 유지됨)를 직접 노출한다.
+  첫 호출은 임베딩 모델(bge-m3) 콜드스타트로 15~20초 안팎 걸리지만 이후 호출은 초 단위로
+  빠르다(`creative_search.py` 가 프로세스당 `chromadb.PersistentClient` 를 캐싱 — 예전엔
+  검색 1건마다 재오픈해서 `claude -p` 경유 호출이 30분 넘게 멈추는 버그가 있었고, 매칭
+  영상별로 N번 나눠 하던 크리에이티브 요소 조회도 단일 `$in` 쿼리로 합쳤다). 자세한 도구
+  스펙은 [`../../db/README.md`](../../db/README.md) 참고.
   M3 는 "참고만 하고 베끼지 마라"에 그치지 않고 두 가지를 추가로 안내받는다
   (`modules_runner._run_module_core` 의 `n == 3` 분기):
   1. **포괄적 검색 1회 대신 렌즈별 타겟 검색**을 유도한다 — 선택한 전략 렌즈마다 필요한
@@ -282,7 +286,10 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
       어느 광고의 어떤 기법을 어떻게 변형했나")와는 별개 축이다 — `lensorigin`/
       `lenssourcedvideoid` 는 "이 컨셉이 쓴 렌즈(각도) 자체가 어느 광고에서 발견됐나"를 추적한다.
 - `--retrieval`(cli_m4_m9.py 전용, M4~M9): M0~M3 와 별도로 M4~M9 단계에 `ad_production_reference`
-  검색 도구(`search_production_reference`/`list_production_segment_columns`)를 붙일 수 있다.
+  검색 도구를 붙일 수 있다 — `--llm_backend cli` 는 `chromadb-explorer` MCP 의 범용
+  `search_chromadb`(collection="ad_production_reference" 안내 포함), `api` 는
+  `search_production_reference`/`list_production_segment_columns`(segment 필터 포함) 를
+  쓴다(위 `--retrieval`(M3) 절과 같은 백엔드별 차이, 자세한 내용은 [`../../db/README.md`](../../db/README.md)).
   모듈별 취급이 다르다(`modules_runner._run_module_core` 의 `n in (4,5,6,7,9)` 분기):
   - **M5(스크립트)·M9(콘티)**: M3 처럼 반영을 명시적으로 요구한다 — 훅·카피 기법을 검색해
     반영했다면 M5 는 top-level `referencedvideoid`/`referencedelement`에 근거를 남긴다. M9 는
@@ -308,9 +315,12 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
   사용): 기존 방영 광고를 `existing_ad_adapter.py`로 M3 재추출해 M4~M9 를 돌리는 실험 전용
   옵션이다 — 그 광고 자신이 이미 `ad_production_reference` 에 적재돼 있어 `search_production_reference`
   검색이 자기 자신을 그대로 되찾아오는 self-reference 상황을 다룬다(일반 URL 소재 파이프라인은
-  이 값을 안 쓰므로 동작 무변화).
+  이 값을 안 쓰므로 동작 무변화). **`--llm_backend api` 에서만 동작한다** — 이 정책은
+  `db.chromadb.creative_search.search_production_reference` 함수 내부(`_apply_self_reference_policy`)
+  에 구현돼 있는데, `cli` 백엔드는 이제 그 함수를 거치지 않는 범용 `search_chromadb` MCP
+  도구만 쓰기 때문에 `--llm_backend cli` 와 조합하면 이 옵션이 조용히 무시된다.
   - `restore`(기본): 검색 결과에 `video_id`가 이 값과 일치하는 항목이 있으면
-    `evaluation.creative.reference_retrieval` 이 `data/ad_concept_production/<id>/`의 실제
+    `db.chromadb.creative_search` 이 `data/ad_concept_production/<id>/`의 실제
     `scenario_analysis.json`(`cast`/`scenes`)·`production_analysis.json`(`elements`) 원본을
     `source_cast`/`source_scenes`/`source_production_notes`/`source_elements` 로 덧붙이고,
     `restoration_note`(새로 창작하지 말고 그대로 재현하라는 지시)를 함께 반환한다 — self-hit이
@@ -333,7 +343,7 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
   "M3_LENS_SCOUT"(M3 발산 직전 렌즈 사전 조사, 위 "렌즈 자체는..." 항목 참고)·
   "M4"·"M5"·"M9"·"M0:material_analysis"),"tool","arguments","result_count","video_ids",`
   `"segment_filter","error"}`. `--llm_backend cli`/`api` 모두 같은 형식으로 기록된다(둘 다
-  `evaluation.creative.reference_retrieval._log_call` 을 거침 — cli 는 MCP 서브프로세스가, api
+  `db.chromadb.creative_search._log_call` 을 거침 — cli 는 MCP 서브프로세스가, api
   는 같은 프로세스가 직접 씀).
 - M0 가 제품을 특정하지 못했거나 어느 모듈이 재시도 후에도 빈 응답이면 `error` 키가 채워지고
   그 이후 단계는 실행되지 않는다. GATE A reject·GATE B block 은 더 이상 `error` 를 채우지
@@ -351,7 +361,8 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
    `--llm_backend api` 사용 시: `env/api.env` 에 `ANTHROPIC_API_KEY` 입력(이미 포함됨).
 3. `env/v5_category_db.env` — 소스 RDS `category` 테이블 접속 정보(이미 포함됨, **읽기 전용
    SELECT만** 실행한다). 이 프로젝트 자체 DB(`env/db.env`, `ad_video_label`)와는 무관하다.
-4. `--retrieval` 사용 시: `output/vector_db` 에 해당 컬렉션이 이미 적재되어 있어야 한다 —
+4. `--retrieval` 사용 시: 해당 컬렉션이 각자의 `data/<collection>/`(`data/ad_concept_reference/`,
+   `data/ad_production_reference/`)에 이미 적재되어 있어야 한다 —
    `cli_m3.py`(M3)는 `ad_concept_reference`(`python -m evaluation.cli --mode strategy --video_id
    <ID> --data_dir <dir>` 로 `strategy_analysis.json` 을 먼저 만든 뒤 `python -m evaluation.cli
    --mode concept --video_id <ID> --data_dir <dir> --load_vector`), `cli_m4_m9.py`/
@@ -359,11 +370,11 @@ python -m generation.v5_m0_m3.cli_storyboard --input output/v5_m0_m3/<slug>_m4_m
    --mode creative --load_vector ...`)가 필요하다 — **영상 전체를 새로 돌릴 때는 strategy→concept
    →creative 세 단계를 모두 실행해야 한다**(하나라도 빠뜨리면 해당 컬렉션이 비어 있어
    그 stage 의 검색 도구가 항상 "컬렉션이 비어 있음"만 반환한다). 저장소 루트의 `.mcp.json`
-   이 `creative-retrieval` MCP 서버를 등록한다(커밋됨, 공유).
+   이 `chromadb-explorer` MCP 서버를 등록한다(커밋됨, 공유).
    **`--llm_backend cli` 와 함께 쓸 때만** 추가로 승인이 필요하다 — 이 저장소는 `.gitignore` 로
    `.claude/`(개인 로컬 상태)를 전부 제외하므로, `claude -p` 헤드리스 호출이 "Pending approval"
    에 막히지 않으려면 각자 로컬에 `.claude/settings.json` 을 만들어 아래 내용을 넣거나
-   (`{"enabledMcpjsonServers": ["creative-retrieval"]}`), 그 프로젝트 디렉터리에서 `claude` 를
+   (`{"enabledMcpjsonServers": ["chromadb-explorer"]}`), 그 프로젝트 디렉터리에서 `claude` 를
    한 번 대화형으로 실행해 서버를 승인해야 한다(1회만). **`--llm_backend api` 는 이 승인 절차가
    전혀 필요 없다** — Claude Code 의 MCP 신뢰 체계를 타지 않는 Anthropic 네이티브 tool_use 라서
    설치 직후 바로 동작한다. 승인 절차를 신경 쓰고 싶지 않으면 `--retrieval` 은 `--llm_backend api`

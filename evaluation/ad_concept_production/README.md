@@ -14,15 +14,15 @@ enum 사전(29KB 설계 문서)까지 아우르므로 다시 베끼는 게 오�
   13종·subtype enum 사전(단일 출처)
 - `evaluation/creative/element_analysis.py::compute_duration` — 시나리오 길이 계산 순수 함수
 - `evaluation/creative/run.py::_industry_for` — `category_analysis.json` 기반 산업 판별
-- `evaluation/concept/concept_reference_store.py::upsert_concept_reference` — `ad_concept_reference` 적재
-- `evaluation/creative/element_vector_store.py::upsert_analysis` — `ad_production_reference` 적재
+- `db/chromadb/importers/concept_reference.py::upsert_concept_reference` — `ad_concept_reference` 적재
+- `db/chromadb/importers/production_reference.py::upsert_analysis` — `ad_production_reference` 적재
 
 ## 파일 구성
 
 | 파일 | 역할 |
 |------|------|
-| `concept_prompt.py` | concept 추출 프롬프트(1회 호출) — `{"m1":{corejob,humantruth},"m2":{valueproposition},"m3":{concepts:[{lens,claimtag,bigidea,provingwhy,job,differentiation,risk}]}}` 반환. `concept_reference_store.upsert_concept_reference` 가 그대로 소비하는 모양 |
-| `production_prompt.py` | production 추출 프롬프트(1회 호출) — `{"profile":{...},"casting":{...},"elements":[...]}` 반환. `element_vector_store.upsert_analysis` 가 그대로 소비하는 모양 |
+| `concept_prompt.py` | concept 추출 프롬프트(1회 호출) — `{"m1":{corejob,humantruth},"m2":{valueproposition},"m3":{concepts:[{lens,claimtag,bigidea,provingwhy,job,differentiation,risk}]}}` 반환. `db/chromadb/importers/concept_reference.py::upsert_concept_reference` 가 그대로 소비하는 모양 |
+| `production_prompt.py` | production 추출 프롬프트(1회 호출) — `{"profile":{...},"casting":{...},"elements":[...]}` 반환. `db/chromadb/importers/production_reference.py::upsert_analysis` 가 그대로 소비하는 모양 |
 | `pipeline.py` | `run_pipeline()` — scenario 로드 → 산업 판별 → 두 프롬프트 호출 → 결과 JSON 저장 → 두 컬렉션 upsert |
 | `run.py` | CLI 실행기 (`python -m evaluation.cli --mode ad_concept_production`) |
 
@@ -58,7 +58,7 @@ python -m evaluation.cli --mode ad_concept_production --video_id <ID> --data_dir
 |------|--------|------|
 | `--video_id` | (필수) | 대상 영상 ID(쉼표 구분 복수 허용) |
 | `--data_dir` | `output/total` | `<data_dir>/<video_id>/scenario_analysis.json` 입력(같은 폴더에 `category_analysis.json` 있으면 산업 판별에 사용, 없으면 `other`) |
-| `--db_path` | `output/vector_db` | ChromaDB 저장 경로 |
+| `--db_path` | (미지정 시 자동) | ChromaDB 저장 경로 — 안 주면 `ad_concept_reference`/`ad_production_reference` 가 각자 `data/<collection>/` 로 자동 결정된다(`db.chromadb.connection.db_path_for`) |
 | `--llm_backend` | `claude` | `claude`(`claude -p` CLI, 로그인 세션 필요) \| `claude_api`(Anthropic API 직접 호출, `env/api.env` `ANTHROPIC_API_KEY` 필요) \| `codex` \| `gemini`(`env/api.env` `GEMINI_API_KEY` 필요) |
 | `--timeout` | `600` | 추출 1건당 LLM 호출 타임아웃(초) |
 | `--force` | off | `concept_analysis.json`/`production_analysis.json` 이 이미 있어도 무시하고 재추출(기본은 있으면 그 파일을 그대로 적재만 해 재실행 시 중복 과금을 막는다) |

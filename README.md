@@ -69,6 +69,7 @@ python -m pipeline.cli --video_id 349
 | `mapping_pipeline/` | 외부 영상 + 시나리오 텍스트의 cut-scene 매핑 (CLI / FastAPI / Gradio) | [mapping_pipeline/README.md](mapping_pipeline/README.md) |
 | `generation/` | 브리프·시나리오 생성 (단일 단계 / M1~M7 풀 파이프라인) | [generation/README.md](generation/README.md) |
 | `db/` | MySQL 조회 + ChromaDB 벡터 검색·재임베딩 | [db/README.md](db/README.md) |
+| `database/` | shortform-pipeline 생성 DB(v5runs 등) 조회 + 자산 추출 + scenario_analysis 원본 비교 | [database/README.md](database/README.md) |
 | `utils/` | 공용 헬퍼 (LLM 호출·JSON 파싱·환경변수 로딩) | [utils/README.md](utils/README.md) |
 | `tools/` | 서드파티 통합 (whisper-diarization 등) | — |
 

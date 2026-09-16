@@ -53,13 +53,16 @@ def _save(video_dir: Path, filename: str, data: dict) -> None:
 def run_pipeline(
     video_id: int,
     video_dir: Path,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path | None = None,
     backend: str = "claude",
     timeout: int = 600,
     force: bool = False,
 ) -> dict:
     """<video_dir>/scenario_analysis.json 을 읽어 concept_analysis.json·production_analysis.json
     으로 저장하고, 성공한 쪽만 각각 ad_concept_reference/ad_production_reference 에 upsert 한다.
+
+    db_path 를 안 주면(None, 기본) 두 컬렉션이 각자의 `data/<collection>/` 에 자동으로
+    저장된다 — 명시적으로 주면(예: 테스트용 스크래치 경로) 두 upsert 모두 그 경로 하나를 쓴다.
 
     force=False(기본)면 concept_analysis.json/production_analysis.json 이 이미 있을 때 LLM 재호출
     없이 그 파일을 그대로 적재만 한다(재실행 안전 — 중단 후 이어서 돌려도 중복 과금 없음).
@@ -87,11 +90,11 @@ def run_pipeline(
         production = json.loads(production_path.read_text(encoding="utf-8"))
 
     if "error" not in production:
-        from evaluation.creative.element_vector_store import upsert_analysis
+        from db.chromadb.importers.production_reference import upsert_analysis
         upsert_analysis(video_id=video_id, analysis=production, db_path=db_path)
 
     if "error" not in concept:
-        from evaluation.concept.concept_reference_store import upsert_concept_reference
+        from db.chromadb.importers.concept_reference import upsert_concept_reference
         profile = production.get("profile") or {}
         enrich = {k: profile[k] for k in _ENRICH_KEYS if profile.get(k) is not None} or None
         upsert_concept_reference(video_id=video_id, strategy=concept, db_path=db_path, enrich=enrich)

@@ -1,0 +1,286 @@
+"""db/chromadb 가 MCP(`mcp_server.py`)/Anthropic tool_use 양쪽에 노출하는 유일한 도구 —
+search_chromadb. 실제 벡터 검색은 `db.chromadb.search_query.search` 를 그대로 재사용하고,
+이 파일은 `collection` 명으로 저장 경로를 자동 결정(`db_path_for`)하고 호출 로그를 남기는
+얇은 래퍼다.
+
+호출마다 `<log_root>/<log_prefix>.jsonl` 에 한 줄씩 append 한다(쿼리·컬렉션·결과 원본 포함) —
+에이전트가 언제 어떤 컬렉션을 어떤 쿼리로 검색해 무엇을 받았는지 파일로 남기기 위함이다
+(log_prefix 로 호출 맥락을 구분해서 기록한다). `log_root` 는 기본 `logs/search_chromadb/<날짜>/`
+(하루 단위로 새 폴더 — 로그가 한 파일에 무한정 쌓이는 것을 막는다)지만, 호출측이
+`SEARCH_CHROMADB_LOG_DIR` 환경변수로 재지정할 수 있다 — 이 경우 지정된 경로를 그대로 쓰고
+날짜 폴더를 추가로 끼워 넣지 않는다(예: `generation/retrieval_pipeline`(`tool_chat.py`)는
+이미 날짜가 박힌 실행별 출력 폴더(`output/retrieval_pipeline/<날짜>_<제목>/`)를 그대로
+지정하므로, 이중으로 날짜 폴더가 생기지 않는다). 도구 스키마 자체에는 log_root 인자를 두지
+않는다(LLM 이 저장 위치까지 결정하게 하지 않기 위해, `db.chromadb.creative_search` 의
+`REFERENCE_RETRIEVAL_LOG_PATH` 환경변수와 같은 방식).
+"""
+from __future__ import annotations
+
+import json
+import os
+import time
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+from db.chromadb.hybrid_search import hybrid_search as _hybrid_search_impl
+from db.chromadb.search_query import search as _search_impl
+from db.chromadb.show_by_video_id import fetch_by_video_id as _fetch_by_video_id_impl
+from db.chromadb.visual_search import search_visual as _search_visual_impl
+from db.graph.graph_query import role_element_frequency as _role_element_frequency_impl
+from evaluation.category.category_analysis import _ROLES as _GRAPH_ROLES
+
+_LOG_ROOT_DEFAULT = Path(__file__).resolve().parent.parent.parent / "logs" / "search_chromadb"
+_LOG_DIR_ENV = "SEARCH_CHROMADB_LOG_DIR"
+# 이 호출이 파이프라인의 어느 단계(M1~M4 등)에서 나왔는지 로그에 남기기 위한 환경변수 — LOG_DIR_ENV
+# 와 같은 이유로 env var 를 쓴다("cli" 백엔드는 claude -p 서브프로세스 내부에서 도구가 호출돼
+# tool_use 블록을 가로챌 수 없으므로, 호출측이 log_prefix 처럼 함수 인자로 넘겨줄 수 없다 —
+# 서브프로세스가 상속하는 환경변수만이 두 백엔드("cli"/"api") 모두에서 동일하게 동작한다).
+_STAGE_ENV = "SEARCH_CHROMADB_STAGE"
+
+
+def _resolve_log_root() -> Path:
+    """SEARCH_CHROMADB_LOG_DIR 이 있으면 그 경로를 그대로 쓰고(이미 날짜가 박혀 있다고 간주),
+    없으면 기본 루트 아래 오늘 날짜 폴더를 쓴다."""
+    override = os.environ.get(_LOG_DIR_ENV)
+    if override:
+        return Path(override)
+    return _LOG_ROOT_DEFAULT / f"{date.today():%Y%m%d}"
+
+
+def _log_call(log_prefix: str, collection: str, query_text: str, n_results: int,
+             results: list[dict[str, Any]], backend: str = "dense") -> None:
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "stage": os.environ.get(_STAGE_ENV, ""),  # 호출측(retrieval_pipeline tool_chat.run)이 지정 — 예: "M2"/"M4"
+        "backend": backend,  # "dense"(search_chromadb) | "hybrid"(search_chromadb_hybrid)
+        "collection": collection,
+        "query_text": query_text,
+        "n_results": n_results,
+        "result_count": len(results),
+        "results": results,
+    }
+    try:
+        log_root = _resolve_log_root()
+        log_root.mkdir(parents=True, exist_ok=True)
+        path = log_root / f"{log_prefix or 'default'}.jsonl"
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # 로깅 실패가 검색 자체를 막으면 안 됨
+
+
+def _log_fetch_call(log_prefix: str, collection: str, video_id: int, records: list[dict[str, Any]]) -> None:
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "stage": os.environ.get(_STAGE_ENV, ""),
+        "backend": "fetch_by_video_id",
+        "collection": collection,
+        "video_id": video_id,
+        "result_count": len(records),
+        "results": records,
+    }
+    try:
+        log_root = _resolve_log_root()
+        log_root.mkdir(parents=True, exist_ok=True)
+        path = log_root / f"{log_prefix or 'default'}.jsonl"
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # 로깅 실패가 조회 자체를 막으면 안 됨
+
+
+def search_chromadb(collection: str, query_text: str, n_results: int = 5,
+                     log_prefix: str = "default") -> dict[str, Any]:
+    """컬렉션명(=`data/<collection>/` 저장 경로)으로 자연어 유사도 검색을 실행하고 호출을 기록한다."""
+    results = _search_impl(collection, query_text, n_results)
+    _log_call(log_prefix, collection, query_text, n_results, results, backend="dense")
+    return {"collection": collection, "query_text": query_text, "count": len(results), "results": results}
+
+
+def search_chromadb_hybrid(collection: str, query_text: str, n_results: int = 5,
+                            log_prefix: str = "default") -> dict[str, Any]:
+    """search_chromadb 와 같은 컬렉션·저장 경로를 쓰되, dense 유사도와 BM25 키워드 검색을 RRF 로
+    결합한다 — 브랜드명·숫자·특정 용어처럼 정확히 일치해야 의미 있는 키워드가 쿼리에 있을 때 쓴다."""
+    results = _hybrid_search_impl(collection, query_text, n_results)
+    _log_call(log_prefix, collection, query_text, n_results, results, backend="hybrid")
+    return {"collection": collection, "query_text": query_text, "count": len(results), "results": results}
+
+
+def fetch_by_video_id(collection: str, video_id: int, log_prefix: str = "default") -> dict[str, Any]:
+    """search_chromadb(_hybrid) 로 특정 광고를 이미 찾은 뒤, 요약이 아니라 원본 레코드 전체가
+    필요할 때 쓴다 — 청킹을 우회해 해당 video_id 의 모든 레코드를 그대로 반환한다(Contextual/
+    Long-context RAG)."""
+    records = _fetch_by_video_id_impl(collection, video_id)
+    _log_fetch_call(log_prefix, collection, video_id, records)
+    total_chars = sum(len(r.get("document") or "") for r in records)
+    return {"collection": collection, "video_id": video_id, "count": len(records),
+            "total_chars": total_chars, "records": records}
+
+
+def search_visual(query_text: str, n_results: int = 5, collection: str = "ad_visual_reference",
+                   log_prefix: str = "default") -> dict[str, Any]:
+    """색감·구도·소품처럼 텍스트 요약에 없는 순수 시각적 특징으로 컷을 찾을 때 쓴다 — 키프레임
+    이미지 자체를 CLIP 으로 비교한다(한국어 쿼리 가능). 이미지 파일이 아니라 video_id/cut_index/
+    image_path 메타데이터만 반환한다."""
+    results = _search_visual_impl(query_text, n_results, collection)
+    _log_call(log_prefix, collection, query_text, n_results, results, backend="visual")
+    return {"collection": collection, "query_text": query_text, "count": len(results), "results": results}
+
+
+def search_graph_pattern(role: str, persona_category: str | None = None, top_k: int = 10,
+                          log_prefix: str = "default") -> dict[str, Any]:
+    """여러 캠페인에 걸친 패턴(어떤 서사 역할에서 어떤 크리에이티브 요소가 자주 쓰이는지)을
+    찾는다 — 개별 광고 하나를 찾는 도구가 아니다(그건 search_chromadb(_hybrid)/search_visual,
+    개별 광고 원본은 fetch_by_video_id)."""
+    results = _role_element_frequency_impl(role, persona_category, top_k)
+    query_desc = f"role={role} persona={persona_category or ''}"
+    _log_call(log_prefix, "ad_graph", query_desc, top_k, results, backend="graph")
+    return {"role": role, "persona_category": persona_category, "count": len(results), "results": results}
+
+
+# ── 도구 정의(Anthropic tool_use 스키마) — MCP 서버와 API 백엔드 툴콜 경로가 공유하는 단일 소스 ──
+
+TOOL_DEFINITIONS: list[dict[str, Any]] = [
+    {
+        "name": "search_chromadb",
+        "description": (
+            "컬렉션 하나를 지정하고 자연어 쿼리로 유사도 검색한다(임베딩: BAAI/bge-m3, 한/영 "
+            "모두 잘 동작). query_text 는 자유 서술 문장이 항상 안전하다. 호출마다 로그가 "
+            "남으므로 log_prefix 로 이 호출이 어떤 맥락(예: 프로젝트/단계명)에서 나왔는지 "
+            "표시하라. 쿼리에 브랜드명·숫자·특정 용어처럼 정확히 일치해야 하는 키워드가 있다면 "
+            "이 도구 대신 search_chromadb_hybrid 를 쓰는 게 더 안전하다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "collection": {"type": "string", "description": "검색할 컬렉션명"},
+                "query_text": {"type": "string", "description": "자연어 검색 쿼리"},
+                "n_results": {"type": "integer", "description": "반환 결과 수(기본 5)", "default": 5},
+                "log_prefix": {"type": "string",
+                                "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
+                                "default": "default"},
+            },
+            "required": ["collection", "query_text"],
+        },
+    },
+    {
+        "name": "search_chromadb_hybrid",
+        "description": (
+            "search_chromadb 와 동일한 컬렉션을 검색하되, 의미 유사도(dense)와 BM25 키워드 매칭을 "
+            "함께 반영한다. 브랜드명·숫자·특정 용어처럼 '정확히 그 단어가 포함돼야' 의미 있는 "
+            "쿼리일 때 search_chromadb 보다 이 도구를 우선 써라 — 순수 의미 검색으로는 놓치기 "
+            "쉬운 정확 일치 결과를 끌어올린다. 그 외 일반적인 자연어 쿼리는 search_chromadb 로도 "
+            "충분하다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "collection": {"type": "string", "description": "검색할 컬렉션명"},
+                "query_text": {"type": "string", "description": "자연어 검색 쿼리(브랜드명·숫자 등 정확 매칭 키워드 포함 가능)"},
+                "n_results": {"type": "integer", "description": "반환 결과 수(기본 5)", "default": 5},
+                "log_prefix": {"type": "string",
+                                "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
+                                "default": "default"},
+            },
+            "required": ["collection", "query_text"],
+        },
+    },
+    {
+        "name": "fetch_by_video_id",
+        "description": (
+            "search_chromadb 나 search_chromadb_hybrid 로 특정 광고(video_id)를 이미 찾아낸 "
+            "**뒤에**, 검색 결과의 요약이 아니라 그 광고의 원본 레코드 전체(예: 모든 씬·캐스트·"
+            "크리에이티브 요소)가 필요할 때 쓴다. 탐색·발견 목적으로는 쓰지 마라 — 그건 검색 "
+            "도구의 역할이다. video_id 를 모르면 먼저 검색 도구로 찾아라."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "collection": {"type": "string", "description": "조회할 컬렉션명"},
+                "video_id": {"type": "integer", "description": "조회할 광고의 video_id"},
+                "log_prefix": {"type": "string",
+                                "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
+                                "default": "default"},
+            },
+            "required": ["collection", "video_id"],
+        },
+    },
+    {
+        "name": "search_visual",
+        "description": (
+            "색감·구도·소품·조명처럼 텍스트 요약(search_chromadb 계열)에 없는 순수 시각적 "
+            "특징으로 컷을 찾을 때 쓴다 — 컷 대표 프레임 이미지 자체를 CLIP 임베딩으로 비교한다 "
+            "(한국어 자연어 쿼리 가능, 예: '보라색 단색 배경', '6분할 모자이크'). "
+            "**주의: 이 도구는 이미지 파일 자체를 반환하지 않는다** — video_id/cut_index/"
+            "image_path 메타데이터만 준다. 실제 이미지를 봐야 하면 image_path 를 별도로 읽어라."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query_text": {"type": "string", "description": "찾고 싶은 시각적 특징을 서술한 자연어 텍스트(한국어 가능)"},
+                "n_results": {"type": "integer", "description": "반환 결과 수(기본 5)", "default": 5},
+                "collection": {"type": "string", "description": "검색할 컬렉션명(기본 ad_visual_reference)",
+                                "default": "ad_visual_reference"},
+                "log_prefix": {"type": "string",
+                                "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
+                                "default": "default"},
+            },
+            "required": ["query_text"],
+        },
+    },
+    {
+        "name": "search_graph_pattern",
+        "description": (
+            "여러 캠페인에 걸친 관계·패턴을 그래프로 찾는다 — 특정 서사 역할(role)에서 어떤 "
+            "크리에이티브 요소(element_type/element_subtype)가 자주 쓰이는지 집계한다. "
+            "개별 광고 하나를 찾는 도구가 아니다: 개별 광고 검색은 search_chromadb(_hybrid)/"
+            "search_visual, 개별 광고 원본 전체는 fetch_by_video_id 를 써라. persona_category "
+            "를 주면 그 타겟 페르소나를 가진 캠페인으로만 좁힌다(모든 캠페인이 페르소나 데이터를 "
+            "갖고 있지는 않다 — 결과가 비면 persona_category 없이 다시 시도하라)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "role": {"type": "string", "enum": _GRAPH_ROLES.split("|"),
+                          "description": "서사 역할(예: HOOK, EMOTIONAL_APPEAL)"},
+                "persona_category": {"type": "string",
+                                       "description": "타겟 페르소나 카테고리로 좁힐 때만 지정(선택)"},
+                "top_k": {"type": "integer", "description": "반환 결과 수(기본 10)", "default": 10},
+                "log_prefix": {"type": "string",
+                                "description": "호출 로그 파일명(<log_prefix>.jsonl, 기본 저장 위치는 logs/search_chromadb/). 미지정 시 'default'",
+                                "default": "default"},
+            },
+            "required": ["role"],
+        },
+    },
+]
+
+
+def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """도구 이름 → 함수 디스패치(Anthropic tool_use 루프 전용, MCP 서버는 FastMCP 가 직접 라우팅)."""
+    if name == "search_chromadb":
+        return search_chromadb(
+            arguments["collection"], arguments["query_text"],
+            arguments.get("n_results", 5), arguments.get("log_prefix", "default"),
+        )
+    if name == "search_chromadb_hybrid":
+        return search_chromadb_hybrid(
+            arguments["collection"], arguments["query_text"],
+            arguments.get("n_results", 5), arguments.get("log_prefix", "default"),
+        )
+    if name == "fetch_by_video_id":
+        return fetch_by_video_id(
+            arguments["collection"], arguments["video_id"], arguments.get("log_prefix", "default"),
+        )
+    if name == "search_visual":
+        return search_visual(
+            arguments["query_text"], arguments.get("n_results", 5),
+            arguments.get("collection", "ad_visual_reference"), arguments.get("log_prefix", "default"),
+        )
+    if name == "search_graph_pattern":
+        return search_graph_pattern(
+            arguments["role"], arguments.get("persona_category"),
+            arguments.get("top_k", 10), arguments.get("log_prefix", "default"),
+        )
+    return {"error": f"unknown tool: {name}"}

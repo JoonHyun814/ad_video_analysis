@@ -16,11 +16,11 @@
     재시도 지시를 이어붙인다.
 
 [신규] --retrieval 옵션(llm_adapter.set_retrieval)이 켜져 있으면 stage 별로 정확히 한 종류의
-참조 검색 도구 안내를 시스템 프롬프트에 덧붙인다 — M3 는 ad_concept_reference 검색
-(search_concept_reference/list_concept_segment_columns, 전략·소구 참고), M4~M9 는
-ad_production_reference 검색(search_production_reference/list_production_segment_columns,
-연출·촬영 기법 참고). M1/M2 는 도구 안내를 받지 않는다. 실제 도구 연결(어느 stage 에 어느
-kind 를 줄지)은 llm_adapter.py._STAGE_TOOL_KIND 가 담당한다.
+참조 검색 도구 안내를 시스템 프롬프트에 덧붙인다 — M3 는 ad_concept_reference 검색(전략·소구
+참고), M4~M9 는 ad_production_reference 검색(연출·촬영 기법 참고). M1/M2 는 도구 안내를 받지
+않는다. 실제 도구 연결(어느 stage 에 어느 kind 를 줄지, --llm_backend 별로 실제 도구가 다른
+이유)은 llm_adapter.py._STAGE_TOOL_KIND/db/README.md 참고 — 이 파일의 프롬프트 문구는 특정
+도구 이름을 못박지 않고 "제공된 검색 도구"로만 지칭한다(백엔드에 따라 실제 도구명이 다르므로).
 """
 from __future__ import annotations
 
@@ -659,8 +659,8 @@ def _referencedads_violation(out: dict) -> str:
 
 
 _REFERENCEDADS_RETRY_HINT = (
-    "직전 응답의 referencedads 가 비어 있다. --retrieval 이 켜져 있으므로 이 콘티는 "
-    "search_production_reference 로 최소 1건은 실제로 검색해, 그 결과 중 씬 구도·카메라워크·"
+    "직전 응답의 referencedads 가 비어 있다. --retrieval 이 켜져 있으므로 이 콘티는 제공된 "
+    "검색 도구로 최소 1건은 실제로 검색해, 그 결과 중 씬 구도·카메라워크·"
     "전환 기법 하나 이상을 실제로 반영해야 한다(빈 배열 금지). 검색 결과에서 이 콘티와 맞닿는 "
     "지점을 찾아 반영하고, referencedads 에 그 video_id·element(원본 기법 → 이 콘티에서의 "
     "변형)·scenenos(영향받은 씬 번호들)를 최소 1개 항목으로 채워 같은 JSON 스키마로 다시 "
@@ -823,9 +823,9 @@ def _scout_emergent_lenses(module0: dict, handoffs: dict) -> list[dict]:
         return []
     m2 = handoffs.get(2, {}) or {}
     system = (
-        "당신은 광고 전략 렌즈 스카우트다. search_concept_reference/list_concept_segment_columns "
-        "도구로 이 제품과 유사한 카테고리·타깃·포지셔닝의 기존 광고를 특정 렌즈에 매이지 말고 "
-        "포괄적으로 검색해, 아래 '기존 고정 렌즈 풀'에 없는 새로운 전략 각도를 찾아라.\n\n"
+        "당신은 광고 전략 렌즈 스카우트다. 제공된 검색 도구로 이 제품과 유사한 카테고리·타깃·"
+        "포지셔닝의 기존 광고를 특정 렌즈에 매이지 말고 포괄적으로 검색해, 아래 '기존 고정 렌즈 "
+        "풀'에 없는 새로운 전략 각도를 찾아라.\n\n"
         "기존 고정 렌즈 풀(이미 커버됨 — 이것과 겹치면 제안하지 마라):\n"
         + "\n".join(f"- {lens}" for lens in _FIXED_LENS_POOL) + "\n\n"
         "검색 결과에서 반복 관찰되는 패턴(appeal_type/positioning_category/summary)이 위 9개 "
@@ -928,10 +928,10 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
         system += _format_emergent_lenses(emergent_lenses)
         system += (
             "\n\n---\n\n[전략 레퍼런스 검색 도구 사용 가능]\n"
-            "search_concept_reference / list_concept_segment_columns 도구가 제공되면, 이 제품과 "
-            "유사한 산업·타깃·USP·포지셔닝의 기존 광고가 어떤 소구·전략을 썼는지 참고할 때 "
-            "사용해도 된다. 몇 건을 검색할지(top_k)와 어떤 세그먼트 컬럼/값으로 좁힐지는 "
-            "네가 이 제품 맥락에 맞게 직접 판단하라.\n"
+            "제공된 검색 도구가 있다면, 이 제품과 유사한 산업·타깃·USP·포지셔닝의 기존 광고가 "
+            "어떤 소구·전략을 썼는지 참고할 때 사용해도 된다(어떤 이름의 도구가 제공됐는지는 "
+            "그 도구 설명을 그대로 따라라). 몇 건을 검색할지, 세그먼트 필터를 지원하는 도구라면 "
+            "어떤 컬럼/값으로 좁힐지는 네가 이 제품 맥락에 맞게 직접 판단하라.\n"
             "**포괄적인 검색 1회로 끝내지 마라 — 렌즈별로 나눠 여러 번 검색하는 "
             "편이 낫다.** 선택한 전략 렌즈 각각이 필요로 하는 '증명 방식'은 서로 "
             "다르므로(예: 데모·증거 렌즈 → '실측 비교로 우월성을 증명한 광고', 적 "
@@ -955,10 +955,10 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
     elif n in (4, 5, 6, 7, 9) and llm_adapter.get_retrieval():
         system += (
             "\n\n---\n\n[연출 레퍼런스 검색 도구 사용 가능]\n"
-            "search_production_reference / list_production_segment_columns 도구가 제공되면, "
-            "이 컨셉·스크립트와 비슷하게 연출된 기존 광고가 어떤 촬영기법·캐스팅·구도를 썼는지 "
-            "참고할 때 사용해도 된다. 몇 건을 검색할지(top_k)와 어떤 세그먼트 컬럼/값으로 "
-            "좁힐지는 네가 이 맥락에 맞게 직접 판단하라."
+            "제공된 검색 도구가 있다면, 이 컨셉·스크립트와 비슷하게 연출된 기존 광고가 어떤 "
+            "촬영기법·캐스팅·구도를 썼는지 참고할 때 사용해도 된다(어떤 이름의 도구가 제공됐는지는 "
+            "그 도구 설명을 그대로 따라라). 몇 건을 검색할지, 세그먼트 필터를 지원하는 도구라면 "
+            "어떤 컬럼/값으로 좁힐지는 네가 이 맥락에 맞게 직접 판단하라."
         )
         if n == 5:
             system += (
@@ -972,10 +972,11 @@ def _run_module_core(n: int, *, module0: dict, handoffs: dict, review: dict | No
         elif n == 9:
             system += (
                 "\n스크립트를 씬·샷 단위 콘티로 푸는 단계다. **이 단계에서는 검색 도구 호출이 "
-                "선택이 아니라 필수다 — search_production_reference 로 최소 1건은 반드시 검색해, "
-                "그 결과 중 특정 씬의 구도·카메라워크·전환 기법을 검색 결과 notable_elements"
-                "(opening_hook/casting_direction/narrative_pattern/sensory_demo_shot)에서 찾아 "
-                "이 콘티에 실제로 반영하라.** 씬마다 따로 적지 말고, 콘티 전체를 다 쓴 뒤 "
+                "선택이 아니라 필수다 — 제공된 검색 도구로 최소 1건은 반드시 검색해, 그 결과에서 "
+                "특정 씬의 구도·카메라워크·전환 기법(도구가 notable_elements 같은 세부 항목을 "
+                "함께 반환한다면 opening_hook/casting_direction/narrative_pattern/sensory_demo_shot "
+                "종류를 우선 참고)을 찾아 이 콘티에 실제로 반영하라.** 씬마다 따로 적지 말고, "
+                "콘티 전체를 다 쓴 뒤 "
                 "top-level referencedads 배열에 **실제로 참고한 광고 단위로** 정리하라 — 참고한 "
                 "광고 1건당 항목 1개(videoid, 원본 기법 → 이 콘티에서의 변형을 적은 element, "
                 "그 기법이 영향을 준 모든 씬 번호를 모은 scenenos 배열). 같은 광고를 여러 씬에서 "

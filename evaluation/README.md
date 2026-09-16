@@ -81,8 +81,9 @@ python -m evaluation.cli --mode convert --video_dir output/total --out_dir outpu
 | `--llm_backend` | `claude` | `claude` \| `codex` \| `qwen` \| `gemini` (category/strategy 는 qwen 제외) |
 | `--codex_model` / `--qwen_model` / `--gemini_model` | — | 백엔드별 모델명 |
 
-> 임베딩 모델: `BAAI/bge-m3` (1024-dim, 한/영 cross-lingual). 변경 시
-> `evaluation/category/vector_store.py::EMBEDDING_MODEL` 수정 후 `python db/reembed.py` 로 재적재.
+> 임베딩 모델: `BAAI/bge-m3` (1024-dim, 한/영 cross-lingual). `db/chromadb/connection.py::EMBEDDING_MODEL`
+> 하나가 이 저장소의 모든 컬렉션이 공유하는 단일 소스다 — 변경 시 각 컬렉션을
+> `db.chromadb.importers.*` 의 `upsert_*`/`upsert_*_batch` 로 재적재한다.
 > 벡터 검색 사용법은 [`../db/README.md`](../db/README.md) 참고.
 
 ## 참조 벡터 DB 스키마 — 용도별 컬렉션 2개
@@ -109,5 +110,8 @@ python -m evaluation.cli --mode convert --video_dir output/total --out_dir outpu
 로 소스를 교체했다(`concept_evaluation.json` 은 세그먼트 필터 보조로만 선택적 흡수).
 
 레거시 G1~G6 생성 파이프라인(`generation/g1~g6`, `generation/segment_retrieval.py`)이 쓰는
-`video_concept`/facet 컬렉션은 이 스키마와 무관하게 남아 있다(`concept_vector_store.py`/
-`facet_vector_store.py`, `--load_facets`) — 새 기능을 추가할 때 그 파일들을 재사용하지 않는다.
+facet 컬렉션(`ad_target`/`ad_usp`/`ad_creative`, `db/chromadb/importers/facets.py`,
+`--load_facets`)은 이 스키마와 무관하게 남아 있다 — 새 기능을 추가할 때 재사용하지 않는다.
+구 `video_concept` 컬렉션(`concept_vector_store.py`)은 실제 DB 호출 사용처가 없어 삭제됐다 —
+`APPEAL_TYPE_CHOICES`/`EXECUTION_STYLE_CHOICES` enum 만 `generation/cliche_report.py`·
+`generation/g4_concept_generation.py` 에 인라인으로 남아 있다.

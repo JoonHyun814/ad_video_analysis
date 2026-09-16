@@ -10,8 +10,16 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
-from evaluation.concept.concept_vector_store import APPEAL_TYPE_CHOICES, EXECUTION_STYLE_CHOICES
-from evaluation.concept.facet_vector_store import fetch_members
+from db.chromadb.importers.facets import fetch_members
+
+# CM3 의 diverse_appeal/diverse_execution 렌즈가 카테고리별로 1건씩 표본 추출할 때 순회할 값 목록
+# ("other" 는 창의적 다각화 신호로 쓸모가 적어 제외한다).
+APPEAL_TYPE_CHOICES = (
+    "humor", "parody_wordplay", "maternal_love", "vanity", "fear", "sex_appeal",
+    "comparison", "rational_info", "emotional_storytelling", "testimonial",
+    "scarcity_urgency", "nostalgia", "aspiration",
+)
+EXECUTION_STYLE_CHOICES = ("slice_of_life", "scientific_evidence", "fantasy", "fashion")
 
 _ATTR_CHOICES: dict[str, tuple[str, ...]] = {
     "appeal_type": APPEAL_TYPE_CHOICES,
@@ -100,7 +108,7 @@ def build_report(
     code_share: float = 0.75,
     cliche_share: float = 0.40,
     seed: int = 42,
-    db_path: str | Path = "output/vector_db",
+    db_path: str | Path | None = None,
 ) -> dict:
     """세그먼트 멤버의 분포·군집을 분석한 클리셰 리포트를 만든다."""
     video_ids = [m["video_id"] for m in segment.get("members", [])]

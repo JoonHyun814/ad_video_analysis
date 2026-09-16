@@ -132,7 +132,7 @@ vectorDB 적재 (ad_production_reference 컬렉션, record_kind 로 구분)
 ## 컬렉션 1 — `ad_production_reference`, `record_kind="profile"` (세그먼트 검색용)
 
 추출 파일(`creative_element_analysis.json`)과 DB 레코드는 구조가 다르다.
-추출 파일은 `profile`/`casting` 블록이 분리되어 있고, 적재 시(`element_vector_store.py`)
+추출 파일은 `profile`/`casting` 블록이 분리되어 있고, 적재 시(`db/chromadb/importers/production_reference.py`)
 casting 이 profile 메타데이터로 평탄화되며 `summary` 는 임베딩 문서로 이동한다.
 
 **① 추출 파일 구조** (LLM 산출물, `<data_dir>/<video_id>/creative_element_analysis.json`):
