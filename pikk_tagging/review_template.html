@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pikk 태깅 리뷰</title>
+<style>
+:root {
+  --bg: #f6f6f4; --card: #ffffff; --ink: #1c1c1a; --mute: #6b6b66; --line: #dcdcd6;
+  --camera: #2f6fd6; --lighting_tone: #b7791f; --graphics: #8a4fd0;
+  --ok: #1f8a4c; --bad: #d1372f; --star: #d9a400;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --card: #201f1e; --ink: #ecebe6; --mute: #9a9993; --line: #34332f;
+    --camera: #6ea1ff; --lighting_tone: #e3b04b; --graphics: #b992ee;
+    --ok: #4cc281; --bad: #ff7a70; --star: #f2c94c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, "Malgun Gothic", sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+header h1 { font-size: 16px; margin: 0; }
+.tabs, .filters { display: flex; flex-wrap: wrap; gap: 6px; }
+button, select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+button.primary { border-color: var(--ok); color: var(--ok); }
+.spacer { flex: 1; }
+.stat { color: var(--mute); font-size: 13px; }
+main { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 14px; padding: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+.card.done { border-color: var(--ok); }
+.shot { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; cursor: zoom-in; display: block; }
+.strip { display: flex; gap: 3px; padding: 4px; overflow-x: auto; background: #0002; }
+.strip figure { margin: 0; position: relative; flex: 0 0 auto; }
+.strip img { height: 46px; display: block; border-radius: 3px; cursor: zoom-in; }
+.strip figcaption { position: absolute; left: 2px; top: 2px; font-size: 10px; background: #000b; color: #fff; padding: 0 4px; border-radius: 3px; }
+.body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.head b { font-size: 15px; }
+.mute { color: var(--mute); font-size: 12px; }
+.star { color: var(--star); }
+.flag { font-size: 11px; border: 1px solid var(--line); border-radius: 10px; padding: 0 7px; color: var(--mute); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--c, var(--line)); color: var(--c, var(--ink)); border-radius: 16px; padding: 2px 4px 2px 10px; font-weight: 600; }
+.chip small { font-weight: 400; color: var(--mute); }
+.chip button { border: 0; background: transparent; color: var(--mute); padding: 0 6px; border-radius: 10px; font-size: 13px; }
+.chip.wrong { opacity: .55; text-decoration: line-through; border-color: var(--bad); color: var(--bad); }
+.chip.wrong button { color: var(--bad); }
+.chip.missed { border-style: dashed; color: var(--ok); border-color: var(--ok); }
+.empty { color: var(--mute); font-style: italic; }
+details { font-size: 13px; }
+summary { cursor: pointer; color: var(--mute); }
+.ev { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.ev li { border-left: 3px solid var(--c, var(--line)); padding-left: 8px; }
+.ev .id { font-weight: 600; color: var(--c); }
+.picker { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.picker button { font-size: 12px; padding: 1px 8px; }
+.picker button.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+.rej { margin: 6px 0 0; padding-left: 16px; }
+.rej button { font-size: 11px; padding: 0 6px; margin-left: 4px; }
+label.done-box { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-top: auto; }
+#lb { position: fixed; inset: 0; background: #000e; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; color: #fff; }
+#lb[hidden] { display: none; }
+#lb img.big { max-width: 96vw; max-height: 72vh; object-fit: contain; }
+#lb .thumbs { display: flex; gap: 4px; overflow-x: auto; max-width: 96vw; }
+#lb .thumbs img { height: 54px; cursor: pointer; border: 2px solid transparent; border-radius: 3px; }
+#lb .thumbs img.cur { border-color: #fff; }
+#lb .thumbs img.dim { opacity: .45; }
+.none { padding: 40px; text-align: center; color: var(--mute); grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>pikk 태깅 리뷰</h1>
+  <div class="tabs" id="tabs"></div>
+  <div class="filters" id="filters"></div>
+  <select id="tagsel" title="이 태그가 붙은 컷만"></select>
+  <label class="mute"><input type="checkbox" id="showrej"> 탈락 태그 항상 펼침</label>
+  <span class="spacer"></span>
+  <span class="stat" id="stat"></span>
+  <button class="primary" id="export">골든셋 내보내기</button>
+</header>
+<main id="grid"></main>
+<div id="lb" hidden></div>
+
+<script id="data" type="application/json">/*__DATA__*/</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const KEY = 'pikk_review_v1';
+const TECH = Object.fromEntries(DATA.vocab.techniques.map(t => [t.id, t]));
+const axisColor = a => `var(--${a})`;
+const FILTERS = [
+  ['all', '전체', () => true],
+  ['priority', '★ 추천', (c) => c.priority],
+  ['todo', '미검수', (c, r) => !r.reviewed],
+  ['empty', '태그 없음', (c) => !c.tags.length],
+  ['vote', '1표 탈락 있음', (c) => c.rejected.some(x => x.stage === 'vote')],
+  ['medium', '확신 medium', (c) => c.tags.some(t => t.confidence === 'medium')],
+  ['error', '호출 오류', (c) => c.errors.length > 0],
+];
+const ui = { video: DATA.videos[0].id, filter: 'all', tag: '' };
+let state = load();
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+function rec(v, c) { return ((state[v] ??= {})[c] ??= { reviewed: false, wrong: [], missed: [] }); }
+function toggle(list, id) { const i = list.indexOf(id); i < 0 ? list.push(id) : list.splice(i, 1); }
+
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(kid));
+  return el;
+}
+const fmt = s => s.toFixed(2);
+
+function renderHeader() {
+  const tabs = document.getElementById('tabs'); tabs.replaceChildren();
+  for (const v of DATA.videos) {
+    const done = v.cuts.filter(c => rec(v.id, c.index).reviewed).length;
+    tabs.append(h('button', { class: ui.video === v.id ? 'on' : '', onclick: () => { ui.video = v.id; render(); } }, `영상 ${v.id} (${done}/${v.cuts.length})`));
+  }
+  const f = document.getElementById('filters'); f.replaceChildren();
+  for (const [id, label] of FILTERS) f.append(h('button', { class: ui.filter === id ? 'on' : '', onclick: () => { ui.filter = id; render(); } }, label));
+  const sel = document.getElementById('tagsel'); sel.replaceChildren(h('option', { value: '' }, '태그 필터: 전체'));
+  for (const t of DATA.vocab.techniques) sel.append(h('option', { value: t.id, selected: ui.tag === t.id }, t.id));
+}
+
+function renderStat() {
+  let done = 0, total = 0;
+  for (const v of DATA.videos) for (const c of v.cuts) { total++; if (rec(v.id, c.index).reviewed) done++; }
+  document.getElementById('stat').textContent = `검수 ${done}/${total}컷`;
+}
+
+function render() {
+  renderHeader(); renderStat();
+  const video = DATA.videos.find(v => v.id === ui.video);
+  const pred = FILTERS.find(f => f[0] === ui.filter)[2];
+  const cuts = video.cuts.filter(c => pred(c, rec(video.id, c.index)) && (!ui.tag || c.tags.some(t => t.id === ui.tag)));
+  const grid = document.getElementById('grid'); grid.replaceChildren();
+  if (!cuts.length) grid.append(h('div', { class: 'none' }, '조건에 맞는 컷이 없습니다.'));
+  for (const c of cuts) grid.append(card(video, c));
+}
+
+function chip(t, r, v, c) {
+  const wrong = r.wrong.includes(t.id);
+  return h('span', { class: 'chip' + (wrong ? ' wrong' : ''), style: `--c:${axisColor(t.axis)}`, title: TECH[t.id].definition },
+    t.id, h('small', {}, `${t.confidence} · ${t.votes}${t.verified ? ' · 검증✓' : ''}`),
+    h('button', { title: '오답으로 표시/해제', onclick: (e) => { toggle(r.wrong, t.id); save(); redraw(e.currentTarget); } }, wrong ? '↺' : '✗'));
+}
+
+function missedChip(id, r) {
+  return h('span', { class: 'chip missed' }, `+ ${id}`, h('small', {}, '놓침'),
+    h('button', { title: '제거', onclick: (e) => { toggle(r.missed, id); save(); redraw(e.currentTarget); } }, '✗'));
+}
+
+function evidence(c) {
+  return h('ul', { class: 'ev' }, c.tags.map(t => h('li', { style: `--c:${axisColor(t.axis)}` },
+    h('span', { class: 'id' }, t.id), ` 프레임 [${t.frames.join(', ')}] — ${t.note}`,
+    t.verify_reason ? h('div', { class: 'mute' }, `재검증: ${t.verify_reason}`) : null)));
+}
+
+function picker(c, r) {
+  const predicted = new Set(c.tags.map(t => t.id));
+  return h('div', { class: 'picker' }, DATA.vocab.techniques.filter(t => !predicted.has(t.id)).map(t =>
+    h('button', { class: r.missed.includes(t.id) ? 'on' : '', title: t.definition, onclick: (e) => { toggle(r.missed, t.id); save(); redraw(e.currentTarget); } }, t.id)));
+}
+
+function rejected(c, r) {
+  return h('ul', { class: 'rej' }, c.rejected.map(x => h('li', {}, `${x.id} · ${x.stage} · ${x.reason}`,
+    TECH[x.id] ? h('button', { onclick: (e) => { if (!r.missed.includes(x.id)) r.missed.push(x.id); save(); redraw(e.currentTarget); } }, '실제로 있음') : null)));
+}
+
+const cardData = new WeakMap();
+function redraw(node) {
+  const old = node.closest('.card'); const [v, c] = cardData.get(old);
+  const open = [...old.querySelectorAll('details')].map(d => d.open);
+  const fresh = card(v, c);
+  fresh.querySelectorAll('details').forEach((d, i) => { if (open[i] !== undefined) d.open = open[i]; });
+  old.replaceWith(fresh); renderHeader(); renderStat();
+}
+
+function card(v, c) {
+  const r = rec(v.id, c.index);
+  const showRej = document.getElementById('showrej').checked;
+  const used = c.frames.filter(f => f.n);
+  const el = h('article', { class: 'card' + (r.reviewed ? ' done' : '') },
+    c.keyframe ? h('img', { class: 'shot', loading: 'lazy', src: c.keyframe, alt: `컷 ${c.index}`, onclick: () => openLb(c, 0) }) : null,
+    h('div', { class: 'strip' }, used.map((f, i) => h('figure', {}, h('img', { loading: 'lazy', src: f.src, onclick: () => openLb(c, c.frames.indexOf(f)) }), h('figcaption', {}, f.n)))),
+    h('div', { class: 'body' },
+      h('div', { class: 'head' }, c.priority ? h('span', { class: 'star', title: '추천 확인 컷' }, '★') : null,
+        h('b', {}, `${v.id}-${c.index}`), h('span', { class: 'mute' }, `${fmt(c.start)}–${fmt(c.end)}s · LLM 프레임 ${used.length}장`),
+        c.errors.length ? h('span', { class: 'flag' }, `오류 ${c.errors.length}`) : null),
+      h('div', { class: 'chips' }, c.tags.length ? c.tags.map(t => chip(t, r, v, c)) : h('span', { class: 'empty' }, '태그 없음'), r.missed.map(id => missedChip(id, r))),
+      c.tags.length ? h('details', {}, h('summary', {}, '근거 보기'), evidence(c)) : null,
+      h('details', {}, h('summary', {}, '놓친 기법 추가'), picker(c, r)),
+      c.rejected.length ? h('details', { open: showRej }, h('summary', {}, `탈락 ${c.rejected.length}`), rejected(c, r)) : null,
+      Object.keys(c.observations).length ? h('details', {}, h('summary', {}, '모델 관찰'), Object.entries(c.observations).map(([a, t]) => h('div', { class: 'mute' }, `${a}: ${t}`))) : null,
+      h('label', { class: 'done-box' }, h('input', { type: 'checkbox', checked: r.reviewed, onchange: (e) => { r.reviewed = e.target.checked; save(); redraw(e.currentTarget); } }), '검수 완료 (✗ 표시 안 한 태그 = 정답)')));
+  cardData.set(el, [v, c]);
+  return el;
+}
+
+let lb = { cut: null, i: 0 };
+function openLb(c, i) { lb = { cut: c, i }; drawLb(); }
+function drawLb() {
+  const el = document.getElementById('lb'); const { cut, i } = lb;
+  if (!cut) { el.hidden = true; return; }
+  const f = cut.frames[i]; el.hidden = false;
+  el.replaceChildren(
+    h('div', {}, `${fmt(f.t)}s · ${f.n ? `LLM 프레임 ${f.n}` : 'LLM에 넣지 않은 프레임'}  (←/→ 이동, Esc 닫기)`),
+    h('img', { class: 'big', src: f.src }),
+    h('div', { class: 'thumbs' }, cut.frames.map((g, k) => h('img', { src: g.src, class: (k === i ? 'cur ' : '') + (g.n ? '' : 'dim'), onclick: () => { lb.i = k; drawLb(); } }))));
+}
+document.addEventListener('keydown', (e) => {
+  if (!lb.cut) return;
+  if (e.key === 'Escape') { lb.cut = null; drawLb(); }
+  if (e.key === 'ArrowRight') { lb.i = Math.min(lb.i + 1, lb.cut.frames.length - 1); drawLb(); }
+  if (e.key === 'ArrowLeft') { lb.i = Math.max(lb.i - 1, 0); drawLb(); }
+});
+document.getElementById('lb').addEventListener('click', (e) => { if (e.target.id === 'lb') { lb.cut = null; drawLb(); } });
+
+function golden() {
+  const out = {};
+  for (const v of DATA.videos) for (const c of v.cuts) {
+    const r = rec(v.id, c.index); if (!r.reviewed) continue;
+    const ids = c.tags.map(t => t.id).filter(id => !r.wrong.includes(id)).concat(r.missed);
+    (out[v.id] ??= {})[c.index] = [...new Set(ids)];
+  }
+  return out;
+}
+document.getElementById('export').addEventListener('click', () => {
+  const g = golden();
+  if (!Object.keys(g).length) { alert('검수 완료로 표시한 컷이 없습니다.'); return; }
+  const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(g, null, 2)], { type: 'application/json' })), download: 'golden.json' });
+  document.body.append(a); a.click(); a.remove();
+});
+document.getElementById('tagsel').addEventListener('change', (e) => { ui.tag = e.target.value; render(); });
+document.getElementById('showrej').addEventListener('change', render);
+render();
+</script>
+</body>
+</html>

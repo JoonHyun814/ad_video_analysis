@@ -10,6 +10,7 @@
 |-----------|-------------|
 | 전체 구조·환경 설정 | [`README.md`](README.md) |
 | `pipeline/` 영상 분석 단계 추가·수정 | [`pipeline/README.md`](pipeline/README.md) |
+| `pikk_tagging/` pikk 기법 컷별 태깅 (어휘·프롬프트·검증) | [`pikk_tagging/README.md`](pikk_tagging/README.md) |
 | `evaluation/` 평가·카테고리·벡터 적재 | [`evaluation/README.md`](evaluation/README.md) |
 | `train_pipeline/` 학습 데이터셋·트레이너 | [`train_pipeline/README.md`](train_pipeline/README.md) |
 | `mapping_pipeline/` 외부 영상 매핑 (CLI/API/Gradio) | [`mapping_pipeline/README.md`](mapping_pipeline/README.md) |

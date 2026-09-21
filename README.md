@@ -64,6 +64,7 @@ python -m pipeline.cli --video_id 349
 | 모듈 | 역할 | 문서 |
 |------|------|------|
 | `pipeline/` | 영상 → 컷·OCR·STT·BGM·시나리오 12단계 분석 | [pipeline/README.md](pipeline/README.md) |
+| `pikk_tagging/` | 전처리(pipeline 동일) 후 컷별 pikk 기법 태깅 (닫힌 어휘·다수결·검증) | [pikk_tagging/README.md](pikk_tagging/README.md) |
 | `evaluation/` | 시나리오 평가 + 카테고리 메타데이터 추출 + 벡터 DB 적재 | [evaluation/README.md](evaluation/README.md) |
 | `train_pipeline/` | Qwen VL 학습 데이터셋 빌드 + 학습 | [train_pipeline/README.md](train_pipeline/README.md) |
 | `mapping_pipeline/` | 외부 영상 + 시나리오 텍스트의 cut-scene 매핑 (CLI / FastAPI / Gradio) | [mapping_pipeline/README.md](mapping_pipeline/README.md) |
