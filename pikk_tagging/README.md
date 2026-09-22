@@ -18,6 +18,10 @@
 | `verify.py` | 후보 태그 1개씩 yes/no 재검증 |
 | `tagger.py` | 컷 단위 오케스트레이션 (`tag_video`, `tag_cut`) |
 | `cli.py` | 진입점 |
+| `extract_videos.py` | SQL 덤프(stills_pikk) → `pikk_video_catalog.csv/.json` 추출 |
+| `download_videos.py` | `pikk_video_catalog.csv` → YouTube 영상 일괄 다운로드 (yt-dlp, 병렬) |
+| `OSH/` | ORB/SIFT + RANSAC + Homography — 특징점 매칭·컷 감지·영상 유사도. 상세: [`OSH/README.md`](OSH/README.md) |
+| `optical_flow/` | Farneback(dense) + Lucas-Kanade(sparse) — 카메라 모션 감지(zoom/pan/rotate). SQL 레이블 비교 3/4 정확도. 상세: [`optical_flow/README.md`](optical_flow/README.md) |
 | `evaluate.py` | 골든셋 대비 태그별 precision/recall/F1 |
 | `stats.py` | 기법별 태깅률 vs 사이트 비율 진단, 탈락 stage 집계 |
 | `results_io.py` | `<root>/<video>/tags.json` 로딩, JSON 저장 (`save_json`) |
@@ -36,6 +40,72 @@ env/api.env   # GEMINI_API_KEY 또는 OPENAI_API_KEY
 ## CLI 사용법
 
 `ad_video_analysis/` 디렉토리에서 실행한다.
+
+### SQL 덤프 → 카탈로그 추출
+
+```bash
+python -m pikk_tagging.extract_videos --sql path/to/stills_pikk.sql --out-dir output/pikk_output
+```
+
+### YouTube 영상 다운로드
+
+```bash
+# 쿠키 파일 사용 (권장 — 브라우저 열려 있어도 됨)
+python -m pikk_tagging.download_videos \
+    --catalog output/pikk_output/pikk_video_catalog.csv \
+    --out-dir output/pikk_output \
+    --cookies path/to/cookies.txt
+
+# 브라우저 쿠키 직접 읽기 (브라우저를 완전히 닫은 상태에서만 동작)
+python -m pikk_tagging.download_videos --cookies-from-browser chrome --limit 10
+
+# 테스트 (쿠키 없이 — YouTube 봇 감지로 실패하지만 스크립트 동작 확인용)
+python -m pikk_tagging.download_videos --limit 3 --workers 1
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--catalog` | `output/pikk_output/pikk_video_catalog.csv` | 입력 카탈로그 CSV |
+| `--out-dir` | `output/pikk_output` | 출력 루트 (`<youtube_id>/` 하위 폴더 생성) |
+| `--limit N` | 없음 | 최대 다운로드 수 (테스트용) |
+| `--workers N` | `4` | 병렬 다운로드 스레드 수 |
+| `--cookies FILE` | 없음 | Netscape 형식 cookies.txt (브라우저 확장으로 내보내기) |
+| `--cookies-from-browser BROWSER` | 없음 | `chrome` \| `edge` \| `firefox` (브라우저 닫힌 상태 필수) |
+| `--js-runtimes RUNTIME` | 없음 | n-challenge JS 런타임 (예: `deno`) — Deno PATH 등록 필요 |
+| `--remote-components SPEC` | 없음 | EJS 챌린지 솔버 스펙 (예: `ejs:npm`) |
+
+> **권장 조합 (YouTube 봇 감지 우회)**: Firefox로 YouTube 로그인 후 완전히 닫고, `--cookies-from-browser firefox --js-runtimes deno --remote-components ejs:npm` 사용.
+> Deno는 winget으로 설치: `winget install --id DenoLand.Deno`
+> Chrome 127+ 는 DPAPI 암호화 변경으로 `--cookies-from-browser chrome` 이 실패할 수 있으므로 Firefox 권장.
+> ffmpeg 없이 단일 스트림(`best[ext=mp4]`) 다운로드. 고화질(4K) 분리 스트림이 필요하면 ffmpeg 설치 후 포맷 변경 필요.
+
+**출력 구조**
+```
+{out_dir}/<youtube_id>/
+├── <youtube_id>.mp4
+└── video_info.json   # id, title, duration, upload_date, view_count
+```
+
+### 카메라 모션 분석 — OSH / optical_flow
+
+**OSH (ORB/SIFT + RANSAC + Homography)** — 컷 감지·영상 유사도에 적합
+
+```bash
+python -m pikk_tagging.OSH.feature_match video path/to/video.mp4 --detector orb --step 30
+python -m pikk_tagging.OSH.feature_match similarity a.mp4 b.mp4
+```
+
+**optical_flow (Farneback + LK)** — zoom·pan·rotate 모션 감지 권장 (SQL 레이블 비교 3/4)
+
+```bash
+# 영상 전체 분석 (Farneback + LK 동시 출력)
+python -m pikk_tagging.optical_flow.cli video path/to/video.mp4 --step 25
+
+# SQL 태그 vs CV 감지 비교 (4개 고정 테스트 케이스)
+python -m pikk_tagging.optical_flow.cli compare --window 5 --step-sec 1.0
+```
+
+> 상세 옵션·알고리즘·한계: [`OSH/README.md`](OSH/README.md), [`optical_flow/README.md`](optical_flow/README.md)
 
 ```bash
 python -m pikk_tagging.cli --video_id <ID> [옵션]
