@@ -62,6 +62,7 @@ Write-Host "패키지를 설치합니다..."
 & $pip install duckduckgo-search
 & $pip install beautifulsoup4 curl_cffi anthropic "mcp[cli]<2.0"
 & $pip install kuzu
+& $pip install torchvision yt-dlp
 if ($LASTEXITCODE -ne 0) {
     Write-Error "패키지 설치 실패"
     exit 1
