@@ -23,6 +23,8 @@
 | `OSH/` | ORB/SIFT + RANSAC + Homography — 특징점 매칭·컷 감지·영상 유사도. 상세: [`OSH/README.md`](OSH/README.md) |
 | `optical_flow/` | Farneback(dense) + Lucas-Kanade(sparse) — 카메라 모션 감지(zoom/pan/rotate). SQL 레이블 비교 3/4 정확도. 상세: [`optical_flow/README.md`](optical_flow/README.md) |
 | `RAFT/` | RAFT 딥러닝 optical flow — URL 다운로드 + dense flow 추론 + 모션 분류. 상세: [`RAFT/README.md`](RAFT/README.md) |
+| `RAFT_step/` | RAFT step=5 dense 분석 + 스파이크 제거 + temporal 레이블 — 컷 내부 모션 변화 감지. 상세: [`RAFT_step/README.md`](RAFT_step/README.md) |
+| `docs/` | 방법론 문서. [`docs/camera_motion_detection.md`](docs/camera_motion_detection.md): 논문 리뷰(RAFT·GMA·Two-Stream) + 실험 기록(컷별→step=10→step=5+smooth) |
 | `evaluate.py` | 골든셋 대비 태그별 precision/recall/F1 |
 | `stats.py` | 기법별 태깅률 vs 사이트 비율 진단, 탈락 stage 집계 |
 | `results_io.py` | `<root>/<video>/tags.json` 로딩, JSON 저장 (`save_json`) |
@@ -116,7 +118,14 @@ python -m pikk_tagging.RAFT.cli --url https://www.youtube.com/watch?v=VIDEO_ID
 python -m pikk_tagging.RAFT.cli --video path/to/video.mp4 --device cuda
 ```
 
-> 상세 옵션·알고리즘·한계: [`OSH/README.md`](OSH/README.md), [`optical_flow/README.md`](optical_flow/README.md), [`RAFT/README.md`](RAFT/README.md)
+> 상세 옵션·알고리즘·한계: [`OSH/README.md`](OSH/README.md), [`optical_flow/README.md`](optical_flow/README.md), [`RAFT/README.md`](RAFT/README.md), [`RAFT_step/README.md`](RAFT_step/README.md)
+
+**RAFT_step (step=5 dense + smooth)** — 컷 내부 모션 변화까지 감지 (0.2s 해상도)
+
+```bash
+python -m pikk_tagging.RAFT_step.cli --video path/to/video.mp4 --step 5
+python -m pikk_tagging.RAFT_step.viewer   # http://localhost:5002
+```
 
 ```bash
 python -m pikk_tagging.cli --video_id <ID> [옵션]

@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAFT_step 실험 기록</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+:root{
+  --bg:#f7f8fa;--card:#fff;--ink:#1c2330;--sub:#5a6475;--line:#e3e7ee;
+  --blue:#2a78d6;--blue-soft:#e8f1fc;--green:#1baf7a;--red:#e74c3c;
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#12151b;--card:#1b2029;--ink:#e8ecf3;--sub:#9aa4b5;--line:#2b3342;
+    --blue-soft:#17293f;}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  font-size:14px;line-height:1.65}
+.wrap{max-width:1060px;margin:0 auto;padding:28px 20px 80px}
+
+/* ── nav ── */
+.topnav{display:flex;align-items:center;gap:14px;margin-bottom:28px;
+  padding-bottom:18px;border-bottom:1px solid var(--line)}
+.kicker{font-size:11px;letter-spacing:.12em;color:var(--green);
+  font-weight:700;text-transform:uppercase;margin-bottom:3px}
+h1{font-size:21px;font-weight:700;letter-spacing:-.02em}
+.sub{font-size:13px;color:var(--sub)}
+
+/* ── TOC ── */
+.toc{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:16px 20px;margin-bottom:32px}
+.toc h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--sub);font-weight:700;margin-bottom:10px}
+.toc ol{padding-left:18px}
+.toc li{margin-bottom:5px;font-size:13px}
+.toc a{color:var(--blue);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+
+/* ── Experiment card ── */
+.exp-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  overflow:hidden;margin-bottom:36px}
+.exp-hdr{display:flex;align-items:center;gap:12px;padding:16px 22px;
+  cursor:pointer;user-select:none;border-bottom:none;transition:background .12s}
+.exp-hdr:hover{background:var(--blue-soft)}
+.exp-card.open .exp-hdr{border-bottom:1px solid var(--line)}
+.exp-num{background:var(--blue);color:#fff;font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.04em}
+.exp-title{font-size:16px;font-weight:700}
+.exp-vid-id{font-size:12px;color:var(--sub);margin-top:2px}
+.exp-vid-id code{background:var(--bg);padding:1px 6px;border-radius:4px;
+  font-family:monospace;color:var(--blue)}
+.exp-chevron{margin-left:auto;font-size:14px;color:var(--sub);
+  transition:transform .2s;display:inline-block}
+.exp-card.open .exp-chevron{transform:rotate(90deg)}
+.exp-body{padding:22px;display:none}
+.exp-card.open .exp-body{display:block}
+
+/* ── Video player ── */
+.player-wrap{background:#000;border-radius:10px;overflow:hidden;margin-bottom:16px}
+.player-wrap video{width:100%;max-height:52vh;display:block}
+
+/* ── Before / After compare panels ── */
+.ba-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.ba-panel{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.ba-kicker{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.ba-panel.before .ba-kicker{color:var(--red)}
+.ba-panel.after  .ba-kicker{color:var(--green)}
+.ba-panel-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.badge{display:inline-block;padding:4px 14px;border-radius:99px;
+  font-size:13px;font-weight:700;letter-spacing:.03em;
+  transition:background .1s,color .1s}
+.spike-badge{display:none;font-size:11px;color:#eb6834;font-weight:700;
+  border:1px solid #eb6834;border-radius:6px;padding:2px 8px}
+.ba-time{font-size:11px;color:var(--sub)}
+
+/* ── Stats bars ── */
+.stat-row{display:grid;grid-template-columns:96px 1fr 78px;
+  align-items:center;gap:10px;margin-bottom:9px}
+.stat-row:last-child{margin-bottom:0}
+.stat-label{font-size:10px;color:var(--sub);font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em}
+.bar-wrap{position:relative;height:9px;background:var(--line);border-radius:5px;overflow:hidden}
+.bar-wrap .center-tick{position:absolute;left:50%;top:0;width:1px;height:100%;
+  background:var(--sub);opacity:.3;pointer-events:none}
+.bar-fill{position:absolute;top:0;height:100%;border-radius:5px;
+  transition:left .08s,width .08s,background .08s}
+.stat-val{font-family:monospace;font-size:11px;text-align:right;color:var(--ink)}
+
+/* ── Section dividers ── */
+.divider{height:1px;background:var(--line);margin:20px 0}
+.section-lbl{font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--sub);margin-bottom:10px}
+
+/* ── Problem / Fix boxes ── */
+.problem-box{background:rgba(231,76,60,.06);border:1px solid rgba(231,76,60,.22);
+  border-radius:8px;padding:12px 15px;color:inherit;font-size:13px;margin-bottom:12px}
+.fix-box{background:rgba(27,175,122,.06);border:1px solid rgba(27,175,122,.22);
+  border-radius:8px;padding:12px 15px;color:inherit;font-size:13px}
+
+/* ── Distribution bars ── */
+.dist-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.dist-panel h4{font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--sub);margin-bottom:10px}
+.dist-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dist-bar-lbl{width:82px;font-size:11px;color:var(--sub);text-align:right;flex-shrink:0}
+.dist-bar-track{flex:1;height:7px;background:var(--line);border-radius:4px;overflow:hidden}
+.dist-bar-fill{height:100%;border-radius:4px}
+.dist-bar-pct{width:32px;font-size:11px;color:var(--ink);text-align:right;flex-shrink:0}
+
+/* ── Code diff ── */
+pre,code{font-family:'Consolas','Fira Code',monospace}
+.code-block{background:rgba(0,0,0,.06);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;overflow-x:auto;font-size:12px;line-height:1.7;margin-bottom:12px}
+@media(prefers-color-scheme:dark){
+  .code-block{background:rgba(0,0,0,.3)}
+}
+.code-block .del{color:#e74c3c;background:rgba(231,76,60,.1);
+  display:block;margin:0 -16px;padding:0 16px}
+.code-block .add{color:#1baf7a;background:rgba(27,175,122,.1);
+  display:block;margin:0 -16px;padding:0 16px}
+.code-block .com{color:var(--sub)}
+
+/* ── Label color helpers ── */
+.lc-zoom-in   {color:#1baf7a}
+.lc-zoom-out  {color:#8153c7}
+.lc-static    {color:#9aa4b5}
+.lc-rotate-cw {color:#c7920f}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .ba-grid,.dist-compare{grid-template-columns:1fr}
+  .stat-row{grid-template-columns:80px 1fr 64px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ── Header ── -->
+<div class="topnav">
+  <div>
+    <div class="kicker">RAFT_step · Camera Motion Tagging · Experiment Log</div>
+    <h1>분류기 개선 실험 기록</h1>
+    <p class="sub" style="margin-top:4px">각 영상에서 Before · After 태깅 결과를 실시간으로 비교합니다</p>
+  </div>
+</div>
+
+<!-- ── TOC ── -->
+<div class="toc">
+  <h3>실험 목록 — 분석 방법 진화 순서</h3>
+  <ol>
+    <li><a href="#exp_cut">컷 기반 분석</a> — 컷 단위 1 레이블, 컷 내부 변화 감지 불가 <code style="color:var(--sub);font-size:11px">2qkZ-FGbx-Q</code></li>
+    <li><a href="#exp_s10">step=10 분석</a> — 0.4s 간격, 짧은 이벤트 소실 <code style="color:var(--sub);font-size:11px">KccntjIMKQI</code></li>
+    <li><a href="#exp01">분류기 우선순위 버그</a> — rotate_cw/ccw 과다 → zoom_in/out 수정 <code style="color:var(--sub);font-size:11px">2qkZ-FGbx-Q</code></li>
+    <li><a href="#exp02">샘플링 간격 단축</a> — step=10 → step=5, 짧은 이벤트 감지 <code style="color:var(--sub);font-size:11px">KccntjIMKQI</code></li>
+    <li><a href="#exp03">누적 fallback 분류</a> — 느린 줌 static 오분류 해결 <code style="color:var(--sub);font-size:11px">81HnwNayElo</code></li>
+    <li><a href="#exp04">스파이크 제거</a> — 컷 경계 이상값 보간 <code style="color:var(--sub);font-size:11px">-5lAx7309cE</code></li>
+    <li><a href="#exp05">rolling sum 오탐 제거</a> — 배경 노이즈 누적 → pan/rotation 오탐, zoom-only로 수정 <code style="color:var(--sub);font-size:11px">5Qr07Yobj_4</code></li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EXP CUT — 컷 기반 분석
+══════════════════════════════════════════ -->
+<div class="exp-card" id="exp_cut">
+  <div class="exp-hdr">
+    <span class="exp-num" style="background:#607d8b">STAGE 1</span>
+    <div>
+      <div class="exp-title">컷 기반 분석 — 컷 단위 1 레이블</div>
+      <div class="exp-vid-id"><code>2qkZ-FGbx-Q</code> · 67 shots · 총 900프레임 분석</div>
+    </div>
+    <span class="exp-chevron">▸</span>
+  </div>
+  <div class="exp-body">
+
+    <div class="player-wrap">
+      <video id="vcut" controls preload="metadata"></video>
+    </div>
+
+    <div class="ba-grid">
+      <div class="ba-panel before">
+        <div class="ba-kicker">Before — 컷 기반 (1 레이블/shot)</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-bcut">-</span>
+          <span class="ba-time" id="tm-bcut"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-bcut-mean_mag"></div></div>
+          <span class="stat-val" id="val-bcut-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-bcut-zoom_score"></div></div>
+          <span class="stat-val" id="val-bcut-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-bcut-pan_x"></div></div>
+          <span class="stat-val" id="val-bcut-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-bcut-pan_y"></div></div>
+          <span class="stat-val" id="val-bcut-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-bcut-rotation_score"></div></div>
+          <span class="stat-val" id="val-bcut-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-bcut-flow_var"></div></div>
+          <span class="stat-val" id="val-bcut-flow_var">-</span></div>
+        <p style="margin-top:12px;font-size:11px;color:var(--sub)">
+          컷 내부에서 stats가 변해도 레이블은 고정됩니다.<br>
+          레이블 변경은 컷 경계에서만 가능합니다.
+        </p>
+      </div>
+      <div class="ba-panel after">
+        <div class="ba-kicker">After — step=5 최종 결과</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-acut">-</span>
+          <span class="spike-badge" id="sp-acut">SPIKE</span>
+          <span class="ba-time" id="tm-acut"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-acut-mean_mag"></div></div>
+          <span class="stat-val" id="val-acut-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-acut-zoom_score"></div></div>
+          <span class="stat-val" id="val-acut-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-acut-pan_x"></div></div>
+          <span class="stat-val" id="val-acut-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-acut-pan_y"></div></div>
+          <span class="stat-val" id="val-acut-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-acut-rotation_score"></div></div>
+          <span class="stat-val" id="val-acut-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-acut-flow_var"></div></div>
+          <span class="stat-val" id="val-acut-flow_var">-</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-lbl">방법 설명</div>
+    <div class="problem-box">
+      <b>컷 탐지 → 컷별 대표 프레임 쌍 1개 추출 → RAFT flow → 분류</b>.<br>
+      각 shot은 길이에 무관하게 <b>1개 레이블</b>만 가집니다.
+      컷 내부에서 카메라가 방향을 바꿔도 감지할 수 없습니다.
+      또한 컷 대표 프레임 쌍은 컷 시작 기준 25프레임(1s) 간격으로 고정되어
+      매우 짧은 컷(&lt;1s)에서는 부정확할 수 있습니다.
+    </div>
+    <div class="divider"></div>
+    <div class="section-lbl">전·후 레이블 분포 — 67 shots</div>
+    <div class="dist-compare">
+      <div class="dist-panel">
+        <h4>Before (컷 기반)</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_left</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:30%;background:#2a78d6"></div></div><span class="dist-bar-pct">30%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">rotate_cw</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:18%;background:#c7920f"></div></div><span class="dist-bar-pct">18%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:12%;background:#8153c7"></div></div><span class="dist-bar-pct">12%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:12%;background:#9aa4b5"></div></div><span class="dist-bar-pct">12%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_right</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:12%;background:#2a78d6"></div></div><span class="dist-bar-pct">12%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:9%;background:#1baf7a"></div></div><span class="dist-bar-pct">9%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">tilt_down</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:6%;background:#0093a7"></div></div><span class="dist-bar-pct">6%</span></div>
+        <p style="margin-top:8px;font-size:11px;color:var(--sub)">67 shots, avg 1.0s/shot</p>
+      </div>
+      <div class="dist-panel">
+        <h4>After (step=5 개선)</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:36%;background:#8153c7"></div></div><span class="dist-bar-pct">36%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:22%;background:#1baf7a"></div></div><span class="dist-bar-pct">22%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_left/right</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:22%;background:#2a78d6"></div></div><span class="dist-bar-pct">22%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:10%;background:#9aa4b5"></div></div><span class="dist-bar-pct">10%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">tilt_down/up</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:6%;background:#0093a7"></div></div><span class="dist-bar-pct">6%</span></div>
+        <p style="margin-top:8px;font-size:11px;color:var(--sub)">900 pairs (step=5), 0.2s 해상도</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EXP S10 — step=10 분석
+══════════════════════════════════════════ -->
+<div class="exp-card" id="exp_s10">
+  <div class="exp-hdr">
+    <span class="exp-num" style="background:#607d8b">STAGE 2</span>
+    <div>
+      <div class="exp-title">step=10 분석 — 0.4s 간격, 짧은 이벤트 소실</div>
+      <div class="exp-vid-id"><code>KccntjIMKQI</code> · step=10: 174 pairs · step=5: 348 pairs</div>
+    </div>
+    <span class="exp-chevron">▸</span>
+  </div>
+  <div class="exp-body">
+
+    <div class="player-wrap">
+      <video id="vs10" controls preload="metadata"></video>
+    </div>
+
+    <div class="ba-grid">
+      <div class="ba-panel before">
+        <div class="ba-kicker">Before — step=10 (0.4s 간격)</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-bs10">-</span>
+          <span class="spike-badge" id="sp-bs10">SPIKE</span>
+          <span class="ba-time" id="tm-bs10"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-bs10-mean_mag"></div></div>
+          <span class="stat-val" id="val-bs10-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-bs10-zoom_score"></div></div>
+          <span class="stat-val" id="val-bs10-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-bs10-pan_x"></div></div>
+          <span class="stat-val" id="val-bs10-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-bs10-pan_y"></div></div>
+          <span class="stat-val" id="val-bs10-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-bs10-rotation_score"></div></div>
+          <span class="stat-val" id="val-bs10-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-bs10-flow_var"></div></div>
+          <span class="stat-val" id="val-bs10-flow_var">-</span></div>
+        <p style="margin-top:12px;font-size:11px;color:var(--sub)">
+          30초 부근(fr750) 탐색: zoom_in→zoom_out 순서 전환을 Before에서 찾아보세요.
+        </p>
+      </div>
+      <div class="ba-panel after">
+        <div class="ba-kicker">After — step=5 (0.2s 간격)</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-as10">-</span>
+          <span class="spike-badge" id="sp-as10">SPIKE</span>
+          <span class="ba-time" id="tm-as10"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-as10-mean_mag"></div></div>
+          <span class="stat-val" id="val-as10-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-as10-zoom_score"></div></div>
+          <span class="stat-val" id="val-as10-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-as10-pan_x"></div></div>
+          <span class="stat-val" id="val-as10-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-as10-pan_y"></div></div>
+          <span class="stat-val" id="val-as10-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-as10-rotation_score"></div></div>
+          <span class="stat-val" id="val-as10-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-as10-flow_var"></div></div>
+          <span class="stat-val" id="val-as10-flow_var">-</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-lbl">방법 설명</div>
+    <div class="problem-box">
+      <b>컷 경계와 무관하게 매 10프레임(0.4s)마다 RAFT flow 계산.</b><br>
+      컷 내부 변화를 감지할 수 있게 됐지만, <b>10프레임 미만의 짧은 이벤트</b>는
+      <code>min_frames=10</code> temporal filter에 걸려 소실됩니다.<br>
+      fr790–800 구간의 zoom_out (10프레임)은 step=10에서 <b>단 1쌍</b>만 생성 → 필터 통과 불가.
+    </div>
+    <div class="divider"></div>
+    <div class="section-lbl">전·후 레이블 분포</div>
+    <div class="dist-compare">
+      <div class="dist-panel">
+        <h4>Before (step=10, 174 pairs)</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:56%;background:#8153c7"></div></div><span class="dist-bar-pct">56%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_left</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:10%;background:#2a78d6"></div></div><span class="dist-bar-pct">10%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">tilt_down</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:9%;background:#0093a7"></div></div><span class="dist-bar-pct">9%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:7%;background:#1baf7a"></div></div><span class="dist-bar-pct">7%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_right</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:6%;background:#2a78d6"></div></div><span class="dist-bar-pct">6%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">rotate_ccw</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:6%;background:#c7920f"></div></div><span class="dist-bar-pct">6%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:2%;background:#9aa4b5"></div></div><span class="dist-bar-pct">2%</span></div>
+      </div>
+      <div class="dist-panel">
+        <h4>After (step=5, 348 pairs)</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:53%;background:#8153c7"></div></div><span class="dist-bar-pct">53%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_left</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:10%;background:#2a78d6"></div></div><span class="dist-bar-pct">10%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:8%;background:#9aa4b5"></div></div><span class="dist-bar-pct">8%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">tilt_down</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:7%;background:#0093a7"></div></div><span class="dist-bar-pct">7%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:7%;background:#1baf7a"></div></div><span class="dist-bar-pct">7%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_right</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:6%;background:#2a78d6"></div></div><span class="dist-bar-pct">6%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">rotate_cw/ccw</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:6%;background:#c7920f"></div></div><span class="dist-bar-pct">6%</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EXP 01
+══════════════════════════════════════════ -->
+<div class="exp-card" id="exp01">
+  <div class="exp-hdr">
+    <span class="exp-num">EXP 01</span>
+    <div>
+      <div class="exp-title">분류기 우선순위 버그</div>
+      <div class="exp-vid-id"><code>2qkZ-FGbx-Q</code> · 900 pairs</div>
+    </div>
+    <span class="exp-chevron">▸</span>
+  </div>
+  <div class="exp-body">
+
+    <div class="player-wrap">
+      <video id="v01" controls preload="metadata"></video>
+    </div>
+
+    <div class="ba-grid">
+      <div class="ba-panel before">
+        <div class="ba-kicker">Before — rotation 우선 (버그)</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-b01">-</span>
+          <span class="spike-badge" id="sp-b01">SPIKE</span>
+          <span class="ba-time" id="tm-b01"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b01-mean_mag"></div></div>
+          <span class="stat-val" id="val-b01-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b01-zoom_score"></div></div>
+          <span class="stat-val" id="val-b01-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b01-pan_x"></div></div>
+          <span class="stat-val" id="val-b01-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b01-pan_y"></div></div>
+          <span class="stat-val" id="val-b01-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b01-rotation_score"></div></div>
+          <span class="stat-val" id="val-b01-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b01-flow_var"></div></div>
+          <span class="stat-val" id="val-b01-flow_var">-</span></div>
+      </div>
+      <div class="ba-panel after">
+        <div class="ba-kicker">After — zoom &gt; pan &gt; rotation</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-a01">-</span>
+          <span class="spike-badge" id="sp-a01">SPIKE</span>
+          <span class="ba-time" id="tm-a01"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a01-mean_mag"></div></div>
+          <span class="stat-val" id="val-a01-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a01-zoom_score"></div></div>
+          <span class="stat-val" id="val-a01-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a01-pan_x"></div></div>
+          <span class="stat-val" id="val-a01-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a01-pan_y"></div></div>
+          <span class="stat-val" id="val-a01-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a01-rotation_score"></div></div>
+          <span class="stat-val" id="val-a01-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a01-flow_var"></div></div>
+          <span class="stat-val" id="val-a01-flow_var">-</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-lbl">문제 · 수정</div>
+    <div class="problem-box">
+      <code>classify_stats()</code>가 <b>rotation_score를 먼저 체크</b>했기 때문에,
+      zoom_score=0.39처럼 zoom이 압도적인 프레임도 rotation &gt; 0.015면
+      <b class="lc-rotate-cw">rotate_cw/ccw</b>로 잘못 분류됐습니다.
+      광각 줌은 flow 발산(divergence)과 curl이 함께 커져 rotation 임계값을 쉽게 넘습니다.
+    </div>
+    <div class="code-block">
+<span class="com"># smooth.py — classify_stats()</span>
+<span class="del">- if rot_dom:   # rotation 먼저 체크 (버그)</span>
+<span class="del">-     return "rotate_cw" / "rotate_ccw"</span>
+<span class="add">+ if zoom_dom:  # zoom > pan > rotation 순서로 변경</span>
+<span class="add">+     return "zoom_in" / "zoom_out"</span>
+  if pan_dom: ...
+<span class="add">+ if rot_dom:   # zoom·pan 없을 때만</span>
+<span class="add">+     return "rotate_cw" / "rotate_ccw"</span></div>
+
+    <div class="divider"></div>
+    <div class="section-lbl">전·후 레이블 분포 — 900 pairs</div>
+    <div class="dist-compare">
+      <div class="dist-panel">
+        <h4>Before</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:35%;background:#9aa4b5"></div></div><span class="dist-bar-pct">35%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">rotate_ccw</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:24%;background:#c7920f"></div></div><span class="dist-bar-pct">24%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">rotate_cw</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:13%;background:#c7920f"></div></div><span class="dist-bar-pct">13%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">motion</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:13%;background:#5a6475"></div></div><span class="dist-bar-pct">13%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in/out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:8%;background:#1baf7a"></div></div><span class="dist-bar-pct">8%</span></div>
+      </div>
+      <div class="dist-panel">
+        <h4>After</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:36%;background:#8153c7"></div></div><span class="dist-bar-pct">36%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:22%;background:#1baf7a"></div></div><span class="dist-bar-pct">22%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_left/right</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:22%;background:#2a78d6"></div></div><span class="dist-bar-pct">22%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:10%;background:#9aa4b5"></div></div><span class="dist-bar-pct">10%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">rotate_cw/ccw</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:3%;background:#c7920f"></div></div><span class="dist-bar-pct">3%</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EXP 02
+══════════════════════════════════════════ -->
+<div class="exp-card" id="exp02">
+  <div class="exp-hdr">
+    <span class="exp-num">EXP 02</span>
+    <div>
+      <div class="exp-title">샘플링 간격 단축</div>
+      <div class="exp-vid-id"><code>KccntjIMKQI</code> · fr760–800 핵심 구간</div>
+    </div>
+    <span class="exp-chevron">▸</span>
+  </div>
+  <div class="exp-body">
+
+    <div class="player-wrap">
+      <video id="v02" controls preload="metadata"></video>
+    </div>
+
+    <div class="ba-grid">
+      <div class="ba-panel before">
+        <div class="ba-kicker">Before — step=10 (0.4s 간격)</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-b02">-</span>
+          <span class="spike-badge" id="sp-b02">SPIKE</span>
+          <span class="ba-time" id="tm-b02"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b02-mean_mag"></div></div>
+          <span class="stat-val" id="val-b02-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b02-zoom_score"></div></div>
+          <span class="stat-val" id="val-b02-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b02-pan_x"></div></div>
+          <span class="stat-val" id="val-b02-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b02-pan_y"></div></div>
+          <span class="stat-val" id="val-b02-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b02-rotation_score"></div></div>
+          <span class="stat-val" id="val-b02-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b02-flow_var"></div></div>
+          <span class="stat-val" id="val-b02-flow_var">-</span></div>
+      </div>
+      <div class="ba-panel after">
+        <div class="ba-kicker">After — step=5 (0.2s 간격)</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-a02">-</span>
+          <span class="spike-badge" id="sp-a02">SPIKE</span>
+          <span class="ba-time" id="tm-a02"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a02-mean_mag"></div></div>
+          <span class="stat-val" id="val-a02-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a02-zoom_score"></div></div>
+          <span class="stat-val" id="val-a02-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a02-pan_x"></div></div>
+          <span class="stat-val" id="val-a02-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a02-pan_y"></div></div>
+          <span class="stat-val" id="val-a02-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a02-rotation_score"></div></div>
+          <span class="stat-val" id="val-a02-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a02-flow_var"></div></div>
+          <span class="stat-val" id="val-a02-flow_var">-</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-lbl">문제 · 수정</div>
+    <div class="problem-box">
+      fr760–780 (20프레임) zoom_in과 fr790–800 (10프레임) zoom_out이 실제로 존재하지만,
+      <b>step=10에서는 각각 2쌍·1쌍</b>만 생성됩니다.
+      temporal filter <code>min_frames=10</code>을 통과하지 못해 이웃 레이블로 덮어씌워졌습니다.
+    </div>
+    <div class="fix-box">
+      step=10 → <b>step=5</b>로 변경: 동일 구간에서 4쌍·2쌍이 생성되어 필터를 통과합니다.
+    </div>
+    <div class="divider"></div>
+    <div class="section-lbl">전·후 — fr760–800 구간 (30s 부근 탐색)</div>
+    <div class="dist-compare">
+      <div class="dist-panel">
+        <h4>Before (step=10)</h4>
+        <p style="font-size:12px;color:var(--sub)">fr760: zoom_out / fr770: zoom_out / fr780: tilt_down / fr790: <b style="color:var(--red)">static</b> / fr800: <b style="color:var(--red)">static</b></p>
+      </div>
+      <div class="dist-panel">
+        <h4>After (step=5)</h4>
+        <p style="font-size:12px;color:var(--sub)">fr765–785: <b class="lc-zoom-in">zoom_in</b> / fr790–800: <b class="lc-zoom-out">zoom_out</b></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EXP 03
+══════════════════════════════════════════ -->
+<div class="exp-card" id="exp03">
+  <div class="exp-hdr">
+    <span class="exp-num">EXP 03</span>
+    <div>
+      <div class="exp-title">누적 fallback 분류</div>
+      <div class="exp-vid-id"><code>81HnwNayElo</code> · 135 pairs (전체 27초)</div>
+    </div>
+    <span class="exp-chevron">▸</span>
+  </div>
+  <div class="exp-body">
+
+    <div class="player-wrap">
+      <video id="v03" controls preload="metadata"></video>
+    </div>
+
+    <div class="ba-grid">
+      <div class="ba-panel before">
+        <div class="ba-kicker">Before — 단일 스텝 분류</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-b03">-</span>
+          <span class="spike-badge" id="sp-b03">SPIKE</span>
+          <span class="ba-time" id="tm-b03"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b03-mean_mag"></div></div>
+          <span class="stat-val" id="val-b03-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b03-zoom_score"></div></div>
+          <span class="stat-val" id="val-b03-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b03-pan_x"></div></div>
+          <span class="stat-val" id="val-b03-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b03-pan_y"></div></div>
+          <span class="stat-val" id="val-b03-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b03-rotation_score"></div></div>
+          <span class="stat-val" id="val-b03-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b03-flow_var"></div></div>
+          <span class="stat-val" id="val-b03-flow_var">-</span></div>
+      </div>
+      <div class="ba-panel after">
+        <div class="ba-kicker">After — acc_window=9 fallback</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-a03">-</span>
+          <span class="spike-badge" id="sp-a03">SPIKE</span>
+          <span class="ba-time" id="tm-a03"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a03-mean_mag"></div></div>
+          <span class="stat-val" id="val-a03-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a03-zoom_score"></div></div>
+          <span class="stat-val" id="val-a03-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a03-pan_x"></div></div>
+          <span class="stat-val" id="val-a03-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a03-pan_y"></div></div>
+          <span class="stat-val" id="val-a03-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a03-rotation_score"></div></div>
+          <span class="stat-val" id="val-a03-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a03-flow_var"></div></div>
+          <span class="stat-val" id="val-a03-flow_var">-</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-lbl">문제 · 수정</div>
+    <div class="problem-box">
+      영상 전체가 느린 zoom_in이지만 <b>100% static</b>으로 분류됐습니다.
+      step=5 (0.2s)에서 카메라가 천천히 줌인하면 프레임간 이동량이 극히 작아
+      mean_mag 평균 <b>1.20 px</b> (&lt; 임계값 3.0) · zoom_score 평균 <b>0.0099</b> (&lt; 임계값 0.05).
+    </div>
+    <div class="code-block">
+<span class="com"># smooth.py — _rolling_sum_stats + smooth_and_classify()</span>
+<span class="add">+ acc_stats = _rolling_sum_stats(smoothed, window=9)  # ±4 pairs 합산</span>
+  for p, acc in zip(smoothed, acc_stats):
+      label = classify_stats(p["stats"])
+<span class="add">+     if label in ("static", "motion"):   # 신호 약함 → 누적값으로 재시도</span>
+<span class="add">+         acc_label = classify_stats(acc)  # 0.0099 × 9 = 0.089 > 0.05 ✓</span>
+<span class="add">+         if acc_label not in ("static", "motion"): label = acc_label</span></div>
+    <div class="divider"></div>
+    <div class="section-lbl">전·후 레이블 분포 — 135 pairs</div>
+    <div class="dist-compare">
+      <div class="dist-panel">
+        <h4>Before</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:100%;background:#9aa4b5"></div></div><span class="dist-bar-pct">100%</span></div>
+      </div>
+      <div class="dist-panel">
+        <h4>After</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:93%;background:#1baf7a"></div></div><span class="dist-bar-pct">93%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:5%;background:#9aa4b5"></div></div><span class="dist-bar-pct">5%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_right</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:1%;background:#2a78d6"></div></div><span class="dist-bar-pct">1%</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EXP 04
+══════════════════════════════════════════ -->
+<div class="exp-card" id="exp04">
+  <div class="exp-hdr">
+    <span class="exp-num">EXP 04</span>
+    <div>
+      <div class="exp-title">스파이크 제거</div>
+      <div class="exp-vid-id"><code>-5lAx7309cE</code> · 600 pairs, 스파이크 54개</div>
+    </div>
+    <span class="exp-chevron">▸</span>
+  </div>
+  <div class="exp-body">
+
+    <div class="player-wrap">
+      <video id="v04" controls preload="metadata"></video>
+    </div>
+
+    <div class="ba-grid">
+      <div class="ba-panel before">
+        <div class="ba-kicker">Before — 스파이크 미처리</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-b04">-</span>
+          <span class="spike-badge" id="sp-b04">SPIKE</span>
+          <span class="ba-time" id="tm-b04"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b04-mean_mag"></div></div>
+          <span class="stat-val" id="val-b04-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b04-zoom_score"></div></div>
+          <span class="stat-val" id="val-b04-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b04-pan_x"></div></div>
+          <span class="stat-val" id="val-b04-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b04-pan_y"></div></div>
+          <span class="stat-val" id="val-b04-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b04-rotation_score"></div></div>
+          <span class="stat-val" id="val-b04-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b04-flow_var"></div></div>
+          <span class="stat-val" id="val-b04-flow_var">-</span></div>
+      </div>
+      <div class="ba-panel after">
+        <div class="ba-kicker">After — 스파이크 보간</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-a04">-</span>
+          <span class="spike-badge" id="sp-a04">SPIKE (보간값)</span>
+          <span class="ba-time" id="tm-a04"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a04-mean_mag"></div></div>
+          <span class="stat-val" id="val-a04-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a04-zoom_score"></div></div>
+          <span class="stat-val" id="val-a04-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a04-pan_x"></div></div>
+          <span class="stat-val" id="val-a04-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a04-pan_y"></div></div>
+          <span class="stat-val" id="val-a04-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a04-rotation_score"></div></div>
+          <span class="stat-val" id="val-a04-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a04-flow_var"></div></div>
+          <span class="stat-val" id="val-a04-flow_var">-</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-lbl">문제 · 수정</div>
+    <div class="problem-box">
+      컷 경계(장면 전환)에서 optical flow는 의미 없는 카오스 값을 반환합니다.
+      fr895에서 갑자기 <b>mean_mag=88px</b>. 이 값이 분류에 사용되면 주변 정상 구간까지 오염됩니다.
+      <b>스파이크 프레임은 SPIKE 배지로 표시됩니다</b> — after 패널에서 확인하세요.
+    </div>
+    <div class="code-block">
+<span class="com"># smooth.py — detect_spikes() + _interp_stats()</span>
+  if mag[i] &gt; 15.0 and mag[i] / median(neighbors) &gt;= 3.0:
+      spikes.add(i)                   <span class="com"># ±5스텝 중앙값의 3× 이상 → SPIKE</span>
+  <span class="com"># SPIKE 위치 stats를 좌우 이웃으로 선형 보간</span>
+<span class="add">+ result[i]["stats"] = weighted_interpolation(left, right)</span>
+<span class="add">+ result[i]["is_spike"] = True</span></div>
+    <div class="divider"></div>
+    <div class="section-lbl">전·후 레이블 분포 — 600 pairs</div>
+    <div class="dist-compare">
+      <div class="dist-panel">
+        <h4>Before</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:55%;background:#9aa4b5"></div></div><span class="dist-bar-pct">55%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:12%;background:#1baf7a"></div></div><span class="dist-bar-pct">12%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:10%;background:#8153c7"></div></div><span class="dist-bar-pct">10%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_right</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:9%;background:#2a78d6"></div></div><span class="dist-bar-pct">9%</span></div>
+      </div>
+      <div class="dist-panel">
+        <h4>After</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:22%;background:#8153c7"></div></div><span class="dist-bar-pct">22%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:21%;background:#9aa4b5"></div></div><span class="dist-bar-pct">21%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:21%;background:#1baf7a"></div></div><span class="dist-bar-pct">21%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_right</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:14%;background:#2a78d6"></div></div><span class="dist-bar-pct">14%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_left</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:10%;background:#2a78d6"></div></div><span class="dist-bar-pct">10%</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EXP 05
+══════════════════════════════════════════ -->
+<div class="exp-card" id="exp05">
+  <div class="exp-hdr">
+    <span class="exp-num">EXP 05</span>
+    <div>
+      <div class="exp-title">rolling sum pan/rotation 오탐 제거</div>
+      <div class="exp-vid-id"><code>5Qr07Yobj_4</code> · 383 pairs · 0–420프레임 static 구간</div>
+    </div>
+    <span class="exp-chevron">▸</span>
+  </div>
+  <div class="exp-body">
+
+    <div class="player-wrap">
+      <video id="v05" controls preload="metadata"></video>
+    </div>
+
+    <div class="ba-grid">
+      <div class="ba-panel before">
+        <div class="ba-kicker">Before — rolling sum 전체 승격</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-b05">-</span>
+          <span class="spike-badge" id="sp-b05">SPIKE</span>
+          <span class="ba-time" id="tm-b05"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b05-mean_mag"></div></div>
+          <span class="stat-val" id="val-b05-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b05-zoom_score"></div></div>
+          <span class="stat-val" id="val-b05-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b05-pan_x"></div></div>
+          <span class="stat-val" id="val-b05-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b05-pan_y"></div></div>
+          <span class="stat-val" id="val-b05-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-b05-rotation_score"></div></div>
+          <span class="stat-val" id="val-b05-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-b05-flow_var"></div></div>
+          <span class="stat-val" id="val-b05-flow_var">-</span></div>
+      </div>
+      <div class="ba-panel after">
+        <div class="ba-kicker">After — zoom-only 승격</div>
+        <div class="ba-panel-hdr">
+          <span class="badge" id="lb-a05">-</span>
+          <span class="spike-badge" id="sp-a05">SPIKE (보간값)</span>
+          <span class="ba-time" id="tm-a05"></span>
+        </div>
+        <div class="stat-row"><span class="stat-label">mean mag</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a05-mean_mag"></div></div>
+          <span class="stat-val" id="val-a05-mean_mag">-</span></div>
+        <div class="stat-row"><span class="stat-label">zoom +in/−out</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a05-zoom_score"></div></div>
+          <span class="stat-val" id="val-a05-zoom_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan x +R/−L</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a05-pan_x"></div></div>
+          <span class="stat-val" id="val-a05-pan_x">-</span></div>
+        <div class="stat-row"><span class="stat-label">pan y +D/−U</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a05-pan_y"></div></div>
+          <span class="stat-val" id="val-a05-pan_y">-</span></div>
+        <div class="stat-row"><span class="stat-label">rotation +CW</span>
+          <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="bar-a05-rotation_score"></div></div>
+          <span class="stat-val" id="val-a05-rotation_score">-</span></div>
+        <div class="stat-row"><span class="stat-label">flow var</span>
+          <div class="bar-wrap"><div class="bar-fill" id="bar-a05-flow_var"></div></div>
+          <span class="stat-val" id="val-a05-flow_var">-</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-lbl">문제 · 수정</div>
+    <div class="problem-box">
+      0–420프레임 구간은 카메라가 <b>완전 정지</b>해 있지만 배경 피사체의 움직임으로
+      <b>mean_mag 1–5px, pan ±2–4px/step, rotation ≈ ±0.010–0.013/step</b>의 무작위 노이즈가 발생합니다.
+      rolling sum이 9개 쌍을 <em>모두</em> 합산하면 노이즈가 누적되어 임계값을 넘으며
+      <b>rotate_ccw·pan_right·pan_left·rotate_cw</b> 오탐이 연속으로 발생했습니다.<br><br>
+      pan/rotation 누적 합산의 문제: 방향이 무작위이면 기댓값은 0이지만 분산은 σ×√n 으로
+      증가해 합산값이 우연히 임계값을 초과합니다. zoom_score는 발산(divergence)
+      특성상 배경 모션 노이즈에 강인하므로 rolling sum fallback을 <b>zoom_in/zoom_out 승격만</b>으로
+      제한하였습니다.
+    </div>
+    <div class="code-block">
+<span class="com"># smooth.py — smooth_and_classify() 내부</span>
+<span class="del">- if acc_label not in ("static", "motion"):   # pan/rotation도 승격</span>
+<span class="add">+ if acc_label in ("zoom_in", "zoom_out"):    # zoom만 승격</span>
+      label = acc_label</div>
+
+    <div class="divider"></div>
+    <div class="section-lbl">전·후 레이블 분포 — 383 pairs</div>
+    <div class="dist-compare">
+      <div class="dist-panel">
+        <h4>Before</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:31%;background:#9aa4b5"></div></div><span class="dist-bar-pct">31%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:21%;background:#8153c7"></div></div><span class="dist-bar-pct">21%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">pan_left</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:13%;background:#2a78d6"></div></div><span class="dist-bar-pct">13%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">rotate_cw</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:13%;background:#e74c3c"></div></div><span class="dist-bar-pct">13%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">rotate_ccw</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:6%;background:#e74c3c"></div></div><span class="dist-bar-pct">6%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:5%;background:#1baf7a"></div></div><span class="dist-bar-pct">5%</span></div>
+      </div>
+      <div class="dist-panel">
+        <h4>After</h4>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">static</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:72%;background:#9aa4b5"></div></div><span class="dist-bar-pct">72%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_out</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:21%;background:#8153c7"></div></div><span class="dist-bar-pct">21%</span></div>
+        <div class="dist-bar-row"><span class="dist-bar-lbl">zoom_in</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:6%;background:#1baf7a"></div></div><span class="dist-bar-pct">6%</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="sub" style="border-top:1px solid var(--line);padding-top:18px;font-size:12px">
+  pikk_tagging/RAFT_step/ · smooth.py · step=5 · acc_window=9
+</p>
+</div>
+
+<script>
+const COLORS={
+  zoom_in:   ['#1baf7a','rgba(27,175,122,.15)'],
+  zoom_out:  ['#8153c7','rgba(129,83,199,.15)'],
+  pan_right: ['#2a78d6','rgba(42,120,214,.15)'],
+  pan_left:  ['#2a78d6','rgba(42,120,214,.15)'],
+  tilt_up:   ['#0093a7','rgba(0,147,167,.15)'],
+  tilt_down: ['#0093a7','rgba(0,147,167,.15)'],
+  rotate_cw: ['#c7920f','rgba(199,146,15,.15)'],
+  rotate_ccw:['#c7920f','rgba(199,146,15,.15)'],
+  motion:    ['#5a6475','rgba(90,100,117,.15)'],
+  static:    ['#9aa4b5','rgba(154,164,181,.15)'],
+};
+
+function computeNorms(pairs){
+  const s=pairs.filter(p=>p.stats).map(p=>p.stats);
+  if(!s.length) return {};
+  return {
+    mean_mag:       Math.max(...s.map(x=>x.mean_mag),1),
+    zoom_score:     Math.max(...s.map(x=>Math.abs(x.zoom_score)),0.001),
+    pan_x:          Math.max(...s.map(x=>Math.abs(x.pan_x)),1),
+    pan_y:          Math.max(...s.map(x=>Math.abs(x.pan_y)),1),
+    rotation_score: Math.max(...s.map(x=>Math.abs(x.rotation_score)),0.001),
+    flow_var:       Math.max(...s.map(x=>x.flow_var),1),
+  };
+}
+
+function setBar(pfx,field,value,norms,signed,posC,negC){
+  const el=document.getElementById('bar-'+pfx+'-'+field);
+  if(!el) return;
+  const maxV=norms[field]||1;
+  if(signed){
+    const pct=Math.min(50,Math.abs(value)/maxV*50);
+    if(value>=0){el.style.left='50%';el.style.width=pct+'%';el.style.background=posC;}
+    else{el.style.left=(50-pct)+'%';el.style.width=pct+'%';el.style.background=negC||posC;}
+  }else{
+    const pct=Math.min(100,value/maxV*100);
+    el.style.left='0';el.style.width=pct+'%';el.style.background=posC;
+  }
+}
+
+function updatePanel(pfx,pair,norms){
+  if(!pair||!pair.stats) return;
+  const lbl=pair.label||'static';
+  const [fg,bg]=COLORS[lbl]||['#9aa4b5','rgba(154,164,181,.15)'];
+  const s=pair.stats;
+
+  const lbEl=document.getElementById('lb-'+pfx);
+  if(lbEl){lbEl.textContent=lbl;lbEl.style.color=fg;lbEl.style.background=bg;}
+
+  const spEl=document.getElementById('sp-'+pfx);
+  if(spEl) spEl.style.display=pair.is_spike?'inline':'none';
+
+  const tmEl=document.getElementById('tm-'+pfx);
+  if(tmEl) tmEl.textContent='fr'+pair.frame_a+'→'+pair.frame_b+' ('+pair.time_a+'s)';
+
+  setBar(pfx,'mean_mag',       s.mean_mag,       norms,false,'#2a78d6');
+  setBar(pfx,'zoom_score',     s.zoom_score,      norms,true, '#1baf7a','#8153c7');
+  setBar(pfx,'pan_x',          s.pan_x,           norms,true, '#1baf7a','#0093a7');
+  setBar(pfx,'pan_y',          s.pan_y,           norms,true, '#eb6834','#0093a7');
+  setBar(pfx,'rotation_score', s.rotation_score,  norms,true, '#c7920f','#a06010');
+  setBar(pfx,'flow_var',       s.flow_var,        norms,false,'#9aa4b5');
+
+  document.getElementById('val-'+pfx+'-mean_mag')      .textContent=s.mean_mag.toFixed(2)+' px';
+  document.getElementById('val-'+pfx+'-zoom_score')    .textContent=s.zoom_score.toFixed(4);
+  document.getElementById('val-'+pfx+'-pan_x')         .textContent=s.pan_x.toFixed(2)+' px';
+  document.getElementById('val-'+pfx+'-pan_y')         .textContent=s.pan_y.toFixed(2)+' px';
+  document.getElementById('val-'+pfx+'-rotation_score').textContent=s.rotation_score.toFixed(4);
+  document.getElementById('val-'+pfx+'-flow_var')      .textContent=s.flow_var.toFixed(1);
+}
+
+function buildMap(pairs){ const m={}; pairs.forEach((p,i)=>m[p.frame_a]=i); return m; }
+
+function nearestPair(pairs,sortedFrames,frame){
+  // binary search for floor(frame)
+  let lo=0,hi=sortedFrames.length-1,best=0;
+  while(lo<=hi){const mid=(lo+hi)>>1;if(sortedFrames[mid]<=frame){best=mid;lo=mid+1;}else hi=mid-1;}
+  return pairs[buildMap(pairs)[sortedFrames[best]]];
+}
+
+function setupExp(num,videoId,stepB,stepA){
+  const expId='exp0'+num;
+  const pfxB='b0'+num, pfxA='a0'+num;
+  const vEl=document.getElementById('v0'+num);
+
+  fetch('/api/exp/'+expId)
+    .then(r=>{if(!r.ok) throw new Error(r.status); return r.json();})
+    .then(data=>{
+      vEl.src='/media/'+data.video_id;
+
+      const bMap=buildMap(data.before);
+      const aMap=buildMap(data.after);
+      const bFrames=data.before.map(p=>p.frame_a).sort((a,b)=>a-b);
+      const aFrames=data.after.map(p=>p.frame_a).sort((a,b)=>a-b);
+      const bNorms=computeNorms(data.before);
+      const aNorms=computeNorms(data.after);
+
+      // init
+      if(data.before.length) updatePanel(pfxB,data.before[0],bNorms);
+      if(data.after.length)  updatePanel(pfxA,data.after[0], aNorms);
+
+      let lastB=-1,lastA=-1;
+      vEl.addEventListener('timeupdate',()=>{
+        const fr=Math.floor(vEl.currentTime*data.fps);
+
+        const bBucket=Math.floor(fr/data.step_before)*data.step_before;
+        const bIdx=bMap[bBucket];
+        if(bIdx!==undefined&&bIdx!==lastB){lastB=bIdx;updatePanel(pfxB,data.before[bIdx],bNorms);}
+        else if(bIdx===undefined){
+          const bp=nearestPair(data.before,bFrames,fr);
+          if(bp) updatePanel(pfxB,bp,bNorms);
+        }
+
+        const aBucket=Math.floor(fr/data.step_after)*data.step_after;
+        const aIdx=aMap[aBucket];
+        if(aIdx!==undefined&&aIdx!==lastA){lastA=aIdx;updatePanel(pfxA,data.after[aIdx],aNorms);}
+      });
+    })
+    .catch(e=>console.warn(expId,'load failed',e));
+}
+
+// stage 1·2 — custom exp IDs
+function setupExpCustom(expId, videoElId, bPfx, aPfx){
+  const vEl=document.getElementById(videoElId);
+  fetch('/api/exp/'+expId)
+    .then(r=>{if(!r.ok) throw new Error(r.status); return r.json();})
+    .then(data=>{
+      vEl.src='/media/'+data.video_id;
+      const bMap=buildMap(data.before);
+      const aMap=buildMap(data.after);
+      const bFrames=data.before.map(p=>p.frame_a).sort((a,b)=>a-b);
+      const aFrames=data.after.map(p=>p.frame_a).sort((a,b)=>a-b);
+      const bNorms=computeNorms(data.before);
+      const aNorms=computeNorms(data.after);
+      if(data.before.length) updatePanel(bPfx,data.before[0],bNorms);
+      if(data.after.length)  updatePanel(aPfx,data.after[0], aNorms);
+      let lastB=-1,lastA=-1;
+      vEl.addEventListener('timeupdate',()=>{
+        const fr=Math.floor(vEl.currentTime*data.fps);
+        const bBucket=Math.floor(fr/data.step_before)*data.step_before;
+        const bIdx=bMap[bBucket];
+        if(bIdx!==undefined&&bIdx!==lastB){lastB=bIdx;updatePanel(bPfx,data.before[bIdx],bNorms);}
+        else if(bIdx===undefined){const bp=nearestPair(data.before,bFrames,fr);if(bp)updatePanel(bPfx,bp,bNorms);}
+        const aBucket=Math.floor(fr/data.step_after)*data.step_after;
+        const aIdx=aMap[aBucket];
+        if(aIdx!==undefined&&aIdx!==lastA){lastA=aIdx;updatePanel(aPfx,data.after[aIdx],aNorms);}
+      });
+    })
+    .catch(e=>console.warn(expId,'load failed',e));
+}
+
+// 카드 ID → 초기화 함수 (첫 오픈 시 1회만 실행)
+const _LOADERS = {
+  'exp_cut': () => setupExpCustom('exp_cut','vcut','bcut','acut'),
+  'exp_s10': () => setupExpCustom('exp_s10','vs10','bs10','as10'),
+  'exp01':   () => setupExp(1,'2qkZ-FGbx-Q',5,5),
+  'exp02':   () => setupExp(2,'KccntjIMKQI',10,5),
+  'exp03':   () => setupExp(3,'81HnwNayElo',5,5),
+  'exp04':   () => setupExp(4,'-5lAx7309cE',5,5),
+  'exp05':   () => setupExpCustom('exp05','v05','b05','a05'),
+};
+
+document.querySelectorAll('.exp-hdr').forEach(hdr => {
+  hdr.addEventListener('click', () => {
+    const card = hdr.closest('.exp-card');
+    const opening = !card.classList.contains('open');
+    card.classList.toggle('open');
+
+    if (opening) {
+      // 첫 오픈이면 데이터 로드
+      if (!card.dataset.loaded) {
+        card.dataset.loaded = '1';
+        const loader = _LOADERS[card.id];
+        if (loader) loader();
+      }
+    } else {
+      // 닫힐 때 영상 일시정지
+      const vid = card.querySelector('video');
+      if (vid && !vid.paused) vid.pause();
+    }
+  });
+});
+</script>
+</body>
+</html>
