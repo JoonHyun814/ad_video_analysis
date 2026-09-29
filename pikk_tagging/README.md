@@ -20,11 +20,11 @@
 | `cli.py` | 진입점 |
 | `extract_videos.py` | SQL 덤프(stills_pikk) → `pikk_video_catalog.csv/.json` 추출 |
 | `download_videos.py` | `pikk_video_catalog.csv` → YouTube 영상 일괄 다운로드 (yt-dlp, 병렬) |
-| `OSH/` | ORB/SIFT + RANSAC + Homography — 특징점 매칭·컷 감지·영상 유사도. 상세: [`OSH/README.md`](OSH/README.md) |
-| `optical_flow/` | Farneback(dense) + Lucas-Kanade(sparse) — 카메라 모션 감지(zoom/pan/rotate). SQL 레이블 비교 3/4 정확도. 상세: [`optical_flow/README.md`](optical_flow/README.md) |
-| `RAFT/` | RAFT 딥러닝 optical flow — URL 다운로드 + dense flow 추론 + 모션 분류. 상세: [`RAFT/README.md`](RAFT/README.md) |
-| `RAFT_step/` | RAFT step=5 dense 분석 + 스파이크 제거 + temporal 레이블 — 컷 내부 모션 변화 감지. 상세: [`RAFT_step/README.md`](RAFT_step/README.md) |
-| `docs/` | 방법론 문서. [`docs/camera_motion_detection.md`](docs/camera_motion_detection.md): 논문 리뷰(RAFT·GMA·Two-Stream) + 실험 기록(컷별→step=10→step=5+smooth) |
+| `motion/` | 카메라 모션 분석 파이프라인 모음 (아래 참조) |
+| `shot_size/` | 샷 사이즈 분류 (CU·MCU·MS·WS 등) — 예정 |
+| `focus/` | 포커스 패턴 분석 (rack focus·shallow DOF 등) — 예정 |
+| `lighting/` | 조명 분류 (high key·low key·rim·backlight 등) — 예정 |
+| `angle/` | 카메라 앵글 분류 (eye level·high·low·dutch 등) — 예정 |
 | `evaluate.py` | 골든셋 대비 태그별 precision/recall/F1 |
 | `stats.py` | 기법별 태깅률 vs 사이트 비율 진단, 탈락 stage 집계 |
 | `results_io.py` | `<root>/<video>/tags.json` 로딩, JSON 저장 (`save_json`) |
@@ -89,43 +89,37 @@ python -m pikk_tagging.download_videos --limit 3 --workers 1
 └── video_info.json   # id, title, duration, upload_date, view_count
 ```
 
-### 카메라 모션 분석 — OSH / optical_flow
+### 카메라 모션 분석 — motion/
 
 **OSH (ORB/SIFT + RANSAC + Homography)** — 컷 감지·영상 유사도에 적합
 
 ```bash
-python -m pikk_tagging.OSH.feature_match video path/to/video.mp4 --detector orb --step 30
-python -m pikk_tagging.OSH.feature_match similarity a.mp4 b.mp4
+python -m pikk_tagging.motion.OSH.feature_match video path/to/video.mp4 --detector orb --step 30
+python -m pikk_tagging.motion.OSH.feature_match similarity a.mp4 b.mp4
 ```
 
 **optical_flow (Farneback + LK)** — zoom·pan·rotate 모션 감지 권장 (SQL 레이블 비교 3/4)
 
 ```bash
-# 영상 전체 분석 (Farneback + LK 동시 출력)
-python -m pikk_tagging.optical_flow.cli video path/to/video.mp4 --step 25
-
-# SQL 태그 vs CV 감지 비교 (4개 고정 테스트 케이스)
-python -m pikk_tagging.optical_flow.cli compare --window 5 --step-sec 1.0
+python -m pikk_tagging.motion.optical_flow.cli video path/to/video.mp4 --step 25
+python -m pikk_tagging.motion.optical_flow.cli compare --window 5 --step-sec 1.0
 ```
 
 **RAFT (딥러닝 dense flow)** — URL 다운로드 후 RAFT 추론 (torchvision, GPU 권장)
 
 ```bash
-# YouTube URL에서 다운로드 후 분석
-python -m pikk_tagging.RAFT.cli --url https://www.youtube.com/watch?v=VIDEO_ID
-
-# 로컬 영상 분석
-python -m pikk_tagging.RAFT.cli --video path/to/video.mp4 --device cuda
+python -m pikk_tagging.motion.RAFT.cli --url https://www.youtube.com/watch?v=VIDEO_ID
+python -m pikk_tagging.motion.RAFT.cli --video path/to/video.mp4 --device cuda
 ```
-
-> 상세 옵션·알고리즘·한계: [`OSH/README.md`](OSH/README.md), [`optical_flow/README.md`](optical_flow/README.md), [`RAFT/README.md`](RAFT/README.md), [`RAFT_step/README.md`](RAFT_step/README.md)
 
 **RAFT_step (step=5 dense + smooth)** — 컷 내부 모션 변화까지 감지 (0.2s 해상도)
 
 ```bash
-python -m pikk_tagging.RAFT_step.cli --video path/to/video.mp4 --step 5
-python -m pikk_tagging.RAFT_step.viewer   # http://localhost:5002
+python -m pikk_tagging.motion.RAFT_step.cli --video path/to/video.mp4 --step 5
+python -m pikk_tagging.motion.RAFT_step.viewer   # http://localhost:5002
 ```
+
+> 상세 옵션·알고리즘·한계: [`motion/OSH/README.md`](motion/OSH/README.md), [`motion/optical_flow/README.md`](motion/optical_flow/README.md), [`motion/RAFT/README.md`](motion/RAFT/README.md), [`motion/RAFT_step/README.md`](motion/RAFT_step/README.md)
 
 ```bash
 python -m pikk_tagging.cli --video_id <ID> [옵션]
