@@ -1,7 +1,7 @@
 """RAFT_step 결과 후처리 — 스파이크 제거 + 누적 fallback 분류.
 
 사용:
-    from pikk_tagging.RAFT_step.smooth import smooth_and_classify
+    from pikk_tagging.motion.RAFT_step.smooth import smooth_and_classify
     rows = smooth_and_classify(pairs, step=5, min_frames=10, acc_window=5)
     # rows[i] = {frame_a, frame_b, time_a, time_b, label, stats, is_spike}
 

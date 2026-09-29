@@ -1,6 +1,6 @@
 """영상별 분석 결과를 JSON으로 저장.
 
-python -m pikk_tagging.optical_flow.save_analysis [--force]
+python -m pikk_tagging.motion.optical_flow.save_analysis [--force]
 """
 from __future__ import annotations
 

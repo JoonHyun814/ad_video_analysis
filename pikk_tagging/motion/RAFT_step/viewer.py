@@ -3,7 +3,7 @@
 홈: 영상 목록 (step=5, smooth 적용)
 상세: 영상 플레이어 + 실시간 label 배지 + stats 바
 
-python -m pikk_tagging.RAFT_step.viewer
+python -m pikk_tagging.motion.RAFT_step.viewer
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 # ad_video_analysis 루트가 sys.path에 없을 때도 동작하도록 보장
-_repo_root = Path(__file__).resolve().parents[2]
+_repo_root = Path(__file__).resolve().parents[3]
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
@@ -22,7 +22,7 @@ except ImportError:
     raise SystemExit("pip install flask")
 
 try:
-    from pikk_tagging.RAFT_step.smooth import smooth_and_classify
+    from pikk_tagging.motion.RAFT_step.smooth import smooth_and_classify
 except ImportError as e:
     raise SystemExit(f"smooth.py import 실패: {e}")
 

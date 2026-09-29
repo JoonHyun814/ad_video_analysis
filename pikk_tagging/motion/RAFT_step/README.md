@@ -22,7 +22,7 @@ RAFT 딥러닝 모델로 **고정 프레임 간격(step=5)**으로 영상 전체
 ## 뷰어 실행
 
 ```bash
-python -m pikk_tagging.RAFT_step.viewer    # http://localhost:5002
+python -m pikk_tagging.motion.RAFT_step.viewer    # http://localhost:5002
 ```
 
 - **홈**: 영상 목록 + 레이블 분포 컬러 바 (zoom_in/out·pan·rotate·static 비율)
@@ -44,13 +44,13 @@ pip install yt-dlp        # YouTube URL 다운로드 시 필요
 
 ```bash
 # 로컬 영상 분석 (step=5 기본값)
-python -m pikk_tagging.RAFT_step.cli --video path/to/video.mp4
+python -m pikk_tagging.motion.RAFT_step.cli --video path/to/video.mp4
 
 # YouTube URL
-python -m pikk_tagging.RAFT_step.cli --url https://www.youtube.com/watch?v=VIDEO_ID
+python -m pikk_tagging.motion.RAFT_step.cli --url https://www.youtube.com/watch?v=VIDEO_ID
 
 # step 변경
-python -m pikk_tagging.RAFT_step.cli --video v.mp4 --step 5 --device cpu
+python -m pikk_tagging.motion.RAFT_step.cli --video v.mp4 --step 5 --device cpu
 ```
 
 | 옵션 | 기본값 | 설명 |
@@ -70,7 +70,7 @@ python -m pikk_tagging.RAFT_step.cli --video v.mp4 --step 5 --device cpu
 뷰어 API와 별도 스크립트 모두에서 사용한다.
 
 ```python
-from pikk_tagging.RAFT_step.smooth import smooth_and_classify
+from pikk_tagging.motion.RAFT_step.smooth import smooth_and_classify
 
 rows = smooth_and_classify(pairs, step=5, min_frames=10, acc_window=9)
 # rows[i]: {frame_a, frame_b, time_a, time_b, label, is_spike, stats, flow_viz}

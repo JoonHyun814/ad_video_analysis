@@ -17,10 +17,10 @@ SQL `visual_elements` 레이블과의 비교 테스트: **3/4 (75%)** — OSH �
 
 ```bash
 # 영상 전체 모션 분석 (Farneback + LK 동시)
-python -m pikk_tagging.optical_flow.cli video path/to/video.mp4 --step 25
+python -m pikk_tagging.motion.optical_flow.cli video path/to/video.mp4 --step 25
 
 # SQL 레이블 vs CV 감지 비교 (4개 테스트 케이스 고정)
-python -m pikk_tagging.optical_flow.cli compare --window 5 --step-sec 1.0
+python -m pikk_tagging.motion.optical_flow.cli compare --window 5 --step-sec 1.0
 ```
 
 | 옵션 | 기본값 | 설명 |

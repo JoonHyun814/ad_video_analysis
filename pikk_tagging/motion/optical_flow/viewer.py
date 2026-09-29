@@ -1,6 +1,6 @@
 """광고 영상 모션 분석 결과 뷰어 (Flask).
 
-python -m pikk_tagging.optical_flow.viewer
+python -m pikk_tagging.motion.optical_flow.viewer
 """
 from __future__ import annotations
 

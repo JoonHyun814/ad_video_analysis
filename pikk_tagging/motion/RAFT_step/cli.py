@@ -1,7 +1,7 @@
 """RAFT_step CLI — step 간격 dense flow, raw stats 저장.
 
 사용법:
-  python -m pikk_tagging.RAFT_step.cli --video path/to/video.mp4
+  python -m pikk_tagging.motion.RAFT_step.cli --video path/to/video.mp4
 """
 from __future__ import annotations
 

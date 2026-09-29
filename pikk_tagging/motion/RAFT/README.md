@@ -20,8 +20,8 @@ RAFT (Recurrent All-Pairs Field Transforms) 딥러닝 모델로 프레임 간 de
 ## 뷰어 실행
 
 ```bash
-python -m pikk_tagging.RAFT.viewer          # http://localhost:5001
-python -m pikk_tagging.RAFT.viewer --port 5002
+python -m pikk_tagging.motion.RAFT.viewer          # http://localhost:5001
+python -m pikk_tagging.motion.RAFT.viewer --port 5002
 ```
 
 - **홈**: 분석된 영상 목록 + 모션 분포 배지
@@ -43,16 +43,16 @@ pip install yt-dlp        # YouTube URL 다운로드 시 필요
 
 ```bash
 # YouTube URL에서 다운로드 후 분석
-python -m pikk_tagging.RAFT.cli --url https://www.youtube.com/watch?v=VIDEO_ID
+python -m pikk_tagging.motion.RAFT.cli --url https://www.youtube.com/watch?v=VIDEO_ID
 
 # 로컬 영상 분석
-python -m pikk_tagging.RAFT.cli --video path/to/video.mp4
+python -m pikk_tagging.motion.RAFT.cli --video path/to/video.mp4
 
 # GPU + small 모델 + 빠른 샘플링
-python -m pikk_tagging.RAFT.cli --url <URL> --device cuda --model-size small --step 10
+python -m pikk_tagging.motion.RAFT.cli --url <URL> --device cuda --model-size small --step 10
 
 # 모델 weights 로컬 경로 지정
-python -m pikk_tagging.RAFT.cli --video v.mp4 --model-dir D:\models\RAFT
+python -m pikk_tagging.motion.RAFT.cli --video v.mp4 --model-dir D:\models\RAFT
 ```
 
 | 옵션 | 기본값 | 설명 |

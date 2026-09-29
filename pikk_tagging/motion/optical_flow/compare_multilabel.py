@@ -1,6 +1,6 @@
 """GT 멀티라벨 / Farneback / LK 샷 단위 결과 비교.
 
-python -m pikk_tagging.optical_flow.compare_multilabel
+python -m pikk_tagging.motion.optical_flow.compare_multilabel
 """
 from __future__ import annotations
 

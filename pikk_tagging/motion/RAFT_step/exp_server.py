@@ -1,6 +1,6 @@
 """실험 기록 서버 — before/after 태깅 비교 (포트 8080).
 
-python -m pikk_tagging.RAFT_step.exp_server
+python -m pikk_tagging.motion.RAFT_step.exp_server
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-_repo_root = Path(__file__).resolve().parents[2]
+_repo_root = Path(__file__).resolve().parents[3]
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
@@ -18,7 +18,7 @@ try:
 except ImportError:
     raise SystemExit("pip install flask")
 
-from pikk_tagging.RAFT_step.smooth import (
+from pikk_tagging.motion.RAFT_step.smooth import (
     detect_spikes, _interp_stats, classify_stats,
     _rolling_sum_stats, temporal_filter, smooth_and_classify,
 )

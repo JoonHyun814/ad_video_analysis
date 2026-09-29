@@ -3,8 +3,8 @@
 컷 감지 → 샷 단위 RAFT (샷당 프레임 쌍 1개, 태그 1개).
 
 사용법:
-  python -m pikk_tagging.RAFT.cli --url <YouTube/직접URL>
-  python -m pikk_tagging.RAFT.cli --video path/to/video.mp4
+  python -m pikk_tagging.motion.RAFT.cli --url <YouTube/직접URL>
+  python -m pikk_tagging.motion.RAFT.cli --video path/to/video.mp4
 """
 from __future__ import annotations
 

@@ -12,10 +12,10 @@
 
 ```bash
 # 영상 전체 프레임 간 모션 분석
-python -m pikk_tagging.OSH.feature_match video path/to/video.mp4 --detector orb --step 30
+python -m pikk_tagging.motion.OSH.feature_match video path/to/video.mp4 --detector orb --step 30
 
 # 두 영상 간 시각 유사도
-python -m pikk_tagging.OSH.feature_match similarity a.mp4 b.mp4 --detector orb --frames 5
+python -m pikk_tagging.motion.OSH.feature_match similarity a.mp4 b.mp4 --detector orb --frames 5
 ```
 
 | 옵션 | 기본값 | 설명 |

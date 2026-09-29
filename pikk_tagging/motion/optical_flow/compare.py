@@ -1,6 +1,6 @@
 """GT / OSH / Farneback / LK 샷 단위 결과 비교.
 
-python -m pikk_tagging.optical_flow.compare
+python -m pikk_tagging.motion.optical_flow.compare
 """
 from __future__ import annotations
 
@@ -147,7 +147,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # threshold를 shot_detect 기본값으로 반영하기 위해 monkeypatch
-    import pikk_tagging.optical_flow.shot_detect as sd
+    import pikk_tagging.motion.optical_flow.shot_detect as sd
     _orig = sd.detect_shots
     def _patched(path, **kw):
         kw.setdefault("threshold", args.threshold)

@@ -1,6 +1,6 @@
 """RAFT 분석 결과 뷰어 (Flask).
 
-python -m pikk_tagging.RAFT.viewer
+python -m pikk_tagging.motion.RAFT.viewer
 """
 from __future__ import annotations
 
