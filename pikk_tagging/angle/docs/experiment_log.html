@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Angle — 실험 기록</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+:root{--bg:#f7f8fa;--card:#fff;--ink:#1c2330;--sub:#5a6475;--line:#e3e7ee;--blue:#2a78d6;--green:#27ae60;}
+@media(prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--ink:#e8ecf3;--sub:#9aa4b5;--line:#2b3342;}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:'Pretendard','Noto Sans KR',sans-serif;font-size:14px;line-height:1.7}
+.wrap{max-width:980px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:22px;font-weight:800;margin-bottom:6px}
+.kicker{font-size:11px;letter-spacing:.12em;color:var(--green);font-weight:700;text-transform:uppercase;margin-bottom:4px}
+.sub{font-size:13px;color:var(--sub);margin-bottom:28px}
+.exp-card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:22px;overflow:hidden}
+.exp-head{padding:16px 22px;cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none}
+.exp-head:hover{background:rgba(42,120,214,.04)}
+.exp-tag{background:var(--blue);color:#fff;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;letter-spacing:.06em}
+.exp-title{font-size:16px;font-weight:700}
+.exp-body{padding:0 22px 22px;border-top:1px solid var(--line)}
+.arrow{font-size:13px;color:var(--sub);margin-left:auto;transition:transform .2s}
+.arrow.open{transform:rotate(180deg)}
+.section-title{font-size:12px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.08em;margin:18px 0 10px}
+.video-sel{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;min-width:200px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+@media(max-width:600px){.panels{grid-template-columns:1fr}}
+.panel{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.panel-title{font-size:12px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700}
+.dist-item{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dist-label{font-size:12px;width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dist-bar-wrap{flex:1;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.dist-bar{height:100%;border-radius:4px}
+.dist-cnt{font-size:11px;color:var(--sub);width:36px;text-align:right;font-family:monospace}
+.note{font-size:12px;color:var(--sub);margin-top:12px;line-height:1.6}
+code{background:rgba(42,120,214,.08);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:12px}
+.rules{background:rgba(42,120,214,.04);border:1px solid rgba(42,120,214,.15);border-radius:8px;padding:12px 16px;font-family:monospace;font-size:12px;line-height:1.8;margin-top:10px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Camera Angle · Experiment Log</div>
+  <h1>카메라 앵글 실험 기록</h1>
+  <p class="sub">분류기 알고리즘 변경 전·후 비교 실험 모음</p>
+
+  <!-- EXP 01 -->
+  <div class="exp-card" id="exp01-card">
+    <div class="exp-head" onclick="toggleExp('exp01')">
+      <span class="exp-tag">EXP 01</span>
+      <span class="exp-title">roll_angle 만 사용 vs roll + horizon 위치 추정</span>
+      <span class="arrow" id="exp01-arrow">&#9660;</span>
+    </div>
+    <div class="exp-body" id="exp01-body" style="display:none">
+      <div class="section-title">실험 설명</div>
+      <p class="note">
+        <strong>Before</strong>: <code>|roll_angle_deg| > 15°</code> → <code>dutch_angle</code>, 나머지 → <code>eye_level</code>.<br>
+        <strong>After</strong>: roll 이후 <code>horizon_y_ratio</code> 로 <code>high_angle / low_angle</code> 구분, <code>h_line_ratio</code> 로 <code>bird_eye</code> 감지 추가.<br><br>
+        <strong>가설</strong>: 수평선 위치 추정이 고각·저각 촬영 구분에 유효하며, 수평선이 지배적인 탑뷰 구도는 bird_eye 로 올바르게 분류된다.
+      </p>
+      <div class="rules">Before (roll_only):
+  |roll_angle_deg| > 15 → dutch_angle
+  else → eye_level
+
+After (roll + horizon + bird_eye):
+  |roll_angle_deg| > 15 → dutch_angle
+  h_line_ratio > 0.65 AND v_line_ratio < 0.10 → bird_eye
+  horizon_y_ratio < 0.35 → high_angle
+  horizon_y_ratio > 0.65 → low_angle
+  else → eye_level</div>
+
+      <div class="section-title">영상 선택</div>
+      <select class="video-sel" id="exp01-sel" onchange="loadExp01(this.value)">
+        <option value="">-- 영상 선택 --</option>
+      </select>
+      <div class="panels" id="exp01-panels" style="display:none">
+        <div class="panel">
+          <div class="panel-title" id="exp01-b-title">Before</div>
+          <div id="exp01-b-dist"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title" id="exp01-a-title">After</div>
+          <div id="exp01-a-dist"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+const LABEL_COLORS={
+  dutch_angle:'#9b59b6', bird_eye:'#16a085',
+  high_angle:'#2980b9', eye_level:'#27ae60', low_angle:'#e67e22',
+};
+
+function toggleExp(id){
+  const body=document.getElementById(id+'-body');
+  const arrow=document.getElementById(id+'-arrow');
+  const open=body.style.display==='none';
+  body.style.display=open?'block':'none';
+  arrow.classList.toggle('open',open);
+  if(open && id==='exp01') initExp01Sel();
+}
+
+async function initExp01Sel(){
+  const sel=document.getElementById('exp01-sel');
+  if(sel.options.length>1) return;
+  const ids=await fetch('/api/videos').then(r=>r.json());
+  ids.forEach(id=>{const o=document.createElement('option');o.value=o.textContent=id;sel.appendChild(o);});
+}
+
+function renderDist(containerId,dist,total){
+  const c=document.getElementById(containerId); c.innerHTML='';
+  Object.entries(dist).sort((a,b)=>b[1]-a[1]).forEach(([lbl,cnt])=>{
+    const pct=total>0?(cnt/total*100).toFixed(1):0;
+    const item=document.createElement('div'); item.className='dist-item';
+    item.innerHTML=
+      `<span class="dist-label"><span class="badge" style="background:${LABEL_COLORS[lbl]||'#9aa4b5'}22;color:${LABEL_COLORS[lbl]||'#9aa4b5'}">${lbl}</span></span>`+
+      `<div class="dist-bar-wrap"><div class="dist-bar" style="width:${pct}%;background:${LABEL_COLORS[lbl]||'#9aa4b5'}"></div></div>`+
+      `<span class="dist-cnt">${cnt}</span>`;
+    c.appendChild(item);
+  });
+}
+
+async function loadExp01(vid){
+  if(!vid) return;
+  const data=await fetch('/api/exp01/'+vid).then(r=>r.json());
+  if(data.error){alert(data.error);return;}
+  document.getElementById('exp01-panels').style.display='grid';
+  const bT=data.before.frames.length, aT=data.after.frames.length;
+  document.getElementById('exp01-b-title').textContent=`Before — ${data.before.method} (${bT}f)`;
+  document.getElementById('exp01-a-title').textContent=`After — ${data.after.method} (${aT}f)`;
+  renderDist('exp01-b-dist',data.before.dist,bT);
+  renderDist('exp01-a-dist',data.after.dist,aT);
+}
+</script>
+</body>
+</html>
