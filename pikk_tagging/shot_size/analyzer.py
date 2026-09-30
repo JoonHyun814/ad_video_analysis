@@ -13,12 +13,24 @@ from typing import Iterator
 import cv2
 import numpy as np
 
-_CASCADE = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
+_MODEL_PATH = Path(__file__).parent / "models" / "face_detection_yunet_2023mar.onnx"
+_DETECTOR: cv2.FaceDetectorYN | None = None
+_DETECTOR_SIZE: tuple[int, int] = (0, 0)
 
 _CENTER_Y = (0.20, 0.80)
 _CENTER_X = (0.20, 0.80)
+
+
+def _get_detector(w: int, h: int) -> cv2.FaceDetectorYN:
+    """입력 해상도에 맞춰 FaceDetectorYN 인스턴스를 (재)생성."""
+    global _DETECTOR, _DETECTOR_SIZE
+    size = (w, h)
+    if _DETECTOR is None or _DETECTOR_SIZE != size:
+        _DETECTOR = cv2.FaceDetectorYN_create(
+            str(_MODEL_PATH), "", size, score_threshold=0.5, nms_threshold=0.3
+        )
+        _DETECTOR_SIZE = size
+    return _DETECTOR
 
 
 def _center_slices(h: int, w: int) -> tuple[slice, slice]:
@@ -29,39 +41,40 @@ def _center_slices(h: int, w: int) -> tuple[slice, slice]:
 
 def analyze_frame(frame: np.ndarray) -> dict[str, float]:
     """BGR frame → shot size stats dict."""
-    gray    = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    h, w    = gray.shape
-    total   = h * w
+    h, w = frame.shape[:2]
+    total = h * w
 
-    faces = _CASCADE.detectMultiScale(
-        gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30),
-        flags=cv2.CASCADE_SCALE_IMAGE,
-    )
+    detector = _get_detector(w, h)
+    _, detections = detector.detect(frame)
 
-    if len(faces) > 0:
-        areas = [fw * fh for (_, _, fw, fh) in faces]
-        fx, fy, fw, fh = faces[int(np.argmax(areas))]
-        face_h_ratio   = fh / h
+    if detections is not None and len(detections) > 0:
+        # YuNet: [x, y, w, h, ...] — largest face by area
+        areas = detections[:, 2] * detections[:, 3]
+        best  = detections[int(np.argmax(areas))]
+        fx, fy, fw, fh = float(best[0]), float(best[1]), float(best[2]), float(best[3])
+        face_h_ratio    = fh / h
         face_area_ratio = (fw * fh) / total
-        face_center_y  = (fy + fh / 2) / h
+        face_center_y   = (fy + fh / 2) / h
     else:
-        face_h_ratio   = 0.0
+        face_h_ratio    = 0.0
         face_area_ratio = 0.0
-        face_center_y  = 0.5
+        face_center_y   = 0.5
 
     # Edge density (피사체 크기 대리 지표 — 얼굴 없는 컷용)
+    gray    = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     edges   = cv2.Canny(gray, 50, 150)
     total_e = float(edges.sum()) / 255
     sy, sx  = _center_slices(h, w)
     center_e = float(edges[sy, sx].sum()) / 255
     c_area   = (sy.stop - sy.start) * (sx.stop - sx.start)
 
-    edge_density       = total_e / total
+    edge_density        = total_e / total
     center_edge_density = center_e / c_area if c_area > 0 else 0.0
     center_edge_ratio   = center_edge_density / (edge_density + 1e-6)
 
+    face_detected = detections is not None and len(detections) > 0
     return {
-        "face_detected":     1.0 if len(faces) > 0 else 0.0,
+        "face_detected":     1.0 if face_detected else 0.0,
         "face_h_ratio":      round(face_h_ratio, 4),
         "face_area_ratio":   round(face_area_ratio, 4),
         "face_center_y":     round(face_center_y, 4),
