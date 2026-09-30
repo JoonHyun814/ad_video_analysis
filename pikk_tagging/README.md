@@ -23,7 +23,7 @@
 | `motion/` | 카메라 모션 분석 파이프라인 모음 (아래 참조) |
 | `shot_size/` | 샷 사이즈 분류 (CU·MCU·MS·WS 등) — 예정 |
 | `focus/` | 포커스 패턴 분석 (rack focus·shallow DOF 등) — 예정 |
-| `lighting/` | 조명 분류 (high key·low key·rim·backlight 등) — 예정 |
+| `lighting/` | 조명 분류 (high_key·low_key·backlight·normal) — pixel 기반 규칙 분류기 |
 | `angle/` | 카메라 앵글 분류 (eye level·high·low·dutch 등) — 예정 |
 | `evaluate.py` | 골든셋 대비 태그별 precision/recall/F1 |
 | `stats.py` | 기법별 태깅률 vs 사이트 비율 진단, 탈락 stage 집계 |
@@ -120,6 +120,18 @@ python -m pikk_tagging.motion.RAFT_step.viewer   # http://localhost:5002
 ```
 
 > 상세 옵션·알고리즘·한계: [`motion/OSH/README.md`](motion/OSH/README.md), [`motion/optical_flow/README.md`](motion/optical_flow/README.md), [`motion/RAFT/README.md`](motion/RAFT/README.md), [`motion/RAFT_step/README.md`](motion/RAFT_step/README.md)
+
+### 조명 분류 — lighting/
+
+**pixel 기반 규칙 분류기** — 외부 ML 모델 없이 히스토그램·공간 분석으로 high_key·low_key·backlight·normal 분류
+
+```bash
+python -m pikk_tagging.lighting.cli --video path/to/video.mp4 --step 30
+python -m pikk_tagging.lighting.viewer   # 전체 결과 뷰어  http://localhost:5003
+python -m pikk_tagging.lighting.exp_server  # 실험 기록      http://localhost:8081
+```
+
+> 상세 옵션·레이블 정의·stats: [`lighting/README.md`](lighting/README.md)
 
 ```bash
 python -m pikk_tagging.cli --video_id <ID> [옵션]
