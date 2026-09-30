@@ -20,8 +20,16 @@ try:
 except ImportError:
     raise SystemExit("pip install flask")
 
-_BASE = Path(r"C:\Users\llm\workspace\outputs\pikk_output\lighting")
-app   = Flask(__name__)
+_BASE    = Path(r"C:\Users\llm\workspace\outputs\pikk_output\lighting")
+_GT_FILE = _BASE / "video_gt_tags.json"
+app      = Flask(__name__)
+
+
+def _load_gt() -> dict:
+    """video_gt_tags.json 로드 (없으면 빈 dict)."""
+    if _GT_FILE.exists():
+        return json.loads(_GT_FILE.read_text(encoding="utf-8"))
+    return {}
 
 _LABEL_COLORS = {
     "high_key":  ("#e8a82e", "#fef8e8"),
@@ -99,6 +107,16 @@ video.mini{width:160px;border-radius:9px;display:block;background:#000}
   border-radius:2px;overflow:visible}
 #t-needle{position:absolute;top:-4px;width:2px;height:12px;background:var(--blue);
   border-radius:1px;transform:translateX(-50%);transition:left .08s}
+.gt-wrap{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.gt-lbl{font-size:11px;color:var(--sub);font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+.gt-tags{display:flex;flex-wrap:wrap;gap:6px}
+.gt-chip{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;
+  font-weight:600;background:rgba(42,120,214,.1);color:var(--blue);
+  border:1px solid rgba(42,120,214,.25)}
+.gt-chip.lighting{background:rgba(232,168,46,.12);color:#b07a10;
+  border-color:rgba(232,168,46,.4)}
+.gt-none{font-size:12px;color:var(--sub);font-style:italic}
 """
 
 _LABEL_COLORS_JS = json.dumps(_LABEL_COLORS)
@@ -134,13 +152,18 @@ async function loadList(){{
   vids.forEach(v=>{{
     const tr=document.createElement('tr'); tr.style.cursor='pointer';
     const [fg_,bg_]=COLORS[v.dominant_label]||['#9aa4b5','#f0f2f5'];
+    const gtLighting = v.gt_lighting_tags||[];
+    const gtChips = gtLighting.length
+      ? gtLighting.map(t=>`<span class="gt-chip lighting">${{t}}</span>`).join('')
+      : '<span class="gt-none">-</span>';
     tr.innerHTML=
       `<td class="mono"><a href="/video/${{v.video_id}}" style="color:var(--blue);text-decoration:none">${{v.video_id}}</a></td>`+
       `<td class="vtd"><div class="vthumb" onclick="playThumb(this,'${{v.video_id}}');event.stopPropagation()"><span class="play-ic">&#9654;</span></div></td>`+
       `<td><span class="badge" style="color:${{fg_}};background:${{bg_}}">${{v.dominant_label}}</span></td>`+
+      `<td style="font-size:12px">${{gtChips}}</td>`+
       `<td style="text-align:right">${{v.total_frames}}</td>`+
       `<td></td>`;
-    if(v.label_counts) tr.cells[4].appendChild(makeDist(v.label_counts,v.total_frames));
+    if(v.label_counts) tr.cells[5].appendChild(makeDist(v.label_counts,v.total_frames));
     tr.onclick=()=>location.href='/video/'+v.video_id;
     tb.appendChild(tr);
   }});
@@ -163,8 +186,8 @@ _HOME_HTML = ("""<!DOCTYPE html>
   </div>
   <div class="card">
     <table><thead><tr>
-      <th>영상 ID</th><th>영상</th><th>주 레이블</th>
-      <th>분석 프레임</th><th>레이블 분포</th>
+      <th>영상 ID</th><th>영상</th><th>예측 주 레이블</th>
+      <th>pikk 실제 조명태그</th><th>분석 프레임</th><th>레이블 분포</th>
     </tr></thead><tbody id="tbody"></tbody></table>
   </div>
 </div>
@@ -265,6 +288,21 @@ async function loadDetail(){{
   document.getElementById('sub').textContent=
     `${{data.total_frames}}프레임 · step=${{data.step}} · ${{data.fps}}fps`;
   document.title=VID+' — 조명';
+
+  // GT 태그 렌더링
+  const gtWrap=document.getElementById('gt-tags');
+  const gtAll=data.gt_all_tags||[];
+  const gtLighting=data.gt_lighting_tags||[];
+  if(gtAll.length===0){{
+    gtWrap.innerHTML='<span class="gt-none">GT 태그 없음</span>';
+  }}else{{
+    const chips=gtAll.map(t=>{{
+      const isLighting=gtLighting.includes(t);
+      return `<span class="gt-chip${{isLighting?' lighting':''}}">${{t}}</span>`;
+    }}).join('');
+    gtWrap.innerHTML=chips;
+  }}
+
   if(_frames.length){{updatePanel(_frames[0]);buildTimeline();}}
 }}
 loadDetail();
@@ -327,6 +365,10 @@ _DETAIL_HTML = ("""<!DOCTYPE html>
       <svg id="timeline-svg"></svg>
       <div id="t-cursor"><div id="t-needle"></div></div>
     </div>
+    <div class="gt-wrap">
+      <div class="gt-lbl">Pikk 실제 태그 <span style="font-weight:400;color:var(--sub)">(조명 관련 = 노란색)</span></div>
+      <div class="gt-tags" id="gt-tags"><span class="gt-none">로딩 중…</span></div>
+    </div>
   </div>
 </div>
 <script>JS</script></body></html>""").replace("CSS", _CSS).replace("JS", _DETAIL_JS)
@@ -358,6 +400,7 @@ def media(video_id: str):
 
 @app.get("/api/videos")
 def api_videos():
+    gt = _load_gt()
     result = []
     for rp in sorted(_BASE.glob("*/lighting_results.json")):
         try:
@@ -370,13 +413,16 @@ def api_videos():
             lbl = f.get("label", "normal")
             counts[lbl] = counts.get(lbl, 0) + 1
         dominant = max(counts, key=counts.get) if counts else "normal"
+        vid_id   = rp.parent.name
+        gt_info  = gt.get(vid_id, {})
         result.append({
-            "video_id":      rp.parent.name,
-            "total_frames":  len(frames),
-            "fps":           data.get("fps", 0),
-            "step":          data.get("step", 30),
-            "dominant_label": dominant,
-            "label_counts":  counts,
+            "video_id":        vid_id,
+            "total_frames":    len(frames),
+            "fps":             data.get("fps", 0),
+            "step":            data.get("step", 30),
+            "dominant_label":  dominant,
+            "label_counts":    counts,
+            "gt_lighting_tags": gt_info.get("lighting_tags", []),
         })
     return jsonify(result)
 
@@ -386,13 +432,17 @@ def api_video(video_id: str):
     rp = _BASE / video_id / "lighting_results.json"
     if not rp.exists():
         return jsonify({"error": "not found"}), 404
-    data = json.loads(rp.read_text(encoding="utf-8"))
+    data    = json.loads(rp.read_text(encoding="utf-8"))
+    gt      = _load_gt()
+    gt_info = gt.get(video_id, {})
     return jsonify({
-        "video_id":     video_id,
-        "fps":          data.get("fps", 0),
-        "step":         data.get("step", 30),
-        "total_frames": data.get("total_frames", 0),
-        "frames":       data.get("frames", []),
+        "video_id":        video_id,
+        "fps":             data.get("fps", 0),
+        "step":            data.get("step", 30),
+        "total_frames":    data.get("total_frames", 0),
+        "frames":          data.get("frames", []),
+        "gt_all_tags":     gt_info.get("all_tags", []),
+        "gt_lighting_tags": gt_info.get("lighting_tags", []),
     })
 
 
