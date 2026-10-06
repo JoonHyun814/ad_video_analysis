@@ -9,6 +9,7 @@
 | `video_db/` | 영상 ID·메타데이터 관리 (MySQL) | video_db/CLAUDE.md |
 | `vector_db/` | 임베딩 벡터 저장·검색 (ChromaDB) | vector_db/CLAUDE.md |
 | `pikk_db/` | Pikk 태깅 결과 저장·조회 | pikk_db/CLAUDE.md |
+| `server/` | ChromaDB RAG MCP 서버 | server/CLAUDE.md |
 
 > 각 서브폴더에 CLAUDE.md 가 아직 없으면 `database/README.md` 를 확인한다.
 
