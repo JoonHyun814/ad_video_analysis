@@ -10,7 +10,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
-from db.chromadb.importers.facets import fetch_members
+from database.vector_db.importers.facets import fetch_members
 
 # CM3 의 diverse_appeal/diverse_execution 렌즈가 카테고리별로 1건씩 표본 추출할 때 순회할 값 목록
 # ("other" 는 창의적 다각화 신호로 쓸모가 적어 제외한다).

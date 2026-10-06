@@ -6,12 +6,11 @@
 
 | 서브모듈 | 역할 | CLAUDE.md |
 |----------|------|-----------|
-| `video_db/` | 영상 ID 및 메타데이터 관리 (MySQL) | video_db/CLAUDE.md |
+| `video_db/` | 영상 ID·메타데이터 관리 (MySQL) | video_db/CLAUDE.md |
 | `vector_db/` | 임베딩 벡터 저장·검색 (ChromaDB) | vector_db/CLAUDE.md |
 | `pikk_db/` | Pikk 태깅 결과 저장·조회 | pikk_db/CLAUDE.md |
 
-> 서브폴더에 CLAUDE.md 가 아직 없으면 `database/README.md` 와 루트의 `db/README.md` 를 확인한다.
-> 기존 레거시 코드는 루트의 `db/` 에 있다.
+> 각 서브폴더에 CLAUDE.md 가 아직 없으면 `database/README.md` 를 확인한다.
 
 ---
 

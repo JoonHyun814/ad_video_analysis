@@ -6,7 +6,7 @@ from utils.gemini_caller import call_gemini as _call_gemini
 from utils.llm_caller import call_claude as _call_claude
 from utils.llm_caller import call_codex as _call_codex
 
-from evaluation.schemas import _BRIEF_SCHEMA
+from analysis.evaluation.schemas import _BRIEF_SCHEMA
 from generation.web_searcher import search_brand_product
 
 

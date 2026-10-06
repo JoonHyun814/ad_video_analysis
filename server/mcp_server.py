@@ -40,11 +40,11 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-from db.chromadb.tool_definitions import fetch_by_video_id as _fetch_by_video_id
-from db.chromadb.tool_definitions import search_chromadb as _search_chromadb
-from db.chromadb.tool_definitions import search_chromadb_hybrid as _search_chromadb_hybrid
-from db.chromadb.tool_definitions import search_graph_pattern as _search_graph_pattern
-from db.chromadb.tool_definitions import search_visual as _search_visual
+from database.vector_db.tool_definitions import fetch_by_video_id as _fetch_by_video_id
+from database.vector_db.tool_definitions import search_chromadb as _search_chromadb
+from database.vector_db.tool_definitions import search_chromadb_hybrid as _search_chromadb_hybrid
+from database.vector_db.tool_definitions import search_graph_pattern as _search_graph_pattern
+from database.vector_db.tool_definitions import search_visual as _search_visual
 
 _DEFAULT_PORT = 8765
 _HOST = "0.0.0.0"

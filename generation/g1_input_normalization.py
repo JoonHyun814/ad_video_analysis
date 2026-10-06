@@ -5,7 +5,7 @@
 """
 import json
 
-from db.chromadb.importers.facets import GENRE_CHOICES
+from database.vector_db.importers.facets import GENRE_CHOICES
 from utils.llm_dispatch import call_llm
 
 _INDUSTRY = ("beauty|food_beverage|retail_ecommerce|finance|healthcare|fashion|tech_electronics"
