@@ -1,0 +1,9 @@
+# 워크스페이스 .venv 에 이미 있는 패키지 + bertopic 만 추가 설치함
+bertopic>=0.17       # umap-learn, hdbscan 포함
+sentence-transformers
+librosa
+opencv-python
+scikit-image
+faster-whisper
+pandas
+mysql-connector-python  # 기존 프로젝트 db/connection.py 경유 video_id 조회

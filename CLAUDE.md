@@ -15,6 +15,7 @@
 | `train_pipeline/` 학습 데이터셋·트레이너 | [`train_pipeline/README.md`](train_pipeline/README.md) |
 | `mapping_pipeline/` 외부 영상 매핑 (CLI/API/Gradio) | [`mapping_pipeline/README.md`](mapping_pipeline/README.md) |
 | `generation/` 브리프·시나리오 생성 (M1~M7) | [`generation/README.md`](generation/README.md) |
+| `Decoding_the_Hook_pipeline/` 논문 MLLM-VAU 재현 (훅 3초 기법 추출·BERTopic) | [`Decoding_the_Hook_pipeline/README.md`](Decoding_the_Hook_pipeline/README.md) |
 | `db/` MySQL·ChromaDB | [`db/README.md`](db/README.md) |
 | `utils/` LLM 호출·JSON 파싱·env 로딩 | [`utils/README.md`](utils/README.md) |
 

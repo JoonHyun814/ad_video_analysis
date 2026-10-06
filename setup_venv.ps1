@@ -63,6 +63,7 @@ Write-Host "패키지를 설치합니다..."
 & $pip install beautifulsoup4 curl_cffi anthropic "mcp[cli]<2.0"
 & $pip install kuzu
 & $pip install torchvision yt-dlp
+& $pip install bertopic  # Decoding_the_Hook_pipeline (umap-learn, hdbscan 포함)
 if ($LASTEXITCODE -ne 0) {
     Write-Error "패키지 설치 실패"
     exit 1
