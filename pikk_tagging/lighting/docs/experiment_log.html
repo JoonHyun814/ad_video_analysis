@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>조명 분류 실험 기록</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+:root{
+  --bg:#f7f8fa;--card:#fff;--ink:#1c2330;--sub:#5a6475;--line:#e3e7ee;
+  --blue:#2a78d6;--blue-soft:#e8f1fc;--green:#1baf7a;--red:#e74c3c;
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#12151b;--card:#1b2029;--ink:#e8ecf3;--sub:#9aa4b5;--line:#2b3342;--blue-soft:#17293f;}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  font-size:14px;line-height:1.65}
+.wrap{max-width:1060px;margin:0 auto;padding:28px 20px 80px}
+.topnav{display:flex;align-items:center;gap:14px;margin-bottom:28px;
+  padding-bottom:18px;border-bottom:1px solid var(--line)}
+.kicker{font-size:11px;letter-spacing:.12em;color:var(--green);
+  font-weight:700;text-transform:uppercase;margin-bottom:3px}
+h1{font-size:21px;font-weight:700;letter-spacing:-.02em}
+.sub{font-size:13px;color:var(--sub)}
+.toc{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:16px 20px;margin-bottom:32px}
+.toc h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--sub);font-weight:700;margin-bottom:10px}
+.toc ol{padding-left:18px}
+.toc li{margin-bottom:5px;font-size:13px}
+.toc a{color:var(--blue);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+.exp-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  overflow:hidden;margin-bottom:36px}
+.exp-hdr{display:flex;align-items:center;gap:12px;padding:16px 22px;
+  cursor:pointer;user-select:none;border-bottom:none;transition:background .12s}
+.exp-hdr:hover{background:var(--blue-soft)}
+.exp-card.open .exp-hdr{border-bottom:1px solid var(--line)}
+.exp-num{background:var(--blue);color:#fff;font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.04em}
+.exp-title{font-size:16px;font-weight:700}
+.exp-meta{font-size:12px;color:var(--sub);margin-top:2px}
+.exp-chevron{margin-left:auto;font-size:14px;color:var(--sub);
+  transition:transform .2s;display:inline-block}
+.exp-card.open .exp-chevron{transform:rotate(90deg)}
+.exp-body{padding:22px;display:none}
+.exp-card.open .exp-body{display:block}
+.player-wrap{background:#000;border-radius:10px;overflow:hidden;margin-bottom:16px}
+.player-wrap video{width:100%;max-height:52vh;display:block}
+.vid-sel{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.vid-sel label{font-size:12px;color:var(--sub);font-weight:600}
+.vid-sel select{font-size:13px;padding:4px 8px;border:1px solid var(--line);
+  border-radius:6px;background:var(--card);color:var(--ink);cursor:pointer}
+.ba-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.ba-panel{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.ba-kicker{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.ba-panel.before .ba-kicker{color:var(--red)}
+.ba-panel.after  .ba-kicker{color:var(--green)}
+.ba-panel-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.badge{display:inline-block;padding:4px 14px;border-radius:99px;
+  font-size:13px;font-weight:700;letter-spacing:.03em;transition:background .1s,color .1s}
+.ba-time{font-size:11px;color:var(--sub)}
+.stat-row{display:grid;grid-template-columns:96px 1fr 78px;
+  align-items:center;gap:10px;margin-bottom:9px}
+.stat-row:last-child{margin-bottom:0}
+.stat-label{font-size:10px;color:var(--sub);font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em}
+.bar-wrap{position:relative;height:9px;background:var(--line);border-radius:5px;overflow:hidden}
+.bar-wrap .center-tick{position:absolute;left:50%;top:0;width:1px;height:100%;
+  background:var(--sub);opacity:.3;pointer-events:none}
+.bar-fill{position:absolute;top:0;height:100%;border-radius:5px;
+  transition:left .08s,width .08s,background .08s}
+.stat-val{font-family:monospace;font-size:11px;text-align:right;color:var(--ink)}
+.divider{height:1px;background:var(--line);margin:20px 0}
+.section-lbl{font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--sub);margin-bottom:10px}
+.problem-box{background:rgba(231,76,60,.06);border:1px solid rgba(231,76,60,.22);
+  border-radius:8px;padding:12px 15px;font-size:13px;margin-bottom:12px}
+.fix-box{background:rgba(27,175,122,.06);border:1px solid rgba(27,175,122,.22);
+  border-radius:8px;padding:12px 15px;font-size:13px}
+.dist-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.dist-panel h4{font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--sub);margin-bottom:10px}
+.dist-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dist-bar-lbl{width:72px;font-size:11px;color:var(--sub);text-align:right;flex-shrink:0}
+.dist-bar-track{flex:1;height:7px;background:var(--line);border-radius:4px;overflow:hidden}
+.dist-bar-fill{height:100%;border-radius:4px}
+.dist-bar-pct{width:36px;font-size:11px;color:var(--ink);text-align:right;flex-shrink:0}
+pre,code{font-family:'Consolas','Fira Code',monospace}
+.code-block{background:rgba(0,0,0,.06);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;overflow-x:auto;font-size:12px;line-height:1.7;margin-bottom:12px}
+@media(prefers-color-scheme:dark){.code-block{background:rgba(0,0,0,.3)}}
+.info-box{background:rgba(42,120,214,.06);border:1px solid rgba(42,120,214,.22);
+  border-radius:8px;padding:12px 15px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── 헤더 ── -->
+  <div class="topnav">
+    <div>
+      <div class="kicker">Lighting Analysis · Experiment Log</div>
+      <h1>조명 분류 실험 기록</h1>
+      <p class="sub">pixel 기반 조명 분류 파이프라인 설계 결정 및 임계값 탐색 기록</p>
+    </div>
+  </div>
+
+  <!-- ── TOC ── -->
+  <div class="toc">
+    <h3>목차</h3>
+    <ol>
+      <li><a href="#exp01">EXP 01 — 공간 분석 없이 vs backlight 감지 추가</a></li>
+    </ol>
+  </div>
+
+  <!-- ════════════ EXP 01 ════════════ -->
+  <div class="exp-card" id="exp01">
+    <div class="exp-hdr">
+      <span class="exp-num">EXP 01</span>
+      <div>
+        <div class="exp-title">공간 분석 없이 vs backlight 감지 추가</div>
+        <div class="exp-meta">단순 밝기 분류 → 배경/중앙 공간 분석으로 역광 감지</div>
+      </div>
+      <span class="exp-chevron">&#9658;</span>
+    </div>
+    <div class="exp-body">
+
+      <!-- 영상 선택 -->
+      <div class="vid-sel">
+        <label>영상 선택</label>
+        <select id="sel01"></select>
+        <button onclick="loadExp01()" style="padding:4px 12px;border:1px solid var(--line);
+          border-radius:6px;background:var(--card);color:var(--ink);cursor:pointer;font-size:13px">
+          불러오기
+        </button>
+        <span id="load-status01" class="sub"></span>
+      </div>
+
+      <!-- 플레이어 -->
+      <div class="player-wrap"><video id="v01" controls preload="metadata"></video></div>
+
+      <!-- Before / After 패널 -->
+      <div class="ba-grid">
+        <div class="ba-panel before">
+          <div class="ba-kicker">BEFORE — mean_brightness 단독</div>
+          <div class="ba-panel-hdr">
+            <span class="badge" id="b01-label">-</span>
+            <span class="ba-time" id="b01-time">-</span>
+          </div>
+          <div class="stat-row"><span class="stat-label">mean brightness</span>
+            <div class="bar-wrap"><div class="bar-fill" id="b01-bar-mb"></div></div>
+            <span class="stat-val" id="b01-val-mb">-</span></div>
+          <div class="stat-row"><span class="stat-label">shadow ratio</span>
+            <div class="bar-wrap"><div class="bar-fill" id="b01-bar-sh"></div></div>
+            <span class="stat-val" id="b01-val-sh">-</span></div>
+        </div>
+        <div class="ba-panel after">
+          <div class="ba-kicker">AFTER — 공간 분석 + backlight</div>
+          <div class="ba-panel-hdr">
+            <span class="badge" id="a01-label">-</span>
+            <span class="ba-time" id="a01-time">-</span>
+          </div>
+          <div class="stat-row"><span class="stat-label">bg/center ratio</span>
+            <div class="bar-wrap"><div class="center-tick"></div><div class="bar-fill" id="a01-bar-bg"></div></div>
+            <span class="stat-val" id="a01-val-bg">-</span></div>
+          <div class="stat-row"><span class="stat-label">center brightness</span>
+            <div class="bar-wrap"><div class="bar-fill" id="a01-bar-cb"></div></div>
+            <span class="stat-val" id="a01-val-cb">-</span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- 문제 / 해결 -->
+      <div class="section-lbl">문제 & 해결</div>
+      <div class="problem-box">
+        <strong>문제:</strong> mean_brightness 단독 분류는 역광(backlight) 을 감지할 수 없다.
+        역광 씬은 배경(하늘, 창문)이 밝고 주 피사체가 어두워 <em>전체</em> 평균 밝기는 중간값에 머무른다.
+        단순 임계값으로는 high_key / low_key 도 아닌 normal 로 분류된다.
+      </div>
+      <div class="fix-box">
+        <strong>해결:</strong> 프레임을 중앙 영역(40-60% 세로, 40-80% 가로)과 외곽 배경으로 분리.
+        bg_center_ratio &gt; 1.45 이고 배경 밝기 &gt; 115, 중앙 밝기 &lt; 105 이면 <code>backlight</code> 로 분류.
+        나머지는 기존 mean_brightness 기반 high/low key 규칙 유지.
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- 분류 규칙 -->
+      <div class="section-lbl">분류 규칙</div>
+      <div class="code-block"><pre>
+# classifier.py — classify_frame()
+def classify_frame(stats):
+    # 역광: 배경 밝고 중앙 어두움
+    if (stats["bg_center_ratio"] &gt; 1.45
+            and stats["bg_brightness"] &gt; 115.0
+            and stats["center_brightness"] &lt; 105.0):
+        return "backlight"
+
+    # 하이키: 전체 밝고 그림자 적음
+    if stats["mean_brightness"] &gt; 155.0 and stats["shadow_ratio"] &lt; 0.12:
+        return "high_key"
+
+    # 로우키: 전체 어둡고 그림자 많음
+    if stats["mean_brightness"] &lt; 82.0 and stats["shadow_ratio"] &gt; 0.38:
+        return "low_key"
+
+    return "normal"</pre></div>
+
+      <!-- 분포 비교 (동적으로 채워짐) -->
+      <div class="section-lbl" style="margin-top:4px">레이블 분포 비교</div>
+      <div class="dist-compare">
+        <div class="dist-panel" id="dist-before01">
+          <h4>Before (mean_brightness 단독)</h4>
+          <p class="sub" style="font-size:12px">영상을 선택 후 불러오기</p>
+        </div>
+        <div class="dist-panel" id="dist-after01">
+          <h4>After (공간 분석 포함)</h4>
+          <p class="sub" style="font-size:12px">영상을 선택 후 불러오기</p>
+        </div>
+      </div>
+
+    </div><!-- exp-body -->
+  </div><!-- exp-card -->
+
+</div><!-- wrap -->
+
+<script>
+const COLORS={
+  high_key: ['#e8a82e','#fef8e8'],
+  low_key:  ['#4a5568','#edf0f5'],
+  backlight:['#d05a1a','#fff0e6'],
+  normal:   ['#1baf7a','#e6f7f1'],
+};
+function fc(l){return (COLORS[l]||['#9aa4b5','#f0f2f5']);}
+
+// ── Accordion ─────────────────────────────────────────────────────────────────
+const _LOADERS={'exp01':()=>initExp01Sel()};
+document.querySelectorAll('.exp-hdr').forEach(hdr=>{
+  hdr.addEventListener('click',()=>{
+    const card=hdr.closest('.exp-card');
+    const opening=!card.classList.contains('open');
+    card.classList.toggle('open');
+    if(opening&&!card.dataset.loaded){
+      card.dataset.loaded='1';
+      const loader=_LOADERS[card.id];
+      if(loader) loader();
+    } else if(!opening){
+      const vid=card.querySelector('video');
+      if(vid&&!vid.paused) vid.pause();
+    }
+  });
+});
+
+// ── EXP 01 ────────────────────────────────────────────────────────────────────
+let _e01={before:[],after:[],fps:30,step:30};
+let _e01map={};let _e01last=-1;
+const e01player=document.getElementById('v01');
+
+async function initExp01Sel(){
+  const sel=document.getElementById('sel01');
+  sel.innerHTML='<option value="">-- 영상 없음 --</option>';
+  try{
+    const vids=await fetch('/api/videos').then(r=>r.json());
+    vids.forEach(vid=>{
+      const o=document.createElement('option'); o.value=vid; o.textContent=vid;
+      sel.appendChild(o);
+    });
+    if(vids.length) sel.value=vids[0];
+  }catch(e){ sel.innerHTML='<option>서버 연결 실패</option>'; }
+}
+
+async function loadExp01(){
+  const vid=document.getElementById('sel01').value;
+  if(!vid) return;
+  const st=document.getElementById('load-status01');
+  st.textContent='로딩 중…';
+  try{
+    const data=await fetch('/api/exp01/'+vid).then(r=>r.json());
+    if(data.error){st.textContent='오류: '+data.error; return;}
+    _e01=data; _e01map={}; _e01last=-1;
+    data.before.forEach((f,i)=>_e01map[f.frame]=i);
+    e01player.src='/media/'+vid;
+    st.textContent='✓ 로드 완료 ('+data.before.length+'프레임)';
+    renderDist('dist-before01','Before (mean_brightness 단독)',data.before);
+    renderDist('dist-after01', 'After (공간 분석 포함)',       data.after);
+    if(data.before.length){updateE01Panel(data.before[0],data.after[0]);}
+  }catch(e){ st.textContent='오류: '+e; }
+}
+
+e01player.addEventListener('timeupdate',()=>{
+  if(!_e01.before.length) return;
+  const frame=Math.floor(e01player.currentTime*_e01.fps);
+  const bucket=Math.floor(frame/_e01.step)*_e01.step;
+  const idx=_e01map[bucket];
+  if(idx===undefined||idx===_e01last) return;
+  _e01last=idx;
+  updateE01Panel(_e01.before[idx],_e01.after[idx]);
+});
+
+function updateE01Panel(bf,af){
+  if(!bf||!af) return;
+  const bs=bf.stats; const as_=af.stats;
+
+  const [bfg,bbg]=fc(bf.label);
+  const bEl=document.getElementById('b01-label');
+  bEl.textContent=bf.label; bEl.style.color=bfg; bEl.style.background=bbg;
+  document.getElementById('b01-time').textContent='frame '+bf.frame+' ('+bf.time+'s)';
+  setBar('b01-bar-mb','b01-val-mb',bs.mean_brightness,255,'#e8a82e',false,null);
+  setBar('b01-bar-sh','b01-val-sh',bs.shadow_ratio,1,'#4a5568',false,'%×100');
+
+  const [afg,abg]=fc(af.label);
+  const aEl=document.getElementById('a01-label');
+  aEl.textContent=af.label; aEl.style.color=afg; aEl.style.background=abg;
+  document.getElementById('a01-time').textContent='frame '+af.frame+' ('+af.time+'s)';
+  setCenteredBar('a01-bar-bg','a01-val-bg',as_.bg_center_ratio,2.5,'#d05a1a','#2a78d6');
+  setBar('a01-bar-cb','a01-val-cb',as_.center_brightness,255,'#1baf7a',false,null);
+}
+
+function setBar(barId,valId,val,max,color,signed,fmt){
+  const el=document.getElementById(barId);
+  const pct=Math.min(100,(val/max)*100);
+  el.style.left='0'; el.style.width=pct+'%'; el.style.background=color;
+  const v=fmt==='%×100'?(val*100).toFixed(1)+'%':val.toFixed(0);
+  document.getElementById(valId).textContent=v;
+}
+function setCenteredBar(barId,valId,val,maxAbs,posColor,negColor){
+  const el=document.getElementById(barId);
+  const pct=Math.min(50,(Math.abs(val)/maxAbs)*50);
+  if(val>=1){el.style.left='50%';el.style.width=pct+'%';el.style.background=posColor;}
+  else{el.style.left=(50-pct)+'%';el.style.width=pct+'%';el.style.background=negColor;}
+  document.getElementById(valId).textContent=val.toFixed(2);
+}
+
+function renderDist(panelId,title,frames){
+  const panel=document.getElementById(panelId);
+  const counts={};
+  frames.forEach(f=>counts[f.label]=(counts[f.label]||0)+1);
+  const total=frames.length||1;
+  const order=['high_key','low_key','backlight','normal'];
+  let html=`<h4>${title}</h4>`;
+  for(const lbl of order){
+    const cnt=counts[lbl]||0;
+    const pct=(cnt/total*100).toFixed(1);
+    const [fg]=fc(lbl);
+    html+=`<div class="dist-bar-row">
+      <span class="dist-bar-lbl">${lbl}</span>
+      <div class="dist-bar-track"><div class="dist-bar-fill" style="width:${pct}%;background:${fg}"></div></div>
+      <span class="dist-bar-pct">${pct}%</span>
+    </div>`;
+  }
+  panel.innerHTML=html;
+}
+</script>
+</body>
+</html>

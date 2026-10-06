@@ -59,7 +59,9 @@ RUN pip install --no-cache-dir --break-system-packages \
     beautifulsoup4 \
     curl_cffi \
     anthropic \
-    "mcp[cli]"
+    "mcp[cli]" \
+    torchvision \
+    yt-dlp
 
 # whisper-diarization: diarize.py + helpers.py + diarization 서브패키지 설치
 RUN git clone --depth 1 https://github.com/MahmoudAshraf97/whisper-diarization.git \
