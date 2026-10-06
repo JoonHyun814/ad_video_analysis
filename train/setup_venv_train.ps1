@@ -6,10 +6,10 @@
 # 참고: unsloth/bitsandbytes는 리눅스 기준으로 개발되어 네이티브 Windows에서
 # 설치·동작이 불안정할 수 있다. 문제가 생기면 WSL2 또는 train_pipeline/Dockerfile 사용을 권장한다.
 
-$envFile = Join-Path $PSScriptRoot "env\python.env"
+$envFile = Join-Path $PSScriptRoot "..\env\python.env"
 
 if (-not (Test-Path $envFile)) {
-    Write-Error "env\python.env 파일을 찾을 수 없습니다: $envFile"
+    Write-Error "env/python.env 파일을 찾을 수 없습니다: $envFile"
     exit 1
 }
 

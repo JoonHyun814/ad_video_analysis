@@ -42,7 +42,7 @@ $logOut = Join-Path $LogDir "creative_batch_out.log"
 $logErr = Join-Path $LogDir "creative_batch_err.log"
 
 $argList = @(
-    "run_batch.py",
+    "analysis/run_batch.py",
     "--video_ids", $VideoIds,
     "--module", "evaluation",
     "--interval", "$IntervalSeconds",

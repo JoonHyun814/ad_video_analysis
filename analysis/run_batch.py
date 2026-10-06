@@ -28,10 +28,10 @@ import time
 from pathlib import Path
 
 _MODULES = {
-    "pipeline": "pipeline.cli",
-    "evaluation": "evaluation.cli",
-    "category": "evaluation.category_cli",
-    "concept": "evaluation.concept_cli",
+    "pipeline": "analysis.pipeline.cli",
+    "evaluation": "analysis.evaluation.cli",
+    "category": "analysis.evaluation.category_cli",
+    "concept": "analysis.evaluation.concept_cli",
 }
 
 # DB 조회 없이 로컬 디렉토리 기반으로 동작하는 모듈

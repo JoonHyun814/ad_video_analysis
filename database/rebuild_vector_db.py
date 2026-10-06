@@ -98,7 +98,7 @@ def _process_one(video_id: int, backend: str, log_path: Path) -> tuple[bool, boo
 
     # --db_path 를 안 준다 — ad_concept_production/run.py 기본값이 두 컬렉션을 각자의
     # data/<collection>/ 에 자동으로 나눠 적재한다(db_path_for).
-    cmd = [sys.executable, "-m", "evaluation.cli", "--mode", "ad_concept_production",
+    cmd = [sys.executable, "-m", "analysis.evaluation.cli", "--mode", "ad_concept_production",
            "--video_id", str(video_id), "--data_dir", str(_DATA_DIR),
            "--llm_backend", backend]
     _log(log_path, f"  $ {' '.join(cmd[2:])}")

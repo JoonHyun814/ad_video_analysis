@@ -2,7 +2,7 @@
   "mcpServers": {
     "chromadb-explorer": {
       "command": "C:\\Analysis_workspace\\ad_video_analysis\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "db.chromadb.mcp_server"],
+      "args": ["-m", "database.server.mcp_server"],
       "cwd": "C:\\Analysis_workspace\\ad_video_analysis\\ad_video_analysis"
     }
   }
