@@ -1,9 +1,8 @@
 {
   "mcpServers": {
     "chromadb-explorer": {
-      "command": "C:\\Analysis_workspace\\ad_video_analysis\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "database.server.mcp_server"],
-      "cwd": "C:\\Analysis_workspace\\ad_video_analysis\\ad_video_analysis"
+      "command": "powershell.exe",
+      "args": ["-NonInteractive", "-File", "database\\server\\start_mcp.ps1"]
     }
   }
 }
