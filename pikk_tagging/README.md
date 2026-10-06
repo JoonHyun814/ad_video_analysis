@@ -16,6 +16,21 @@
 | [`shot_size/`](shot_size/README.md) | 샷 사이즈 (CU·MS·WS 등) | 예정 |
 | [`focus/`](focus/README.md) | 포커스 패턴 (shallow_dof·rack_focus 등) | 예정 |
 | [`angle/`](angle/README.md) | 카메라 앵글 (eye_level·high·low·dutch 등) | 예정 |
+| [`LLM/`](LLM/README.md) | Vision LLM (Qwen2.5-VL) 기반 다중 도메인 분류 | ✅ 구현 완료 |
+
+---
+
+## Vision LLM 파이프라인 (`LLM/`)
+
+Qwen2.5-VL 로컬 모델로 fps=2 프레임별 태그를 생성하고 도메인별 대표 태그를 추출한다.  
+motion 도메인은 다중 프레임 컨텍스트가 필요하므로 제외.
+
+```bash
+python -m pikk_tagging.LLM.cli --video path/to/video.mp4 --target_domain angle,focus
+python -m pikk_tagging.LLM.viewer  # http://localhost:5007
+```
+
+자세한 옵션 → [`LLM/README.md`](LLM/README.md)
 
 ---
 
