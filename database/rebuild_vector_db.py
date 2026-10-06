@@ -28,8 +28,11 @@ import sys
 import time
 from pathlib import Path
 
+from utils.env_loader import load_env
+
 _REPO_ROOT = Path(__file__).parent
-_SOURCE_ROOT = Path(r"C:\Analysis_workspace\ad_video_analysis\output\total")  # 읽기 전용, 절대 쓰지 않음
+_ENV = load_env(_REPO_ROOT.parent / "env" / "data.env")
+_SOURCE_ROOT = Path(_ENV.get("SOURCE_ROOT", r"C:\Analysis_workspace\ad_video_analysis\output\total"))  # 읽기 전용
 _DATA_DIR = _REPO_ROOT / "data" / "ad_concept_production"
 
 _CONCEPT_OUT = "concept_analysis.json"

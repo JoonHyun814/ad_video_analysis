@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """광고 영상 모션 분석 결과 뷰어 (Flask).
 
 python -m pikk_tagging.motion.optical_flow.viewer
@@ -12,8 +13,8 @@ try:
 except ImportError:
     raise SystemExit("pip install flask")
 
-_OUT_BASE = Path(r"C:\Users\llm\workspace\outputs\pikk_output\videos")
-_VIDEO_BASE = Path(r"C:\Users\llm\workspace\outputs\pikk_output\motion_test")
+_OUT_BASE = get_data_root() / "pikk_output\videos"
+_VIDEO_BASE = get_data_root() / "pikk_output\motion_test"
 app = Flask(__name__)
 
 

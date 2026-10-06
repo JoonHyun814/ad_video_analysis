@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """RAFT 광학 흐름 CLI.
 
 컷 감지 → 샷 단위 RAFT (샷당 프레임 쌍 1개, 태그 1개).
@@ -15,7 +16,7 @@ from pathlib import Path
 
 import cv2
 
-_DEFAULT_OUT = Path(r"C:\Users\llm\workspace\outputs\pikk_output\RAFT")
+_DEFAULT_OUT = get_data_root() / "pikk_output\RAFT"
 
 
 def _save_flow_viz(sr, viz_dir: Path) -> str | None:

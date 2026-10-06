@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """RAFT 분석 결과 뷰어 (Flask).
 
 python -m pikk_tagging.motion.RAFT.viewer
@@ -13,7 +14,7 @@ try:
 except ImportError:
     raise SystemExit("pip install flask")
 
-_RAFT_BASE = Path(r"C:\Users\llm\workspace\outputs\pikk_output\RAFT")
+_RAFT_BASE = get_data_root() / "pikk_output\RAFT"
 
 app = Flask(__name__)
 

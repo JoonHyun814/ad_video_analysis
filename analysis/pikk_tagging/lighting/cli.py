@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """조명 분류 파이프라인 CLI.
 
 python -m pikk_tagging.lighting.cli --video path/to/video.mp4
@@ -18,7 +19,7 @@ from analysis.pikk_tagging.lighting.analyzer import analyze_video
 from analysis.pikk_tagging.lighting.classifier import temporal_smooth
 from analysis.pikk_tagging.lighting.io import save_results
 
-_DEFAULT_OUT = Path(r"C:\Users\llm\workspace\outputs\pikk_output\lighting")
+_DEFAULT_OUT = get_data_root() / "pikk_output\lighting"
 
 
 def _run(video: Path, step: int, min_frames: int, out_dir: Path) -> None:

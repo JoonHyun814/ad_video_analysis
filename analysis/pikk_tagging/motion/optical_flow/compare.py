@@ -8,19 +8,21 @@ import json
 import sys
 from pathlib import Path
 
+from utils.env_loader import get_data_root
 from .shot_detect import detect_shots, shots_summary, find_shot_for_ts, extract_shot_frames
 from .flow_utils import log
 from . import farneback as fb_mod
 from . import lucas_kanade as lk_mod
 from ..OSH.feature_match import motion_for_shot as osh_motion_for_shot
 
-_SQL_PATH = Path(r"C:\Users\llm\workspace\outputs\stills_pikk.sql")
+_SQL_PATH = get_data_root() / "stills_pikk.sql"
+_MOTION_TEST_BASE = get_data_root() / "pikk_output" / "motion_test"
 
 TEST_CASES = [
-    {"video_id": "81HnwNayElo", "ts": 24, "sql_tag": "슬로우 줌인 (Slow Push-in)",    "expected": "zoom_in",  "path": r"C:\Users\llm\workspace\outputs\pikk_output\motion_test\81HnwNayElo\81HnwNayElo.mp4"},
-    {"video_id": "DtQWxnQAwec", "ts": 7,  "sql_tag": "카메라 줌 아웃(Zoom-out) 연출",  "expected": "zoom_out", "path": r"C:\Users\llm\workspace\outputs\pikk_output\motion_test\DtQWxnQAwec\DtQWxnQAwec.mp4"},
-    {"video_id": "7SDum-LuYZg", "ts": 45, "sql_tag": "패닝 샷",                       "expected": "pan",      "path": r"C:\Users\llm\workspace\outputs\pikk_output\motion_test\7SDum-LuYZg\7SDum-LuYZg.mp4"},
-    {"video_id": "IEd24npXNUI", "ts": 22, "sql_tag": "클로즈업→풀샷 반전 줌아웃",       "expected": "zoom_out", "path": r"C:\Users\llm\workspace\outputs\pikk_output\motion_test\IEd24npXNUI\IEd24npXNUI.mp4"},
+    {"video_id": "81HnwNayElo", "ts": 24, "sql_tag": "슬로우 줌인 (Slow Push-in)",    "expected": "zoom_in",  "path": _MOTION_TEST_BASE / "81HnwNayElo" / "81HnwNayElo.mp4"},
+    {"video_id": "DtQWxnQAwec", "ts": 7,  "sql_tag": "카메라 줌 아웃(Zoom-out) 연출",  "expected": "zoom_out", "path": _MOTION_TEST_BASE / "DtQWxnQAwec" / "DtQWxnQAwec.mp4"},
+    {"video_id": "7SDum-LuYZg", "ts": 45, "sql_tag": "패닝 샷",                       "expected": "pan",      "path": _MOTION_TEST_BASE / "7SDum-LuYZg" / "7SDum-LuYZg.mp4"},
+    {"video_id": "IEd24npXNUI", "ts": 22, "sql_tag": "클로즈업→풀샷 반전 줌아웃",       "expected": "zoom_out", "path": _MOTION_TEST_BASE / "IEd24npXNUI" / "IEd24npXNUI.mp4"},
 ]
 
 # SQL visual_elements → 정규화된 모션 레이블

@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """카메라 앵글 분류 결과 뷰어 (Flask, 포트 5006).
 
 python -m pikk_tagging.angle.viewer
@@ -17,7 +18,7 @@ try:
 except ImportError:
     raise SystemExit("pip install flask")
 
-_BASE    = Path(r"C:\Users\llm\workspace\outputs\pikk_output\angle")
+_BASE    = get_data_root() / "pikk_output\angle"
 _GT_FILE = _BASE / "video_gt_tags.json"
 app      = Flask(__name__)
 

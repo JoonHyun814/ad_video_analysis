@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """RAFT_step 분석 결과 뷰어 (Flask, 포트 5002).
 
 홈: 영상 목록 (step=5, smooth 적용)
@@ -26,7 +27,7 @@ try:
 except ImportError as e:
     raise SystemExit(f"smooth.py import 실패: {e}")
 
-_STEP_BASE = Path(r"C:\Users\llm\workspace\outputs\pikk_output\RAFT_step_s5")
+_STEP_BASE = get_data_root() / "pikk_output\RAFT_step_s5"
 app = Flask(__name__)
 
 

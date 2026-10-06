@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """VL 분석 결과 뷰어 (Flask, 포트 5007).
 
 홈: 영상 목록 + 도메인별 대표 태그 + GT 태그
@@ -20,7 +21,7 @@ try:
 except ImportError:
     raise SystemExit("pip install flask")
 
-_BASE    = Path(r"C:\Users\llm\workspace\outputs\pikk_output\LLM\qwen_vl")
+_BASE    = get_data_root() / "pikk_output\LLM\qwen_vl"
 _GT_FILE = _BASE / "video_gt_tags.json"
 app      = Flask(__name__)
 

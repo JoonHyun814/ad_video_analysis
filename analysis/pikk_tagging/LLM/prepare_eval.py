@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """SQL 덤프에서 도메인별 레이블당 영상 1개를 추출해 VL 평가 계획을 생성.
 
 1. stills_pikk.sql 파싱 → 레이블별 youtube_id 결정
@@ -49,9 +50,9 @@ _TAG_MAP: dict[tuple[str, str], tuple[int, str]] = {
     ("focus",     "팬포커스"):        (1009, "딥 포커스"),
 }
 
-_SQL_DEFAULT  = Path(r"C:\Users\llm\workspace\outputs\stills_pikk.sql")
-_OUT_DEFAULT  = Path(r"C:\Users\llm\workspace\outputs\pikk_output\LLM\qwen_vl")
-_VID_DEFAULT  = Path(r"C:\Users\llm\workspace\outputs\pikk_output\videos")
+_SQL_DEFAULT  = get_data_root() / "stills_pikk.sql"
+_OUT_DEFAULT  = get_data_root() / "pikk_output\LLM\qwen_vl"
+_VID_DEFAULT  = get_data_root() / "pikk_output\videos"
 
 _SCENE_TAG_RE = re.compile(r"^\s*\((\d+),\s*(\d+),\s*\d+\)")
 _SCENE_ROW_RE = re.compile(r"^\s*\((\d+),\s*'([^'\\]*(?:\\.[^'\\]*)*)'")

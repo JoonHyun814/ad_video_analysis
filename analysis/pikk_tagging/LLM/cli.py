@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """Qwen VL 기반 pikk 도메인 분류 파이프라인 CLI.
 
 python -m pikk_tagging.LLM.cli --video path/to/video.mp4
@@ -21,7 +22,7 @@ from analysis.pikk_tagging.LLM.io import save_results
 from analysis.pikk_tagging.LLM.prompts import DOMAIN_LABELS
 
 _DEFAULT_MODEL = Path(r"D:\models\Qwen2.5-VL-7B-Instruct")
-_DEFAULT_OUT   = Path(r"C:\Users\llm\workspace\outputs\pikk_output\LLM\qwen_vl")
+_DEFAULT_OUT   = get_data_root() / "pikk_output\LLM\qwen_vl"
 _ALL_DOMAINS   = list(DOMAIN_LABELS.keys())
 
 

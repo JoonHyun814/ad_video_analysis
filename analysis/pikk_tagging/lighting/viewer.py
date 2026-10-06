@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """조명 분류 결과 뷰어 (Flask, 포트 5003).
 
 홈: 영상 목록 + 레이블 분포 바
@@ -20,7 +21,7 @@ try:
 except ImportError:
     raise SystemExit("pip install flask")
 
-_BASE    = Path(r"C:\Users\llm\workspace\outputs\pikk_output\lighting")
+_BASE    = get_data_root() / "pikk_output\lighting"
 _GT_FILE = _BASE / "video_gt_tags.json"
 app      = Flask(__name__)
 

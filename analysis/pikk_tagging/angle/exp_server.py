@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """카메라 앵글 실험 기록 뷰어 (Flask, 포트 8086).
 
 EXP 01: roll_angle 만 사용 vs roll_angle + horizon 추정
@@ -21,7 +22,7 @@ except ImportError:
 
 from analysis.pikk_tagging.angle.classifier import temporal_smooth
 
-_BASE    = Path(r"C:\Users\llm\workspace\outputs\pikk_output\angle")
+_BASE    = get_data_root() / "pikk_output\angle"
 _DOCS    = Path(__file__).parent / "docs"
 _EXP_HTML = _DOCS / "experiment_log.html"
 app      = Flask(__name__)

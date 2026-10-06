@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """실험 기록 서버 — before/after 태깅 비교 (포트 8080).
 
 python -m pikk_tagging.motion.RAFT_step.exp_server
@@ -23,10 +24,10 @@ from analysis.pikk_tagging.motion.RAFT_step.smooth import (
     _rolling_sum_stats, temporal_filter, smooth_and_classify,
 )
 
-_STEP_BASE  = Path(r"C:\Users\llm\workspace\outputs\pikk_output\RAFT_step_s5")
-_STEP10_BASE= Path(r"C:\Users\llm\workspace\outputs\pikk_output\RAFT_step")
-_CUT_BASE   = Path(r"C:\Users\llm\workspace\outputs\pikk_output\RAFT")
-_VIDEO_BASE = Path(r"C:\Users\llm\workspace\outputs\pikk_output\motion_test")
+_STEP_BASE  = get_data_root() / "pikk_output\RAFT_step_s5"
+_STEP10_BASE= get_data_root() / "pikk_output\RAFT_step"
+_CUT_BASE   = get_data_root() / "pikk_output\RAFT"
+_VIDEO_BASE = get_data_root() / "pikk_output\motion_test"
 _DOCS       = Path(__file__).parent.parent / "docs"
 
 app = Flask(__name__)

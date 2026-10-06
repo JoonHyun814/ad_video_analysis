@@ -9,29 +9,31 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from utils.env_loader import get_data_root
 from .flow_utils import video_meta, log
 from . import farneback, lucas_kanade
 
 # ── compare 모드 고정 테스트 케이스 ──────────────────────
+_MOTION_TEST_BASE = get_data_root() / "pikk_output" / "motion_test"
 _TEST_CASES = [
     {
         "video_id": "81HnwNayElo",
-        "path": r"C:\Users\llm\workspace\outputs\pikk_output\motion_test\81HnwNayElo\81HnwNayElo.mp4",
+        "path": _MOTION_TEST_BASE / "81HnwNayElo" / "81HnwNayElo.mp4",
         "ts": 24, "sql_tag": "슬로우 줌인 (Slow Push-in)", "expected": "zoom_in",
     },
     {
         "video_id": "DtQWxnQAwec",
-        "path": r"C:\Users\llm\workspace\outputs\pikk_output\motion_test\DtQWxnQAwec\DtQWxnQAwec.mp4",
+        "path": _MOTION_TEST_BASE / "DtQWxnQAwec" / "DtQWxnQAwec.mp4",
         "ts": 7, "sql_tag": "카메라 줌 아웃(Zoom-out) 연출", "expected": "zoom_out",
     },
     {
         "video_id": "7SDum-LuYZg",
-        "path": r"C:\Users\llm\workspace\outputs\pikk_output\motion_test\7SDum-LuYZg\7SDum-LuYZg.mp4",
+        "path": _MOTION_TEST_BASE / "7SDum-LuYZg" / "7SDum-LuYZg.mp4",
         "ts": 45, "sql_tag": "패닝 샷", "expected": "pan",
     },
     {
         "video_id": "IEd24npXNUI",
-        "path": r"C:\Users\llm\workspace\outputs\pikk_output\motion_test\IEd24npXNUI\IEd24npXNUI.mp4",
+        "path": _MOTION_TEST_BASE / "IEd24npXNUI" / "IEd24npXNUI.mp4",
         "ts": 22, "sql_tag": "클로즈업→풀샷 반전 줌아웃", "expected": "zoom_out",
     },
 ]

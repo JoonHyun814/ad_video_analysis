@@ -18,13 +18,34 @@
 #>
 
 param(
-    [string]$DataDir        = "C:\Analysis_workspace\ad_video_analysis\output\total",
+    [string]$DataDir        = "",
     [string]$VideoIds       = "57,78,119,205,361,498,419,420,421,416,458,468,147,246,366,199,273,276,226,217,198,300,281,430,138,109,384,98,111,52,264,471",
     [int]   $IntervalSeconds = 1800,
-    [string]$RepoRoot       = "C:\Analysis_workspace\ad_video_analysis\ad_video_analysis",
-    [string]$PythonExe      = "C:\Analysis_workspace\ad_video_analysis\.venv\Scripts\python.exe",
-    [string]$LogDir         = "C:\Analysis_workspace\ad_video_analysis\ad_video_analysis\output"
+    [string]$RepoRoot       = "",
+    [string]$PythonExe      = "",
+    [string]$LogDir         = ""
 )
+
+# env 파일에서 경로를 읽어 미제공 파라미터를 채운다
+$_Root    = Resolve-Path (Join-Path $PSScriptRoot "..")
+$_DataEnv = Join-Path $_Root "env\data.env"
+$_PyEnv   = Join-Path $_Root "env\python.env"
+function _ReadEnv($file) {
+    $h = @{}
+    if (Test-Path $file) {
+        Get-Content $file | Where-Object { $_ -match '^\s*\w+=' } | ForEach-Object {
+            if ($_ -match '^(\w+)\s*=\s*"?([^"]*)"?$') { $h[$matches[1]] = $matches[2] }
+        }
+    }
+    return $h
+}
+$_de = _ReadEnv $_DataEnv
+$_pe = _ReadEnv $_PyEnv
+
+if (-not $RepoRoot)  { $RepoRoot  = $_Root }
+if (-not $PythonExe) { $PythonExe = Join-Path $_pe['VENV_PATH'] "Scripts\python.exe" }
+if (-not $DataDir)   { $DataDir   = if ($_de['SOURCE_ROOT']) { $_de['SOURCE_ROOT'] } else { Join-Path $_de['DATA_ROOT'] "total" } }
+if (-not $LogDir)    { $LogDir    = Join-Path $RepoRoot "outputs\logs" }
 
 $ErrorActionPreference = "Stop"
 $env:PYTHONIOENCODING = "utf-8"

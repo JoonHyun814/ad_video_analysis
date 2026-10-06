@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """카메라 앵글 분류 파이프라인 CLI.
 
 python -m pikk_tagging.angle.cli --video path/to/video.mp4
@@ -18,7 +19,7 @@ from analysis.pikk_tagging.angle.analyzer import analyze_video
 from analysis.pikk_tagging.angle.classifier import temporal_smooth
 from analysis.pikk_tagging.angle.io import save_results
 
-_DEFAULT_OUT = Path(r"C:\Users\llm\workspace\outputs\pikk_output\angle\hough_lines")
+_DEFAULT_OUT = get_data_root() / "pikk_output\angle\hough_lines"
 
 
 def _run(video: Path, step: int, min_frames: int, out_dir: Path) -> None:

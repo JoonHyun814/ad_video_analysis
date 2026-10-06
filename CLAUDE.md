@@ -13,8 +13,6 @@
 | `utils/` | 공통 헬퍼 (LLM 호출·JSON 파싱·env 로딩) | [utils/CLAUDE.md](utils/CLAUDE.md) |
 | `env/` | 환경 변수 파일 | [env/CLAUDE.md](env/CLAUDE.md) |
 
-> 리팩토링 진행 중. 기존 코드 일부는 루트 직하(`pikk_tagging/`, `evaluation/`, `pipeline/` 등)에 있을 수 있다.
-
 ---
 
 ## Python 코딩 규칙

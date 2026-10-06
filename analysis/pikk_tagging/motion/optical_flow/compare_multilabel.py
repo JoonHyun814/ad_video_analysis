@@ -10,13 +10,14 @@ from pathlib import Path
 from collections import defaultdict
 
 from .shot_detect import detect_shots, find_shot_for_ts, extract_shot_frames
+from utils.env_loader import get_data_root
 from .flow_utils import log
 from . import farneback as fb_mod
 from . import lucas_kanade as lk_mod
 from ..OSH.feature_match import motion_for_shot as osh_motion_for_shot
 
-_SQL_PATH = Path(r"C:\Users\llm\workspace\outputs\stills_pikk.sql")
-_VIDEO_BASE = Path(r"C:\Users\llm\workspace\outputs\pikk_output\motion_test")
+_SQL_PATH = get_data_root() / "stills_pikk.sql"
+_VIDEO_BASE = get_data_root() / "pikk_output" / "motion_test"
 
 # SQL visual_elements → 정규화된 모션 레이블 (다중 키워드)
 _GT_MAP: list[tuple[str, list[str]]] = [

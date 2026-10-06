@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """eval_plan.json 에 따라 전체 4개 도메인으로 VL 파이프라인을 실행.
 
 python -m pikk_tagging.LLM.run_eval
@@ -19,9 +20,9 @@ from analysis.pikk_tagging.LLM.analyzer import analyze_video
 from analysis.pikk_tagging.LLM.aggregator import compute_dominant_tags
 from analysis.pikk_tagging.LLM.io import save_results
 
-_DEFAULT_PLAN  = Path(r"C:\Users\llm\workspace\outputs\pikk_output\LLM\qwen_vl\eval_plan.json")
+_DEFAULT_PLAN  = get_data_root() / "pikk_output\LLM\qwen_vl\eval_plan.json"
 _DEFAULT_MODEL = Path(r"D:\models\Qwen2.5-VL-7B-Instruct")
-_DEFAULT_OUT   = Path(r"C:\Users\llm\workspace\outputs\pikk_output\LLM\qwen_vl")
+_DEFAULT_OUT   = get_data_root() / "pikk_output\LLM\qwen_vl"
 _ALL_DOMAINS   = ["angle", "shot_size", "lighting", "focus"]
 
 

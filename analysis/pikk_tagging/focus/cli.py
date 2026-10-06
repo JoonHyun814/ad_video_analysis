@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """포커스 분류 파이프라인 CLI.
 
 python -m pikk_tagging.focus.cli --video path/to/video.mp4
@@ -18,7 +19,7 @@ from analysis.pikk_tagging.focus.analyzer import analyze_video
 from analysis.pikk_tagging.focus.classifier import temporal_smooth
 from analysis.pikk_tagging.focus.io import save_results
 
-_DEFAULT_OUT = Path(r"C:\Users\llm\workspace\outputs\pikk_output\focus\laplacian")
+_DEFAULT_OUT = get_data_root() / "pikk_output\focus\laplacian"
 
 
 def _run(video: Path, step: int, min_frames: int, out_dir: Path) -> None:

@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """조명 실험 기록 서버 (Flask, 포트 8081).
 
 experiment_log.html 을 서빙하고 before/after 비교 API를 제공한다.
@@ -25,7 +26,7 @@ except ImportError:
 from analysis.pikk_tagging.lighting.classifier import temporal_smooth
 from analysis.pikk_tagging.lighting.io import load_results
 
-_BASE = Path(r"C:\Users\llm\workspace\outputs\pikk_output\lighting")
+_BASE = get_data_root() / "pikk_output\lighting"
 _DOCS = Path(__file__).parent / "docs"
 
 app = Flask(__name__)

@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """포커스 실험 기록 뷰어 (Flask, 포트 8085).
 
 EXP 01: global_sharpness 만 사용 vs center/bg ratio + rack focus 감지
@@ -21,7 +22,7 @@ except ImportError:
 
 from analysis.pikk_tagging.focus.classifier import temporal_smooth
 
-_BASE     = Path(r"C:\Users\llm\workspace\outputs\pikk_output\focus")
+_BASE     = get_data_root() / "pikk_output\focus"
 _DOCS     = Path(__file__).parent / "docs"
 _EXP_HTML = _DOCS / "experiment_log.html"
 app       = Flask(__name__)

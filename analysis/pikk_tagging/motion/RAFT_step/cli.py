@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """RAFT_step CLI — step 간격 dense flow, raw stats 저장.
 
 사용법:
@@ -12,7 +13,7 @@ from pathlib import Path
 
 import cv2
 
-_DEFAULT_OUT = Path(r"C:\Users\llm\workspace\outputs\pikk_output\RAFT_step")
+_DEFAULT_OUT = get_data_root() / "pikk_output\RAFT_step"
 
 
 def _save_flow_viz(results: list, viz_dir: Path) -> None:

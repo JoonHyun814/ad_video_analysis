@@ -5,7 +5,7 @@
 | 파일 | 목적 | 주요 변수 |
 |------|------|-----------|
 | `python.env` | Python 런타임·가상환경 경로 | `PYTHON_PATH`, `VENV_PATH`, `TRAIN_VENV_PATH` |
-| `data.env` | 데이터 출력 루트 경로 | `DATA_ROOT` (`C:\Users\llm\workspace\outputs`) |
+| `data.env` | 데이터 경로 | `DATA_ROOT` (출력 루트), `SOURCE_ROOT` (읽기 전용 원본 소스) |
 | `model.env` | 로컬 모델 루트 경로 | `MODEL_ROOT` (`D:\models`) |
 | `db.env` | DB 접속 정보 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` |
 | `api.env` | 외부 LLM API 키 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` |

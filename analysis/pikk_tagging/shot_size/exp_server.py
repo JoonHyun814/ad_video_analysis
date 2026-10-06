@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """샷 사이즈 실험 기록 뷰어 (Flask, 포트 8084).
 
 EXP 01: 얼굴 감지만 사용 vs 얼굴 + edge fallback
@@ -22,7 +23,7 @@ except ImportError:
 from analysis.pikk_tagging.shot_size.analyzer import analyze_video
 from analysis.pikk_tagging.shot_size.classifier import temporal_smooth
 
-_BASE    = Path(r"C:\Users\llm\workspace\outputs\pikk_output\shot_size")
+_BASE    = get_data_root() / "pikk_output\shot_size"
 _DOCS    = Path(__file__).parent / "docs"
 _EXP_HTML = _DOCS / "experiment_log.html"
 app      = Flask(__name__)

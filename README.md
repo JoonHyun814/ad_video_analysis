@@ -10,7 +10,7 @@
 - **A. Docker** — PyTorch + CUDA + 모든 시스템 패키지가 한 번에 갖춰져 재현이 쉽다. GPU 자원이 있는 서버 권장.
 - **B. venv** — 로컬 Windows 개발용. `setup_venv.ps1` 한 번으로 가상환경을 만든다.
 
-공통 사전 작업: `env/` 디렉토리에 자격증명·경로 파일 배치 (`db.env`, `dir.env`, `api.env`, `python.env`).
+공통 사전 작업: `env/` 디렉토리에 자격증명·경로 파일 배치 (`db.env`, `api.env`, `python.env`, `data.env`, `model.env`).
 
 모든 CLI 는 `ad_video_analysis/` 디렉토리에서 실행한다 (`python -m <package>.cli ...`).
 
@@ -31,7 +31,7 @@ docker run --rm -it --gpus all \
     ad-video-analysis
 
 # 컨테이너 안에서
-python -m pipeline.cli --video_id 349
+python -m analysis.pipeline.cli --video_id 349
 ```
 
 **패키지를 추가/변경할 때**:
@@ -43,66 +43,85 @@ python -m pipeline.cli --video_id 349
 
 ```powershell
 # 1) env/python.env 의 PYTHON_PATH / VENV_PATH 확인
-#    (예: PYTHON_PATH="C:\Python311\python.exe", VENV_PATH="C:\Analysis_workspace\ad_video_analysis\.venv")
+#    (예: PYTHON_PATH="C:\Python311\python.exe", VENV_PATH=".venv")
 
 # 2) 가상환경 생성 + 핵심 패키지 설치
 .\setup_venv.ps1
 
 # 3) 활성화
-. C:\Analysis_workspace\ad_video_analysis\.venv\Scripts\Activate.ps1
+. .\.venv\Scripts\Activate.ps1
 
 # 4) 실행
-python -m pipeline.cli --video_id 349
+python -m analysis.pipeline.cli --video_id 349
 ```
 
 `setup_venv.ps1` 은 최소 의존성(mysql/opencv/scenedetect/easyocr + chromadb/sentence-transformers/tf-keras)만 설치한다. TensorFlow·whisper-diarization·NeMo 등 무거운 패키지는 `setup_venv_full.ps1`(프로젝트 루트) 을 참고해 추가로 설치한다.
 
 **패키지를 추가/변경할 때**: `setup_venv.ps1` 의 `pip install` 라인에도 같은 패키지를 반영해야 다음번 환경 재구성 시 누락되지 않는다.
 
+## 폴더 구조
+
+```
+ad_video_analysis/
+├── analysis/          # 영상 분석 파이프라인 전체
+│   ├── pipeline/      # 영상 → 컷·OCR·STT·BGM·시나리오 12단계
+│   ├── pikk_tagging/  # 컷별 pikk 기법 태깅 (어휘·다수결·검증)
+│   ├── evaluation/    # 시나리오 평가 + 카테고리 추출 + 벡터 적재
+│   ├── mapping_pipeline/  # 외부 영상 cut-scene 매핑
+│   └── Decoding_the_Hook_pipeline/  # 훅 3초 기법 추출
+├── generation/        # 브리프·시나리오 생성 (M1~M7)
+├── train/             # Qwen VL 학습 데이터셋 빌드 + 학습
+├── database/          # DB 저장·조회
+│   ├── video_db/      # MySQL (영상 ID·메타데이터)
+│   ├── vector_db/     # ChromaDB (임베딩 벡터)
+│   ├── pikk_db/       # Pikk 태깅 결과
+│   └── server/        # ChromaDB RAG MCP 서버
+├── utils/             # 공용 헬퍼 (LLM 호출·JSON 파싱·env 로딩)
+└── env/               # 환경 변수 파일 (경로·DB·API 키)
+```
+
 ## 모듈 인덱스
 
-| 모듈 | 역할 | 문서 |
+| 폴더 | 역할 | 문서 |
 |------|------|------|
-| `pipeline/` | 영상 → 컷·OCR·STT·BGM·시나리오 12단계 분석 | [pipeline/README.md](pipeline/README.md) |
-| `pikk_tagging/` | 전처리(pipeline 동일) 후 컷별 pikk 기법 태깅 (닫힌 어휘·다수결·검증) | [pikk_tagging/README.md](pikk_tagging/README.md) |
-| `evaluation/` | 시나리오 평가 + 카테고리 메타데이터 추출 + 벡터 DB 적재 | [evaluation/README.md](evaluation/README.md) |
-| `train_pipeline/` | Qwen VL 학습 데이터셋 빌드 + 학습 | [train_pipeline/README.md](train_pipeline/README.md) |
-| `mapping_pipeline/` | 외부 영상 + 시나리오 텍스트의 cut-scene 매핑 (CLI / FastAPI / Gradio) | [mapping_pipeline/README.md](mapping_pipeline/README.md) |
+| `analysis/pipeline/` | 영상 → 컷·OCR·STT·BGM·시나리오 12단계 분석 | [analysis/pipeline/README.md](analysis/pipeline/README.md) |
+| `analysis/pikk_tagging/` | 컷별 pikk 기법 태깅 (닫힌 어휘·다수결·검증) | [analysis/pikk_tagging/README.md](analysis/pikk_tagging/README.md) |
+| `analysis/evaluation/` | 시나리오 평가 + 카테고리 추출 + 벡터 DB 적재 | [analysis/evaluation/README.md](analysis/evaluation/README.md) |
+| `analysis/mapping_pipeline/` | 외부 영상 + 시나리오의 cut-scene 매핑 (CLI / FastAPI / Gradio) | [analysis/mapping_pipeline/README.md](analysis/mapping_pipeline/README.md) |
 | `generation/` | 브리프·시나리오 생성 (단일 단계 / M1~M7 풀 파이프라인) | [generation/README.md](generation/README.md) |
-| `db/` | MySQL 조회 + ChromaDB 벡터 검색·재임베딩 | [db/README.md](db/README.md) |
-| `database/` | shortform-pipeline 생성 DB(v5runs 등) 조회 + 자산 추출 + scenario_analysis 원본 비교 | [database/README.md](database/README.md) |
+| `train/` | Qwen VL 학습 데이터셋 빌드 + 학습 | [train/README.md](train/README.md) |
+| `database/` | MySQL·ChromaDB·Pikk DB·MCP 서버 | [database/README.md](database/README.md) |
 | `utils/` | 공용 헬퍼 (LLM 호출·JSON 파싱·환경변수 로딩) | [utils/README.md](utils/README.md) |
-| `tools/` | 서드파티 통합 (whisper-diarization 등) | — |
 
-## 배치 실행 — `run_batch.py`
+## 배치 실행 — `analysis/run_batch.py`
 
 여러 영상에 대해 동일 CLI 를 반복 실행한다. `--` 뒤의 인자는 그대로 대상 CLI 로 전달된다.
 
 ```bash
 # pipeline 1~10번
-python run_batch.py --video_ids 1-10 --module pipeline
+python analysis/run_batch.py --video_ids 1-10 --module pipeline
 
 # evaluation: 1·3·5번 시나리오 평가
-python run_batch.py --video_ids 1,3,5 --module evaluation -- --scenario_evaluation
+python analysis/run_batch.py --video_ids 1,3,5 --module evaluation -- --scenario_evaluation
 
 # category: 디렉토리 스캔으로 89·100~105번 적재
-python run_batch.py --video_ids 89,100-105 --module category --data_dir output/product_plan/claude \
+python analysis/run_batch.py --video_ids 89,100-105 --module category --data_dir output/product_plan/claude \
     -- --category_analysis --load_vector
 
 # concept: 컨셉 추출 + 벡터 DB(video_concept) 적재, 89~105번
-python run_batch.py --start_id 89 --module concept --data_dir output/product_plan/claude \
+python analysis/run_batch.py --start_id 89 --module concept --data_dir output/product_plan/claude \
     -- --concept_evaluation --load_vector
 ```
 
 옵션: `--interval N` (영상 사이 대기 초), `--start_id N` (이후 모든 ID 자동 수집).
 
-## 분석 결과 점검 — `check_analysis.py`
+## 분석 결과 점검 — `analysis/check_analysis.py`
 
 `video_id` 별 분석 결과의 누락·파싱 실패를 그룹화한다.
 
 ```bash
-python check_analysis.py --base_dir output/codex --mode scenario   # 기본
-python check_analysis.py --base_dir output/codex --mode brief
+python analysis/check_analysis.py --base_dir output/codex --mode scenario   # 기본
+python analysis/check_analysis.py --base_dir output/codex --mode brief
 ```
 
 ## 입력 파일 검증 — `utils/io_checks.py`

@@ -1,3 +1,4 @@
+from utils.env_loader import get_data_root
 """영상별 분석 결과를 JSON으로 저장.
 
 python -m pikk_tagging.motion.optical_flow.save_analysis [--force]
@@ -14,7 +15,7 @@ from . import farneback as fb_mod
 from . import lucas_kanade as lk_mod
 from ..OSH.feature_match import motion_for_shot as osh_motion_for_shot
 
-_OUT_BASE = Path(r"C:\Users\llm\workspace\outputs\pikk_output\videos")
+_OUT_BASE = get_data_root() / "pikk_output\videos"
 
 
 def analyze_video(
