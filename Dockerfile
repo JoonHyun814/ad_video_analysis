@@ -53,6 +53,7 @@ RUN pip install --no-cache-dir --break-system-packages \
     soundfile \
     chromadb \
     sentence-transformers \
+    bertopic \
     tf-keras \
     duckduckgo-search \
     beautifulsoup4 \

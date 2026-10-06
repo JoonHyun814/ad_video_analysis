@@ -6,6 +6,7 @@ tmp
 unsloth_compiled_cache
 .bkit
 .claude
+.claude_session
 logs
 data
 database/runs.csv
