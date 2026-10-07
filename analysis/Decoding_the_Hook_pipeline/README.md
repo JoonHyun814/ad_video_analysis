@@ -11,7 +11,7 @@
 | 항목 | 논문 | 본 구현 |
 |------|------|---------|
 | 영상 입력 | Meta 내부 광고 데이터 | 기존 프로젝트 `pipeline/video_loader.get_video_info` 로 `video_uploads.id` 조회 |
-| MLLM | Llama Multimodal (버전 미기재) | `claude -p` 또는 `codex exec` (기존 프로젝트와 같은 호출 방식) |
+| MLLM | Llama Multimodal (버전 미기재) | `claude -p` / `codex exec` / Qwen2.5-VL 로컬 모델 (`--llm_backend qwen_vl`) |
 
 ## 실행
 
@@ -26,6 +26,10 @@ $py = "..\..\.venv\Scripts\python.exe"
 & $py -m hook_pipeline.cli extract --video_ids 1-30 --llm_backend codex --sampling random
 & $py -m hook_pipeline.cli extract --video_path D:\ads\sample.mp4
 
+# 로컬 Qwen2.5-VL 사용 (GPU 필요, API 키 불필요)
+& $py -m hook_pipeline.cli extract --video_id 1 --llm_backend qwen_vl
+& $py -m hook_pipeline.cli extract --video_ids 1-30 --llm_backend qwen_vl --qwen_model_path D:\models\Qwen2.5-VL-7B-Instruct
+
 # 2) 코퍼스 토픽화 (output/ 아래 모든 영상, 또는 --video_ids 로 한정) — 최소 10개 문서 필요
 & $py -m hook_pipeline.cli topics
 & $py -m hook_pipeline.cli topics --video_ids 1-30 --nr_topics 5,8,10 --min_cluster_size 3
@@ -37,8 +41,9 @@ $py = "..\..\.venv\Scripts\python.exe"
 |------|--------|------|
 | `--video_id` / `--video_ids` / `--video_path` | — | 셋 중 하나 (기존 `pipeline/cli.py` 와 동일 문법) |
 | `--out_dir` | `output/` | 결과 루트, 하위에 `<video_id>/` 생성 |
-| `--llm_backend` | `claude` | `claude` (`claude -p`) / `codex` (`codex exec`) |
-| `--llm_model` | CLI 기본값 | `claude --model` / `codex -m` 에 전달 |
+| `--llm_backend` | `claude` | `claude` (`claude -p`) / `codex` (`codex exec`) / `qwen_vl` (로컬 Qwen2.5-VL) |
+| `--llm_model` | CLI 기본값 | `claude --model` / `codex -m` 에 전달 (`qwen_vl` 에는 무시됨) |
+| `--qwen_model_path` | `MODEL_ROOT/Qwen2.5-VL-7B-Instruct` | `[qwen_vl]` 로컬 모델 디렉토리 (`env/model.env` 의 `MODEL_ROOT` 기본값) |
 | `--sampling` | `keyframe` | `keyframe` (SSIM) / `random` |
 | `--num_frames` | 8 | [random] m (논문 baseline 의 8프레임과 동일) |
 | `--alpha` | 0.5 | [keyframe] τ = α·max(D) |
@@ -103,7 +108,7 @@ output/
 | `hook_pipeline/frame_sampling.py` | random / SSIM keyframe 샘플링, 프레임 저장 |
 | `hook_pipeline/hook_audio.py` | 훅 오디오 추출, Whisper ASR |
 | `hook_pipeline/acoustic.py` | librosa 음향 피처 |
-| `hook_pipeline/mllm.py` | 논문 프롬프트, `claude -p` / `codex exec` 호출 |
+| `hook_pipeline/mllm.py` | 논문 프롬프트, `claude -p` / `codex exec` / Qwen2.5-VL 로컬 모델 호출 |
 | `hook_pipeline/extract.py` | 영상 1개 처리 흐름 |
 | `hook_pipeline/topics.py` | BERTopic 학습, perplexity 계산·선택 |
 | `hook_pipeline/topics_report.py` | 코퍼스 로드, 토픽 대표값·피처 테이블 저장 |

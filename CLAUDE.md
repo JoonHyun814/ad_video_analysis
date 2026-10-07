@@ -12,6 +12,7 @@
 | `database/` | 영상 ID DB · 벡터 DB · Pikk DB | [database/CLAUDE.md](database/CLAUDE.md) |
 | `utils/` | 공통 헬퍼 (LLM 호출·JSON 파싱·env 로딩) | [utils/CLAUDE.md](utils/CLAUDE.md) |
 | `env/` | 환경 변수 파일 | [env/CLAUDE.md](env/CLAUDE.md) |
+| `local/` | 현재 개발 머신 전용 스크립트 (git 제외) | [local/CLAUDE.md](local/CLAUDE.md) |
 
 ---
 

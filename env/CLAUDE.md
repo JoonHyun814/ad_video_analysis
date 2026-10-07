@@ -8,6 +8,7 @@
 | `data.env` | 데이터 경로 | `DATA_ROOT` (출력 루트), `SOURCE_ROOT` (읽기 전용 원본 소스) |
 | `model.env` | 로컬 모델 루트 경로 | `MODEL_ROOT` (`D:\models`) |
 | `db.env` | DB 접속 정보 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` |
+| `ssh.env` | 원격 서버 SSH 접속 및 SSHFS 마운트 설정 | `SSH_HOST`, `SSH_USER`, `SSH_PASSWORD`, `REMOTE_VIDEO_DIR`, `SSHFS_MOUNT_DRIVE`, `SSH_TUNNEL_LOCAL_PORT` |
 | `api.env` | 외부 LLM API 키 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` |
 | `v5_category_db.env` | generation 카테고리 분류용 외부 RDS (읽기 전용) | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` |
 

@@ -7,28 +7,62 @@ from hook_pipeline.video_source import VideoSource, expand_id_range, from_path, 
 
 def run_extract_command(args: argparse.Namespace) -> None:
     """영상 목록을 순회하며 extract 단계를 실행한다. 한 영상이 실패해도 나머지는 계속 처리한다."""
+    from hook_pipeline.camera_motion import release_raft
     from hook_pipeline.extract import ExtractOptions, run_extract
     from hook_pipeline.hook_audio import release_asr
+    from hook_pipeline.mllm import release_qwen
 
     opt = ExtractOptions(
         out_root=args.out_dir, sampling=args.sampling, num_frames=args.num_frames, alpha=args.alpha,
         min_interval=args.min_interval, seed=args.seed, hook_sec=args.hook_sec,
         llm_backend=args.llm_backend, llm_model=args.llm_model, asr_model=args.asr_model,
         asr_language=None if args.asr_language == "auto" else args.asr_language,
+        qwen_model_path=getattr(args, "qwen_model_path", None),
+        raft_device=getattr(args, "raft_device", "cuda"),
+        raft_model_size=getattr(args, "raft_model_size", "large"),
+        raft_step=getattr(args, "raft_step", 3),
+        raft_model_dir=getattr(args, "raft_model_dir", None),
     )
     targets = _resolve_targets(args)
+
+    # video_id 기반 조회가 있으면 SSH 터널로 DB 연결
+    needs_db = any(not isinstance(t, VideoSource) for t in targets)
+    if needs_db:
+        from utils.ssh_tunnel import mysql_tunnel
+        with mysql_tunnel():
+            _run_batch(targets, opt)
+    else:
+        _run_batch(targets, opt)
+
+    release_asr()
+    release_qwen()
+    release_raft()
+
+
+def _run_batch(targets: list, opt) -> None:
+    from hook_pipeline.extract import ANALYSIS_FILE, run_extract
     failed: list[str] = []
+    skipped: list[str] = []
     for i, target in enumerate(targets, 1):
+        key = target.key if isinstance(target, VideoSource) else str(target)
+        done_marker = opt.out_root / key / ANALYSIS_FILE
+        if done_marker.exists():
+            print(f"\n[{i}/{len(targets)}] {target}  [SKIP - already done]")
+            skipped.append(key)
+            continue
         print(f"\n[{i}/{len(targets)}] {target}")
         try:
             src = target if isinstance(target, VideoSource) else from_video_id(target)
             run_extract(src, opt)
         except Exception as exc:
-            failed.append(str(target))
+            failed.append(key)
             print(f"  [ERROR] {type(exc).__name__}: {exc}")
             traceback.print_exc()
-    release_asr()
-    print(f"\n완료: {len(targets) - len(failed)}/{len(targets)}" + (f"  실패: {', '.join(failed)}" if failed else ""))
+    print(
+        f"\n완료: {len(targets) - len(failed) - len(skipped)}/{len(targets)}"
+        + (f"  스킵: {len(skipped)}" if skipped else "")
+        + (f"  실패: {', '.join(failed)}" if failed else "")
+    )
 
 
 def _resolve_targets(args: argparse.Namespace) -> list:

@@ -31,8 +31,11 @@ def _add_video_args(p: argparse.ArgumentParser) -> None:
 def _add_extract_args(p: argparse.ArgumentParser) -> None:
     _add_video_args(p)
     p.add_argument("--video_path", type=Path, default=None, help="영상 파일 직접 지정 (DB 조회 생략)")
-    p.add_argument("--llm_backend", choices=LLM_BACKENDS, default="claude", help="claude -p / codex exec (기본: claude)")
+    p.add_argument("--llm_backend", choices=LLM_BACKENDS, default="claude",
+                   help="claude -p / codex exec / qwen_vl (로컬) (기본: claude)")
     p.add_argument("--llm_model", type=str, default=None, help="claude --model / codex -m 에 전달할 모델명")
+    p.add_argument("--qwen_model_path", type=str, default=None,
+                   help="[qwen_vl] 로컬 모델 디렉토리 경로 (기본: env/model.env MODEL_ROOT/Qwen2.5-VL-7B-Instruct)")
     p.add_argument("--sampling", choices=("keyframe", "random"), default="keyframe", help="프레임 샘플링 전략 (기본: keyframe)")
     p.add_argument("--num_frames", type=int, default=8, help="[random] 샘플링 프레임 수 m (기본: 8)")
     p.add_argument("--alpha", type=float, default=0.5, help="[keyframe] τ = α·max(D) 의 α (기본: 0.5)")
@@ -41,6 +44,14 @@ def _add_extract_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--hook_sec", type=float, default=HOOK_SEC, help=f"훅 구간 길이(초) (기본: {HOOK_SEC})")
     p.add_argument("--asr_model", type=str, default="medium", help="faster-whisper 모델 (기본: medium)")
     p.add_argument("--asr_language", type=str, default="ko", help="ASR 언어, 'auto' 면 자동 감지 (기본: ko)")
+    p.add_argument("--raft_device", default="cuda", choices=["cpu", "cuda"],
+                   help="RAFT 추론 디바이스 (기본: cuda)")
+    p.add_argument("--raft_model_size", dest="raft_model_size", default="large",
+                   choices=["large", "small"], help="RAFT 모델 크기 (기본: large)")
+    p.add_argument("--raft_step", type=int, default=3,
+                   help="RAFT 프레임 간격 (기본: 3)")
+    p.add_argument("--raft_model_dir", type=str, default=None,
+                   help="RAFT 가중치 캐시 디렉토리 (기본: torch hub 기본값)")
 
 
 def _add_topics_args(p: argparse.ArgumentParser) -> None:

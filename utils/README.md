@@ -13,7 +13,8 @@
 | `claude_api_caller.py` | Anthropic Claude API 호출 (텍스트, CLI 세션 불필요) |
 | `gemini_caller.py` | Gemini API 호출 (텍스트 / 비전) |
 | `openai_caller.py` | OpenAI API 호출 (텍스트 / 비전) |
-| `llm_dispatch.py` | `backend` 인자로 위 넷을 일괄 디스패치 |
+| `qwen_vl_caller.py` | Qwen2.5-VL 로컬 모델 호출 (단일·다중 이미지) |
+| `llm_dispatch.py` | `backend` 인자로 위 넷+로컬을 일괄 디스패치 |
 
 ## `env_loader.py`
 
@@ -110,13 +111,40 @@ API 키는 `env/api.env` 의 `OPENAI_API_KEY` 또는 동명 환경변수에서 �
 from utils.openai_caller import call_openai, call_openai_with_images, DEFAULT_MODEL
 ```
 
+## `qwen_vl_caller.py`
+
+모델 경로는 `env/model.env` 의 `MODEL_ROOT`/`Qwen2.5-VL-7B-Instruct` 또는 호출 시 명시적으로 지정한다.
+`TRANSFORMERS_OFFLINE=1` 로 강제해 로컬 파일만 사용한다.
+
+| 클래스/함수 | 설명 |
+|-------------|------|
+| `QwenVLModel(model_path)` | 모델 로더. `infer(image, prompt, max_new_tokens=32)` (단일 이미지), `infer_multi(images, prompt, max_new_tokens=512)` (다중 이미지 또는 텍스트만) |
+| `InferenceResult` | `text`, `input_tokens`, `output_tokens`, `latency_ms` |
+| `call_qwen_vl(prompt, image_paths, model_path, max_new_tokens)` | 모델을 일회 로드해 추론하고 `{"text": ..., "input_tokens": ..., "output_tokens": ..., "latency_ms": ...}` 반환. 배치에는 `QwenVLModel` 직접 사용 |
+| `DEFAULT_MODEL_NAME` | `"Qwen2.5-VL-7B-Instruct"` |
+
+```python
+# 단일 이미지 (pikk_tagging 방식)
+from utils.qwen_vl_caller import QwenVLModel
+model = QwenVLModel("D:/models/Qwen2.5-VL-7B-Instruct")
+result = model.infer(pil_image, prompt)
+
+# 다중 이미지 (hook pipeline 방식)
+result = model.infer_multi([img1, img2, img3], prompt)
+
+# 일회성 호출
+from utils.qwen_vl_caller import call_qwen_vl
+out = call_qwen_vl(prompt, image_paths=["a.jpg", "b.jpg"])
+```
+
 ## `llm_dispatch.py`
 
 | 함수 | 설명 |
 |------|------|
-| `call_llm(prompt, *, backend="claude", gemini_model="", codex_model=None, claude_api_model="", timeout=300) -> dict` | `backend` 인자(`claude`/`claude_api`/`codex`/`gemini`)에 따라 위 호출을 일괄 라우팅 |
+| `call_llm(prompt, *, backend="claude", gemini_model="", codex_model=None, claude_api_model="", qwen_model_path=None, timeout=300) -> dict` | `backend` 인자(`claude`/`claude_api`/`codex`/`gemini`/`qwen_vl`)에 따라 위 호출을 일괄 라우팅. `qwen_vl` 은 텍스트 전용; 이미지가 필요하면 `qwen_vl_caller.QwenVLModel` 직접 사용 |
 
 ```python
 from utils.llm_dispatch import call_llm
 result = call_llm(prompt, backend=args.llm_backend, gemini_model=args.gemini_model)
+result = call_llm(prompt, backend="qwen_vl", qwen_model_path="D:/models/Qwen2.5-VL-7B-Instruct")
 ```

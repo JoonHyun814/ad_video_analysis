@@ -31,7 +31,8 @@ def fit_best_topic_model(
     """후보 nr_topics 마다 BERTopic 을 학습해 perplexity 가 가장 낮은 모델과 전체 점수표를 반환한다."""
     if len(docs) < MIN_DOCS:
         raise ValueError(f"토픽 모델링에는 최소 {MIN_DOCS}개 문서가 필요합니다 (현재 {len(docs)}개).")
-    embedder = SentenceTransformer(embedding_model)
+    # SM_120(Blackwell)에서 cu126 커널 부재 → 임베딩은 CPU로 강제
+    embedder = SentenceTransformer(embedding_model, device="cpu")
     embeddings = embedder.encode(docs, show_progress_bar=False)
 
     best: TopicFit | None = None
