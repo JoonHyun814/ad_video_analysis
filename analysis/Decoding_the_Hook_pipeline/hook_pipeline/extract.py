@@ -9,9 +9,11 @@ from hook_pipeline.acoustic import extract_acoustic_features
 from hook_pipeline.hook_audio import extract_hook_audio, transcribe
 from hook_pipeline.mllm import extract_methodology
 from hook_pipeline.video_source import VideoSource
+from hook_pipeline.visual_features import extract_visual_features
 
 ANALYSIS_FILE = "hook_analysis.json"
 ACOUSTIC_FILE = "acoustic_features.json"
+VISUAL_FILE = "visual_features.json"
 
 
 @dataclass
@@ -41,22 +43,27 @@ def run_extract(src: VideoSource, opt: ExtractOptions) -> dict:
         shutil.rmtree(out)
     out.mkdir(parents=True)
 
-    print(f"  [1/5] 프레임 샘플링 ({opt.sampling})")
+    print(f"  [1/6] 프레임 샘플링 ({opt.sampling})")
     frames, sampling_meta = _sample_frames(src.path, opt, out)
     _save_json(out / "frames.json", {"frames": frames, **sampling_meta})
     print(f"        {len(frames)}장 선택 (K={sampling_meta['hook_frame_count']}, fps={sampling_meta['fps']:.2f})")
 
-    print("  [2/5] 훅 오디오 추출 + ASR")
+    print("  [2/6] 시각적 피처 추출 (채도·밝기·혼잡도)")
+    visual = extract_visual_features([f["path"] for f in frames])
+    _save_json(out / VISUAL_FILE, visual)
+    print(f"        sat={visual['saturation_mean']}  bri={visual['brightness_mean']}  cmp={visual['complexity_mean']}")
+
+    print("  [3/6] 훅 오디오 추출 + ASR")
     audio = extract_hook_audio(src.path, opt.hook_sec, out / "hook_audio.wav")
     asr = transcribe(audio, opt.asr_model, opt.asr_language) if audio else {"language": None, "text": "", "segments": []}
     _save_json(out / "asr.json", asr)
     print(f"        오디오={'있음' if audio else '없음'}, 전사='{asr['text'][:60]}'")
 
-    print("  [3/5] 음향 피처 추출 (librosa)")
+    print("  [4/6] 음향 피처 추출 (librosa)")
     acoustic = extract_acoustic_features(audio)
     _save_json(out / ACOUSTIC_FILE, acoustic)
 
-    print(f"  [4/5] 카메라 모션 분석 (RAFT step={opt.raft_step})")
+    print(f"  [5/6] 카메라 모션 분석 (RAFT step={opt.raft_step})")
     camera_motion = _analyze_camera_motion(src.path, sampling_meta, opt)
     _save_json(out / "camera_motion.json", camera_motion)
     print(f"        dominant={camera_motion.get('dominant_label')}  n_pairs={camera_motion.get('n_pairs')}")
@@ -64,17 +71,20 @@ def run_extract(src: VideoSource, opt: ExtractOptions) -> dict:
     from hook_pipeline.camera_motion import release_raft
     release_raft()
 
-    print(f"  [5/5] 훅 기법 추출 ({opt.llm_backend})")
+    print(f"  [6/6] 훅 기법 추출 ({opt.llm_backend})")
     llm_out = extract_methodology(
         frames, src.title, asr["text"], opt.llm_backend, opt.hook_sec,
         opt.llm_model, qwen_model_path=opt.qwen_model_path,
-        camera_motion=camera_motion,
+        camera_motion=camera_motion, visual_features=visual,
     )
     analysis = {
         "key": src.key, "video_id": src.video_id, "video_path": str(src.path),
         "title": src.title, "body": asr["text"], "sampling": opt.sampling,
         "frame_times": [f["time_sec"] for f in frames], "llm_backend": opt.llm_backend,
         "camera_dominant_motion": camera_motion.get("dominant_label"),
+        "saturation_mean": visual.get("saturation_mean"),
+        "brightness_mean": visual.get("brightness_mean"),
+        "complexity_mean": visual.get("complexity_mean"),
         **llm_out,
     }
     _save_json(out / ANALYSIS_FILE, analysis)

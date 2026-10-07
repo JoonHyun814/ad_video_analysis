@@ -51,6 +51,7 @@ def extract_methodology(
     model: str | None = None,
     qwen_model_path: str | Path | None = None,
     camera_motion: dict | None = None,
+    visual_features: dict | None = None,
 ) -> dict:
     """{"methodology", "rationale"} 를 반환한다. 파싱 실패 시 1회 재시도 후 error 키를 담아 반환한다."""
     ensure_legacy_on_path()
@@ -60,11 +61,11 @@ def extract_methodology(
     result: dict = {}
     for _ in range(_MAX_ATTEMPTS):
         if backend == "claude":
-            raw = _call_claude(frames, core, hook_sec, model, camera_motion)
+            raw = _call_claude(frames, core, hook_sec, model, camera_motion, visual_features)
         elif backend == "codex":
-            raw = _call_codex(frames, core, hook_sec, model, camera_motion)
+            raw = _call_codex(frames, core, hook_sec, model, camera_motion, visual_features)
         else:
-            raw = _call_qwen_vl(frames, core, hook_sec, qwen_model_path, camera_motion)
+            raw = _call_qwen_vl(frames, core, hook_sec, qwen_model_path, camera_motion, visual_features)
         result = parse_json(raw)
         if isinstance(result.get("methodology"), str) and isinstance(result.get("rationale"), str):
             return {"methodology": result["methodology"].strip(), "rationale": result["rationale"].strip()}
@@ -77,23 +78,33 @@ def build_prompt(
     hook_sec: float,
     backend: str,
     camera_motion: dict | None = None,
+    visual_features: dict | None = None,
 ) -> str:
     """백엔드별 최종 프롬프트 문자열 (디버깅·기록용으로도 사용)."""
     cm_text = _format_camera_motion(camera_motion)
+    vf_text = _format_visual_features(visual_features)
+    context = cm_text + vf_text
     if backend == "claude":
         listing = "\n".join(f"- {f['path']} (t={f['time_sec']:.2f}s)" for f in frames)
-        return _CLAUDE_PREFIX.format(hook_sec=hook_sec, frame_list=listing) + cm_text + core + _SUFFIX
+        return _CLAUDE_PREFIX.format(hook_sec=hook_sec, frame_list=listing) + context + core + _SUFFIX
     if backend == "qwen_vl":
         times = ", ".join(f"{f['time_sec']:.2f}s" for f in frames)
-        return _QWEN_PREFIX.format(hook_sec=hook_sec, times=times) + cm_text + core + _SUFFIX
+        return _QWEN_PREFIX.format(hook_sec=hook_sec, times=times) + context + core + _SUFFIX
     times = ", ".join(f"{f['time_sec']:.2f}s" for f in frames)
-    return _CODEX_PREFIX.format(hook_sec=hook_sec, times=times) + cm_text + core + _SUFFIX
+    return _CODEX_PREFIX.format(hook_sec=hook_sec, times=times) + context + core + _SUFFIX
 
 
 def _format_camera_motion(cm: dict | None) -> str:
     """camera_motion dict → 프롬프트 중간 삽입 텍스트. 데이터 없으면 빈 문자열."""
     from hook_pipeline.camera_motion import format_for_prompt
     return format_for_prompt(cm) + "\n" if cm and cm.get("n_pairs", 0) > 0 else ""
+
+
+def _format_visual_features(vf: dict | None) -> str:
+    """visual_features dict → 프롬프트 중간 삽입 텍스트. 데이터 없으면 빈 문자열."""
+    from hook_pipeline.visual_features import format_for_prompt
+    text = format_for_prompt(vf)
+    return text + "\n" if text else ""
 
 
 def release_qwen() -> None:
@@ -115,6 +126,7 @@ def _call_qwen_vl(
     hook_sec: float,
     model_path: str | Path | None,
     camera_motion: dict | None = None,
+    visual_features: dict | None = None,
 ) -> str:
     global _qwen_model
     from PIL import Image
@@ -128,7 +140,7 @@ def _call_qwen_vl(
         _qwen_model = QwenVLModel(model_path)
 
     images = [Image.open(f["path"]).convert("RGB") for f in frames]
-    prompt = build_prompt(frames, core, hook_sec, "qwen_vl", camera_motion)
+    prompt = build_prompt(frames, core, hook_sec, "qwen_vl", camera_motion, visual_features)
     result = _qwen_model.infer_multi(images, prompt, max_new_tokens=512)
     return result.text
 
@@ -136,8 +148,9 @@ def _call_qwen_vl(
 def _call_claude(
     frames: list[dict], core: str, hook_sec: float, model: str | None,
     camera_motion: dict | None = None,
+    visual_features: dict | None = None,
 ) -> str:
-    prompt = build_prompt(frames, core, hook_sec, "claude", camera_motion)
+    prompt = build_prompt(frames, core, hook_sec, "claude", camera_motion, visual_features)
     frames_dir = str(Path(frames[0]["path"]).parent)
     cmd = [_resolve_exe("claude"), "-p", "--add-dir", frames_dir, "--allowedTools", "Read"]
     if model:
@@ -154,8 +167,9 @@ def _call_claude(
 def _call_codex(
     frames: list[dict], core: str, hook_sec: float, model: str | None,
     camera_motion: dict | None = None,
+    visual_features: dict | None = None,
 ) -> str:
-    prompt = build_prompt(frames, core, hook_sec, "codex", camera_motion)
+    prompt = build_prompt(frames, core, hook_sec, "codex", camera_motion, visual_features)
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
         out_file = Path(f.name)
     cmd = [_resolve_exe("codex"), "exec"]
