@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Dataset Viewer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #0f0f0f; color: #ddd; height: 100vh; display: flex; flex-direction: column; }
+header { padding: 10px 16px; background: #1a1a1a; border-bottom: 1px solid #333; display: flex; gap: 12px; align-items: center; }
+header h1 { font-size: 15px; color: #aaa; font-weight: 400; }
+.tab-btn { padding: 6px 20px; border: 1px solid #444; background: #222; color: #bbb; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.tab-btn.active { background: #2a5aad; color: #fff; border-color: #2a5aad; }
+.tab { display: none; flex: 1; overflow: hidden; }
+.tab.active { display: flex; }
+/* ── Shared layout ── */
+.pane { display: flex; height: 100%; overflow: hidden; }
+.sidebar { width: 210px; min-width: 210px; background: #141414; border-right: 1px solid #2a2a2a; display: flex; flex-direction: column; padding: 10px 8px; gap: 8px; overflow: hidden; }
+.sidebar label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .5px; }
+.sidebar select, .sidebar input[type=text] { width: 100%; padding: 4px 6px; background: #222; border: 1px solid #333; color: #ccc; border-radius: 3px; font-size: 12px; }
+.radio-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.radio-group label { font-size: 12px; color: #bbb; text-transform: none; letter-spacing: 0; cursor: pointer; }
+.list-wrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.list-wrap ul { flex: 1; overflow-y: auto; list-style: none; border: 1px solid #2a2a2a; border-radius: 3px; background: #0d0d0d; }
+.list-wrap ul li { padding: 4px 8px; font-size: 11px; font-family: Consolas, monospace; cursor: pointer; border-bottom: 1px solid #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-wrap ul li:hover { background: #1e2a3a; }
+.list-wrap ul li.sel { background: #1e3a6a; color: #7ab3ff; }
+.list-count { font-size: 10px; color: #555; margin-top: 4px; }
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 12px; gap: 10px; }
+.vid-title { font-size: 13px; color: #aaa; min-height: 18px; }
+.img-row { display: flex; gap: 12px; flex: 1; min-height: 0; }
+.img-box { display: flex; flex-direction: column; gap: 4px; }
+.img-box span { font-size: 10px; color: #666; text-align: center; }
+.img-box img { display: block; max-width: 100%; border: 1px solid #2a2a2a; border-radius: 3px; background: #111; min-width: 200px; min-height: 150px; object-fit: contain; }
+.nav { display: flex; align-items: center; gap: 8px; }
+.nav button { padding: 4px 10px; background: #222; border: 1px solid #333; color: #ccc; border-radius: 3px; cursor: pointer; font-size: 13px; }
+.nav button:hover { background: #333; }
+.nav input[type=range] { flex: 1; accent-color: #2a5aad; }
+.nav span { font-size: 11px; color: #666; min-width: 70px; text-align: right; font-family: Consolas, monospace; }
+/* Hollywood labels */
+.act-labels { font-size: 11px; color: #777; line-height: 1.8; }
+.act-labels .pos { color: #4caf50; }
+.act-labels .neg { color: #f44336; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dataset Viewer</h1>
+  <button class="tab-btn active" onclick="switchTab('dhf1k')">DHF1K</button>
+  <button class="tab-btn" onclick="switchTab('hw2')">Hollywood-2</button>
+</header>
+
+<!-- DHF1K -->
+<div class="tab active" id="tab-dhf1k">
+  <div class="pane">
+    <div class="sidebar">
+      <label>Split</label>
+      <div class="radio-group" id="dhf-split-group">
+        <label><input type="radio" name="dhf-split" value="All" checked onchange="loadVideos()"> All</label>
+        <label><input type="radio" name="dhf-split" value="Train" onchange="loadVideos()"> Train</label>
+        <label><input type="radio" name="dhf-split" value="Val" onchange="loadVideos()"> Val</label>
+        <label><input type="radio" name="dhf-split" value="Test" onchange="loadVideos()"> Test</label>
+      </div>
+      <div class="list-wrap">
+        <label>Videos</label>
+        <ul id="dhf-list"></ul>
+        <div class="list-count" id="dhf-count"></div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="vid-title" id="dhf-title">← 영상을 선택하세요</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+        <span style="font-size:11px;color:#888">오버레이:</span>
+        <div class="radio-group">
+          <label><input type="radio" name="dhf-mode" value="original" onchange="reloadDhfFrame()"> 원본</label>
+          <label><input type="radio" name="dhf-mode" value="sal" checked onchange="reloadDhfFrame()"> Saliency</label>
+          <label><input type="radio" name="dhf-mode" value="fix" onchange="reloadDhfFrame()"> Fixation</label>
+          <label><input type="radio" name="dhf-mode" value="both" onchange="reloadDhfFrame()"> Both</label>
+        </div>
+      </div>
+      <div class="img-row">
+        <div class="img-box">
+          <span id="dhf-mode-label">Saliency overlay</span>
+          <img id="dhf-frame-img" src="" style="max-width:640px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="img-box"><span>Saliency Map</span><img id="dhf-sal" src="" style="max-width:220px"></div>
+          <div class="img-box"><span>Fixation Map</span><img id="dhf-fix" src="" style="max-width:220px"></div>
+        </div>
+      </div>
+      <div class="nav">
+        <button id="dhf-play-btn" onclick="dhfTogglePlay()" style="min-width:32px">▶</button>
+        <button onclick="dhfStep(-1)">◀</button>
+        <input type="range" id="dhf-slider" min="0" max="0" value="0" oninput="dhfSlide(this.value)">
+        <button onclick="dhfStep(1)">▶︎</button>
+        <span id="dhf-frame-lbl">— / —</span>
+        <select id="dhf-speed" style="background:#222;border:1px solid #333;color:#ccc;border-radius:3px;font-size:11px;padding:2px 4px">
+          <option value="500">0.5x</option>
+          <option value="200" selected>1x</option>
+          <option value="100">2x</option>
+          <option value="50">4x</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hollywood-2 -->
+<div class="tab" id="tab-hw2">
+  <div class="pane">
+    <div class="sidebar">
+      <label>Action</label>
+      <select id="hw2-action" onchange="loadClips()">
+        <option value="All">All</option>
+        <option>AnswerPhone</option><option>DriveCar</option><option>Eat</option>
+        <option>FightPerson</option><option>GetOutCar</option><option>HandShake</option>
+        <option>HugPerson</option><option>Kiss</option><option>Run</option>
+        <option>SitDown</option><option>SitUp</option><option>StandUp</option>
+      </select>
+      <label>Label</label>
+      <div class="radio-group">
+        <label><input type="radio" name="hw2-label" value="All" checked onchange="loadClips()"> All</label>
+        <label><input type="radio" name="hw2-label" value="1" onchange="loadClips()"> +1</label>
+        <label><input type="radio" name="hw2-label" value="-1" onchange="loadClips()"> −1</label>
+      </div>
+      <div class="list-wrap">
+        <label>Clips</label>
+        <ul id="hw2-list"></ul>
+        <div class="list-count" id="hw2-count"></div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="vid-title" id="hw2-title">← 클립을 선택하세요</div>
+      <div class="img-row">
+        <div class="img-box">
+          <span>Frame &nbsp;<label style="font-size:11px;cursor:pointer;text-transform:none;letter-spacing:0"><input type="checkbox" id="gaze-toggle" checked onchange="reloadHw2Frame()"> Gaze overlay</label> &nbsp;<span id="gaze-info" style="color:#666;font-size:10px"></span></span>
+          <img id="hw2-frame" src="">
+          <div id="gaze-legend" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px"></div>
+        </div>
+        <div class="act-labels" id="hw2-labels"></div>
+      </div>
+      <div class="nav">
+        <button id="hw2-play-btn" onclick="hw2TogglePlay()" style="min-width:32px">▶</button>
+        <button onclick="hw2Step(-1)">◀</button>
+        <input type="range" id="hw2-slider" min="0" max="0" value="0" oninput="hw2Slide(this.value)">
+        <button onclick="hw2Step(1)">▶︎</button>
+        <span id="hw2-frame-lbl">— / —</span>
+        <select id="hw2-speed" style="background:#222;border:1px solid #333;color:#ccc;border-radius:3px;font-size:11px;padding:2px 4px">
+          <option value="500">0.5x</option>
+          <option value="200" selected>1x</option>
+          <option value="100">2x</option>
+          <option value="50">4x</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ── DHF1K ─────────────────────────────────────────────────────────────────────
+let dhfFrames = [], dhfIdx = 0, dhfVid = '';
+
+async function loadVideos() {
+  const split = document.querySelector('input[name="dhf-split"]:checked').value;
+  const data = await fetch(`/api/dhf1k/videos?split=${split}`).then(r => r.json());
+  const ul = document.getElementById('dhf-list');
+  ul.innerHTML = data.map(v =>
+    `<li onclick="selectVideo('${v.id}', this)">${v.id}  [${v.split}]  ${v.frames}f</li>`
+  ).join('');
+  document.getElementById('dhf-count').textContent = `총 ${data.length}개`;
+}
+
+async function selectVideo(vid, el) {
+  document.querySelectorAll('#dhf-list li').forEach(l => l.classList.remove('sel'));
+  el.classList.add('sel');
+  dhfVid = vid;
+  dhfFrames = await fetch(`/api/dhf1k/frames?vid=${vid}`).then(r => r.json());
+  const sl = document.getElementById('dhf-slider');
+  sl.max = dhfFrames.length - 1; sl.value = 0;
+  document.getElementById('dhf-title').textContent = `영상 ${vid}`;
+  dhfIdx = 0;
+  showDhfFrame(0);
+}
+
+const _MODE_LABELS = {original:'원본 프레임', sal:'Saliency overlay (JET)', fix:'Fixation overlay', both:'Saliency + Fixation'};
+
+async function showDhfFrame(idx) {
+  if (!dhfFrames.length) return;
+  const f = dhfFrames[idx];
+  const t = Date.now();
+  const mode = document.querySelector('input[name="dhf-mode"]:checked').value;
+  document.getElementById('dhf-mode-label').textContent = _MODE_LABELS[mode] || mode;
+
+  // 오버레이 프레임
+  const resp = await fetch(`/api/dhf1k/frame?vid=${dhfVid}&idx=${idx}&mode=${mode}&t=${t}`);
+  if (resp.ok) {
+    const blob = await resp.blob();
+    const old = document.getElementById('dhf-frame-img').src;
+    if (old && old.startsWith('blob:')) URL.revokeObjectURL(old);
+    document.getElementById('dhf-frame-img').src = URL.createObjectURL(blob);
+  }
+
+  // 사이드 맵 (작게)
+  document.getElementById('dhf-sal').src = `/api/dhf1k/image?vid=${dhfVid}&frame=${f}&kind=sal&t=${t}`;
+  document.getElementById('dhf-fix').src = `/api/dhf1k/image?vid=${dhfVid}&frame=${f}&kind=fix&t=${t}`;
+  document.getElementById('dhf-frame-lbl').textContent = `${idx+1} / ${dhfFrames.length}`;
+  dhfIdx = idx;
+  document.getElementById('dhf-slider').value = idx;
+}
+
+function reloadDhfFrame() { if (dhfVid) showDhfFrame(dhfIdx); }
+function dhfSlide(v) { dhfStopPlay(); showDhfFrame(parseInt(v)); }
+function dhfStep(d) { dhfStopPlay(); showDhfFrame(Math.max(0, Math.min(dhfFrames.length-1, dhfIdx+d))); }
+
+// ── DHF1K 재생 ────────────────────────────────────────────────────────────────
+let dhfPlaying = false, dhfTimer = null;
+
+function dhfTogglePlay() {
+  dhfPlaying ? dhfStopPlay() : dhfStartPlay();
+}
+function dhfStartPlay() {
+  if (!dhfFrames.length) return;
+  dhfPlaying = true;
+  document.getElementById('dhf-play-btn').textContent = '⏸';
+  dhfPlayStep();
+}
+function dhfStopPlay() {
+  dhfPlaying = false;
+  clearTimeout(dhfTimer);
+  document.getElementById('dhf-play-btn').textContent = '▶';
+}
+async function dhfPlayStep() {
+  if (!dhfPlaying) return;
+  const next = dhfIdx + 1;
+  if (next >= dhfFrames.length) { dhfStopPlay(); return; }
+  await showDhfFrame(next);
+  if (dhfPlaying) {
+    const delay = parseInt(document.getElementById('dhf-speed').value);
+    dhfTimer = setTimeout(dhfPlayStep, delay);
+  }
+}
+
+// ── Hollywood-2 ───────────────────────────────────────────────────────────────
+let hw2Clip = '', hw2Total = 0, hw2Idx = 0;
+
+async function loadClips() {
+  const action = document.getElementById('hw2-action').value;
+  const label = document.querySelector('input[name="hw2-label"]:checked').value;
+  const data = await fetch(`/api/hw2/clips?action=${action}&label=${label}`).then(r => r.json());
+  const ul = document.getElementById('hw2-list');
+  ul.innerHTML = data.map(c =>
+    `<li onclick="selectClip('${c.id}', this)">${c.id} <span style="color:#4caf50">+${c.pos}</span>/<span style="color:#f44336">-${c.neg}</span></li>`
+  ).join('');
+  document.getElementById('hw2-count').textContent = `총 ${data.length}개`;
+}
+
+async function selectClip(cid, el) {
+  document.querySelectorAll('#hw2-list li').forEach(l => l.classList.remove('sel'));
+  el.classList.add('sel');
+  hw2Clip = cid; hw2Idx = 0;
+  document.getElementById('hw2-title').textContent = `클립: ${cid}`;
+  const labels = await fetch(`/api/hw2/labels?clip=${cid}`).then(r => r.json());
+  document.getElementById('hw2-labels').innerHTML =
+    Object.entries(labels).sort().map(([a, v]) =>
+      `<span class="${v===1?'pos':'neg'}">${v===1?'✓':'✗'} ${a}</span><br>`
+    ).join('');
+  await loadHw2Frame(0);
+}
+
+const _GAZE_COLORS = ['#ff5050','#50c850','#508cff','#ffc832','#c850ff'];
+const _GAZE_LABELS = ['s0','s1','s2','s3','s4'];
+
+async function loadHw2Frame(idx) {
+  const gaze = document.getElementById('gaze-toggle').checked ? 1 : 0;
+  const resp = await fetch(`/api/hw2/frame?clip=${hw2Clip}&idx=${idx}&gaze=${gaze}`);
+  if (!resp.ok) return;
+  hw2Total = parseInt(resp.headers.get('X-Total-Frames') || hw2Total);
+  const nSubjects = parseInt(resp.headers.get('X-Gaze-Subjects') || 0);
+  const blob = await resp.blob();
+  const old = document.getElementById('hw2-frame').src;
+  if (old && old.startsWith('blob:')) URL.revokeObjectURL(old);
+  document.getElementById('hw2-frame').src = URL.createObjectURL(blob);
+  document.getElementById('hw2-frame-lbl').textContent = `${idx+1} / ${hw2Total}`;
+  document.getElementById('hw2-slider').max = hw2Total - 1;
+  document.getElementById('hw2-slider').value = idx;
+  hw2Idx = idx;
+  if (gaze) {
+    document.getElementById('gaze-info').textContent = nSubjects > 0 ? `${nSubjects}명 시선` : '이 클립 gaze 없음';
+    document.getElementById('gaze-legend').innerHTML = Array.from({length: nSubjects}, (_, i) =>
+      `<span style="font-size:10px;color:${_GAZE_COLORS[i%5]}">● ${_GAZE_LABELS[i%5]}</span>`
+    ).join('');
+  } else {
+    document.getElementById('gaze-info').textContent = '';
+    document.getElementById('gaze-legend').innerHTML = '';
+  }
+}
+
+function reloadHw2Frame() { if (hw2Clip) loadHw2Frame(hw2Idx); }
+function hw2Slide(v) { hw2StopPlay(); loadHw2Frame(parseInt(v)); }
+function hw2Step(d) { hw2StopPlay(); loadHw2Frame(Math.max(0, Math.min(hw2Total-1, hw2Idx+d))); }
+
+// ── Hollywood-2 재생 ──────────────────────────────────────────────────────────
+let hw2Playing = false, hw2Timer = null;
+
+function hw2TogglePlay() {
+  hw2Playing ? hw2StopPlay() : hw2StartPlay();
+}
+function hw2StartPlay() {
+  if (!hw2Clip) return;
+  hw2Playing = true;
+  document.getElementById('hw2-play-btn').textContent = '⏸';
+  hw2PlayStep();
+}
+function hw2StopPlay() {
+  hw2Playing = false;
+  clearTimeout(hw2Timer);
+  document.getElementById('hw2-play-btn').textContent = '▶';
+}
+async function hw2PlayStep() {
+  if (!hw2Playing) return;
+  const next = hw2Idx + 1;
+  if (next >= hw2Total) { hw2StopPlay(); return; }
+  await loadHw2Frame(next);
+  if (hw2Playing) {
+    const delay = parseInt(document.getElementById('hw2-speed').value);
+    hw2Timer = setTimeout(hw2PlayStep, delay);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadVideos();
+loadClips();
+</script>
+</body>
+</html>

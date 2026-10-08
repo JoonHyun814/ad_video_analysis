@@ -25,6 +25,26 @@ def get_data_root() -> Path:
     return _PROJECT_ROOT / "outputs"
 
 
+def get_dhf1k_path() -> Path:
+    """env/data.env 의 DHF1K_PATH 를 반환한다."""
+    env_path = _PROJECT_ROOT / "env" / "data.env"
+    if env_path.exists():
+        val = load_env(env_path).get("DHF1K_PATH", "")
+        if val:
+            return Path(val)
+    return Path("D:/dataset/DHF1K")
+
+
+def get_hollywood2_path() -> Path:
+    """env/data.env 의 HOLLYWOOD2_PATH 를 반환한다."""
+    env_path = _PROJECT_ROOT / "env" / "data.env"
+    if env_path.exists():
+        val = load_env(env_path).get("HOLLYWOOD2_PATH", "")
+        if val:
+            return Path(val)
+    return Path("D:/dataset/Hollywood-2/Hollywood2")
+
+
 def get_model_root() -> Path:
     """env/model.env 의 MODEL_ROOT 를 반환한다. 파일이 없으면 기본값을 쓴다."""
     env_path = _PROJECT_ROOT / "env" / "model.env"
