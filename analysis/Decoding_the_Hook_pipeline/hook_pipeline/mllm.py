@@ -1,4 +1,4 @@
-"""논문 3.3 Vision Design Methodology Extractor — 제로샷 프롬프트로 훅의 주요 참여 기법을 추출한다.
+"""논문 3.3 Vision Design Methodology Extractor - 제로샷 프롬프트로 훅의 주요 참여 기법을 추출한다.
 
 논문은 Llama MLLM 을 썼고, 여기서는 claude -p / codex exec / Qwen2.5-VL 로컬 모델을 지원한다.
 """
@@ -14,14 +14,36 @@ LLM_BACKENDS = ("claude", "codex", "qwen_vl")
 _TIMEOUT = 300
 _MAX_ATTEMPTS = 2
 
-# 논문 원문 프롬프트 (변경 없음)
-PAPER_PROMPT = """After examining the video and text advertisement titled "{title}" with the body texts "{body}", determine the primary method used by the advertiser to engage the audience. Base your selection on the actual content of the advertisement without making assumptions or interpretations.
+# 개선된 프롬프트 - 심리적 훅 전략 카테고리 명시, 시각 묘사 대신 engagement 메커니즘 유도
+PAPER_PROMPT = """You are analyzing the HOOK - the first {hook_sec:g} seconds of a video advertisement titled "{title}" with body text "{body}".
+
+Your task: identify the PRIMARY psychological hook strategy the advertiser uses to capture and hold the viewer's attention in these opening seconds.
+
+Choose the BEST-matching strategy from the list below, or name a close variant if none fits exactly:
+
+1. Curiosity Gap - Opens with an unresolved question, mystery, or information gap that compels the viewer to keep watching to find the answer.
+2. Problem–Solution - Immediately surfaces a relatable pain point or frustration, then hints that a solution is coming.
+3. Emotional Trigger - Leads with a strong emotion (excitement, fear, nostalgia, joy, empathy, awe) as the primary attentional hook.
+4. Social Proof - Features real people, user reactions, crowd scenes, or authority figures to create instant credibility or FOMO.
+5. Demonstration - Shows the product or outcome in action (before/after, transformation, real-world use) to prove value visually.
+6. Shock / Surprise - Uses an unexpected visual, statement, or sound to jolt the viewer out of passive scrolling.
+7. Humor / Wit - Deploys comedy, irony, or absurdity to create a positive and memorable first impression.
+8. Direct Address - The on-screen subject speaks or looks directly at the viewer, creating an immediate personal connection.
+9. Narrative Hook - Begins a story, conflict, or scenario whose resolution the viewer wants to witness.
+10. Aesthetic / Sensory Appeal - Relies on striking visual composition, color, texture, or sound design to trigger desire or admiration.
+11. Urgency / Scarcity - Implies time pressure, limited supply, or an exclusive opportunity to trigger immediate action.
+12. Value Proposition - States a clear, compelling benefit or offer in the very first moments to justify continued viewing.
+
+Important rules:
+- Focus on WHY the hook works psychologically, not on describing what is visually shown.
+- The "rationale" must explain the psychological mechanism: what specific element triggers the hook, what cognitive or emotional response it targets, and why a viewer would stop scrolling.
+- Base your answer strictly on what is observable in the provided frames and audio transcript.
 
 Respond using the JSON format.
 **JSON Response Format:**
 {{
-"methodology": "Methodology chosen by the advertiser",
-"rationale": "Provide a concise explanation based on specific elements observed in the advertisement that supports why this option best represents the primary engagement strategy used."
+"methodology": "Strategy name from the list above (or a clear variant)",
+"rationale": "2-3 sentences: name the specific in-video element that activates the hook, explain the psychological response it triggers in the viewer, and state why that response drives continued viewing."
 }}"""
 
 # CLI 에 프레임을 넘기기 위한 안내문 (논문 프롬프트 앞뒤에만 덧붙인다)
@@ -57,7 +79,7 @@ def extract_methodology(
     ensure_legacy_on_path()
     from utils.json_utils import parse_json
 
-    core = PAPER_PROMPT.format(title=title, body=body or "(none)")
+    core = PAPER_PROMPT.format(title=title, body=body or "(none)", hook_sec=hook_sec)
     result: dict = {}
     for _ in range(_MAX_ATTEMPTS):
         if backend == "claude":
