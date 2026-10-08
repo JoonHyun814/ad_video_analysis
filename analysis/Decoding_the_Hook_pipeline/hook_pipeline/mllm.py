@@ -22,6 +22,7 @@ Your task: identify and name the PRIMARY engagement strategy the advertiser uses
 Rules:
 - Do NOT describe what is visually shown (colors, camera angles, shot types). Instead, explain the viewer's internal experience.
 - Name the strategy yourself in 2-5 words. Do not use a predefined list.
+- If the hook works by triggering curiosity or mystery, you MUST specify the exact device that creates it. Use the format "curiosity via [device]" — for example: "curiosity via text question", "curiosity via hidden product reveal", "curiosity via unresolved visual tension", "curiosity via incomplete narrative", "curiosity via unexpected contrast". Do not use a generic label like "Curiosity Gap" or "Mystery Unveiling".
 - The "rationale" must answer three things in 2-3 sentences: (1) what specific element in the opening activates the hook, (2) what psychological or emotional response it triggers in the viewer, and (3) why that response compels the viewer to keep watching.
 
 Respond using the JSON format.
