@@ -14,36 +14,21 @@ LLM_BACKENDS = ("claude", "codex", "qwen_vl")
 _TIMEOUT = 300
 _MAX_ATTEMPTS = 2
 
-# 개선된 프롬프트 - 심리적 훅 전략 카테고리 명시, 시각 묘사 대신 engagement 메커니즘 유도
+# 오픈엔드 프롬프트 - 카테고리 미지정, LLM이 자유롭게 전략 명명, 심리적 메커니즘 서술 유도
 PAPER_PROMPT = """You are analyzing the HOOK - the first {hook_sec:g} seconds of a video advertisement titled "{title}" with body text "{body}".
 
-Your task: identify the PRIMARY psychological hook strategy the advertiser uses to capture and hold the viewer's attention in these opening seconds.
+Your task: identify and name the PRIMARY engagement strategy the advertiser uses to capture the viewer's attention in these opening seconds.
 
-Choose the BEST-matching strategy from the list below, or name a close variant if none fits exactly:
-
-1. Curiosity Gap - Opens with an unresolved question, mystery, or information gap that compels the viewer to keep watching to find the answer.
-2. Problem–Solution - Immediately surfaces a relatable pain point or frustration, then hints that a solution is coming.
-3. Emotional Trigger - Leads with a strong emotion (excitement, fear, nostalgia, joy, empathy, awe) as the primary attentional hook.
-4. Social Proof - Features real people, user reactions, crowd scenes, or authority figures to create instant credibility or FOMO.
-5. Demonstration - Shows the product or outcome in action (before/after, transformation, real-world use) to prove value visually.
-6. Shock / Surprise - Uses an unexpected visual, statement, or sound to jolt the viewer out of passive scrolling.
-7. Humor / Wit - Deploys comedy, irony, or absurdity to create a positive and memorable first impression.
-8. Direct Address - The on-screen subject speaks or looks directly at the viewer, creating an immediate personal connection.
-9. Narrative Hook - Begins a story, conflict, or scenario whose resolution the viewer wants to witness.
-10. Aesthetic / Sensory Appeal - Relies on striking visual composition, color, texture, or sound design to trigger desire or admiration.
-11. Urgency / Scarcity - Implies time pressure, limited supply, or an exclusive opportunity to trigger immediate action.
-12. Value Proposition - States a clear, compelling benefit or offer in the very first moments to justify continued viewing.
-
-Important rules:
-- Focus on WHY the hook works psychologically, not on describing what is visually shown.
-- The "rationale" must explain the psychological mechanism: what specific element triggers the hook, what cognitive or emotional response it targets, and why a viewer would stop scrolling.
-- Base your answer strictly on what is observable in the provided frames and audio transcript.
+Rules:
+- Do NOT describe what is visually shown (colors, camera angles, shot types). Instead, explain the viewer's internal experience.
+- Name the strategy yourself in 2-5 words. Do not use a predefined list.
+- The "rationale" must answer three things in 2-3 sentences: (1) what specific element in the opening activates the hook, (2) what psychological or emotional response it triggers in the viewer, and (3) why that response compels the viewer to keep watching.
 
 Respond using the JSON format.
 **JSON Response Format:**
 {{
-"methodology": "Strategy name from the list above (or a clear variant)",
-"rationale": "2-3 sentences: name the specific in-video element that activates the hook, explain the psychological response it triggers in the viewer, and state why that response drives continued viewing."
+"methodology": "A concise 2-5 word label you create for this engagement strategy",
+"rationale": "2-3 sentences covering: the specific activating element, the psychological/emotional response it triggers, and why that response drives continued viewing."
 }}"""
 
 # CLI 에 프레임을 넘기기 위한 안내문 (논문 프롬프트 앞뒤에만 덧붙인다)
