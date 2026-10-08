@@ -39,7 +39,10 @@ def _split_of(n: int) -> str:
 
 
 def _rar_read(member: str) -> bytes:
-    """bsdtar subprocess로 RAR에서 파일 한 개를 추출한다."""
+    """annotation 파일을 반환한다. 추출된 파일이 있으면 디스크에서, 없으면 bsdtar로."""
+    disk_path = _dhf1k_path / member
+    if disk_path.exists():
+        return disk_path.read_bytes()
     result = subprocess.run(
         [_BSDTAR, "-xf", _rar_path, "-O", member],
         capture_output=True,
